@@ -95,7 +95,7 @@ func (a *structuredAgent) receiveCodex(f codexFrame) {
 			a.loadingModels = false
 			a.modelPage = nil
 		}
-		if id == "host-init" || id == "host-thread" {
+		if id == "host-init" || id == "host-thread" || id == "host-history" {
 			a.completeStartup(fmt.Errorf("app-server handshake rejected: %s", f.Error))
 		}
 		if a.pending[id] == "prompt" || a.pending[id] == "compact" {
@@ -111,6 +111,8 @@ func (a *structuredAgent) receiveCodex(f codexFrame) {
 	switch id {
 	case "host-models":
 		a.receiveModels(f.Result)
+	case "host-history":
+		a.receiveCodexHistory(f.Result)
 	case "host-init":
 		if err := a.send(map[string]any{"method": "initialized"}); err != nil {
 			a.emit("error", err.Error())
@@ -134,12 +136,20 @@ func (a *structuredAgent) receiveCodex(f codexFrame) {
 			} `json:"thread"`
 		}
 		_ = json.Unmarshal(f.Result, &result)
-		a.thread = result.Thread.ID
 		a.model, a.effort = result.Model, result.ReasoningEffort
-		if a.thread == "" {
+		if result.Thread.ID == "" {
 			a.completeStartup(errors.New("app-server did not return a thread ID"))
 			a.emit("error", "app-server did not return a thread ID")
 		} else {
+			if a.resumeConversation != "" {
+				// Resume restores model context, but does not replay the transcript.
+				// Persist history in the new Host log before accepting new turns.
+				a.historyThread = result.Thread.ID
+				a.historyCursors = map[string]bool{}
+				a.requestCodexHistory("")
+				return
+			}
+			a.thread = result.Thread.ID
 			if a.onConversationID != nil {
 				a.onConversationID(a.thread)
 			}

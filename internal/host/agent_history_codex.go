@@ -180,6 +180,11 @@ func readCodexHistory(ctx context.Context, conversationID, cursor string) (map[s
 	if err != nil {
 		return nil, err
 	}
+	return projectCodexHistory(result)
+}
+
+// Shared by the history browser and the durable replay on session resume.
+func projectCodexHistory(result json.RawMessage) (map[string]any, error) {
 	var response struct {
 		Data []struct {
 			Item json.RawMessage `json:"item"`
@@ -188,6 +193,9 @@ func readCodexHistory(ctx context.Context, conversationID, cursor string) (map[s
 	}
 	if err := json.Unmarshal(result, &response); err != nil {
 		return nil, err
+	}
+	if response.Data == nil {
+		return nil, errors.New("Codex history response is missing items")
 	}
 	items := make([]map[string]any, 0)
 	for _, entry := range response.Data {
