@@ -21,7 +21,7 @@ to license. Preserve upstream copyright and license notices. Disclose copied
 or generated code and review its provenance and correctness before submission.
 No copyright assignment or separate contributor agreement is required.
 
-See [maintenance and releases](docs/maintenance.md) for dependency updates and
+See [implemented functionality and checks](docs/completed.md) for dependency updates and
 compatibility rules, and [SECURITY.md](SECURITY.md) for private vulnerability
 reporting.
 
@@ -63,7 +63,7 @@ handoff publicly without disclosing private security or personal information.
 
 ## Adapter contributions and clean builds
 
-Follow the [adapter development guide](docs/agent-adapters.md) for Agent changes.
+Follow the [implemented Agent integration and checks](docs/completed.md) for Agent changes.
 On Linux/macOS with Go 1.26.5+ and a C compiler (for race tests), run
 `sh scripts/check-clean-build.sh` from a source checkout. It copies source to a
 temporary directory, disables parent workspaces and toolchain auto-downloads,

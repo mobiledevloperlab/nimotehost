@@ -4,6 +4,13 @@
 
 ## Unreleased — 1.0.0-dev
 
+- Persist mutation reservations/receipts and evidenced final Agent state; reject
+  conflicting or uncertain retries without replaying work.
+- Add Task-linked sessions, bounded lifecycle history, cursor-based foreground
+  notifications and workspace-guarded existing Git review.
+- Consolidate maintained docs into [completed](docs/completed.md) and
+  [pending](docs/pending.md) functionality; remove historical/duplicate reports.
+
 - Reuse the existing Coder SDK's generic JSON-RPC engine for Codex/ACP sessions
   and history queries; centralize transport lifecycle and approval handoff.
 - Cancel RPC workers before joining on invalid streams, require Bearer authentication,
@@ -29,4 +36,5 @@
 - Cross-platform versioned builds with dependency notices and SHA256 checksums.
 
 These service checks do not cover OS reboot or user logout. Full mobile/Agent
-handoff and unified structured approvals remain outstanding. This is a development preview.
+handoff and real-agent approval acceptance remain outstanding. Structured Codex/ACP
+approval interfaces exist; the umbrella capability stays conservative. This is a development preview.

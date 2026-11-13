@@ -17,7 +17,7 @@ go run ./tools/build
 贡献按 Apache-2.0 提交。只提交你有权授权的内容，保留上游版权和许可证声明。说明复制或
 生成代码的来源，提交前检查授权来源和正确性。不要求版权转让或额外贡献者协议。
 
-依赖更新和兼容性规则见[维护与发布](docs/maintenance.zh-CN.md)；安全问题通过
+依赖更新和兼容性规则见[已实现能力与开发检查](docs/completed.md)；安全问题通过
 [安全政策](SECURITY.zh-CN.md)中规定的私密渠道报告。
 
 涉及用户行为、命令或协议的文档更新，应同步维护中英文版本。命令、JSON 字段、路径和
@@ -47,7 +47,7 @@ SECURITY.md 中的联系流程私下报告。开发预览阶段不保证响应�
 
 ## 适配器贡献与干净构建
 
-Agent 改动遵循[适配器开发指南](docs/agent-adapters.zh-CN.md)。Linux/macOS 安装
+Agent 改动遵循[现有 Agent 集成与开发检查](docs/completed.md)。Linux/macOS 安装
 Go 1.26.5+ 和 C 编译器（race 测试需要）后，在源码目录运行
 `sh scripts/check-clean-build.sh`。脚本将源码复制到临时目录，禁用父工作区和工具链
 自动下载，使用全新模块和构建缓存，下载并校验依赖，运行 race 测试和 vet，再构建完整

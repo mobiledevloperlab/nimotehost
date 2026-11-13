@@ -20,10 +20,6 @@ func TestBilingualDocumentation(t *testing.T) {
 		{"SECURITY.md", "SECURITY.zh-CN.md"},
 		{"CHANGELOG.md", "CHANGELOG.zh-CN.md"},
 		{"THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.zh-CN.md"},
-		{"docs/host.en.md", "docs/host.md"},
-		{"docs/deployment.md", "docs/deployment.zh-CN.md"},
-		{"docs/maintenance.md", "docs/maintenance.zh-CN.md"},
-		{"docs/agent-adapters.md", "docs/agent-adapters.zh-CN.md"},
 	}
 	link := regexp.MustCompile(`\]\(([^)]+)\)`)
 	for _, pair := range pairs {
@@ -50,18 +46,52 @@ func TestBilingualDocumentation(t *testing.T) {
 	}
 }
 
-func TestTranslatedRPCListsMatch(t *testing.T) {
-	endpoint := regexp.MustCompile(`(?m)^\| (GET|POST|DELETE) ([^|]+) \|`)
-	read := func(name string) [][]string {
-		t.Helper()
-		data, err := os.ReadFile(filepath.Join("..", "..", "docs", name))
+func TestFeatureDocumentationLayout(t *testing.T) {
+	directory := filepath.Join("..", "..", "docs")
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			t.Fatalf("unexpected documentation directory: %s", entry.Name())
+		}
+		names = append(names, entry.Name())
+		data, err := os.ReadFile(filepath.Join(directory, entry.Name()))
 		if err != nil {
 			t.Fatal(err)
 		}
-		return endpoint.FindAllStringSubmatch(string(data), -1)
+		if !strings.Contains(string(data), "English") || !strings.Contains(string(data), "简体中文") {
+			t.Fatalf("%s must document the current state in both languages", entry.Name())
+		}
 	}
-	english, chinese := read("host.en.md"), read("host.md")
-	if len(english) == 0 || !reflect.DeepEqual(english, chinese) {
-		t.Fatal("English and Chinese RPC endpoint lists differ")
+	if !reflect.DeepEqual(names, []string{"completed.md", "pending.md"}) {
+		t.Fatalf("docs must contain only completed and pending functionality: %v", names)
+	}
+}
+
+func TestImplementedRPCReference(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "completed.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	endpoint := regexp.MustCompile(`(?m)^\| (GET|POST|DELETE) ([^|]+) \|`)
+	var actual []string
+	for _, match := range endpoint.FindAllStringSubmatch(string(data), -1) {
+		actual = append(actual, match[1]+" "+strings.TrimSpace(match[2]))
+	}
+	expected := []string{
+		"GET /v1/capabilities", "GET /v1/status", "GET /v1/sessions?after=revision",
+		"POST /v1/sessions", "GET /v1/sessions/{id}", "DELETE /v1/sessions/{id}",
+		"POST /v1/sessions/{id}/cancel", "POST /v1/sessions/{id}/input", "POST /v1/sessions/{id}/resize",
+		"GET /v1/sessions/{id}/output?offset=0", "GET /v1/sessions/{id}/agent-state",
+		"POST /v1/sessions/{id}/agent-message", "GET /v1/sessions/{id}/activity?after=sequence",
+		"GET /v1/events?after=revision", "GET /v1/agent-history?agent=...&directory=...&cursor=...",
+		"GET /v1/agent-history/{conversation_id}?agent=...&directory=...&cursor=...",
+		"POST /v1/shutdown-if-idle", "POST /v1/shutdown",
+	}
+	if !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("RPC documentation differs: %v", actual)
 	}
 }

@@ -18,5 +18,5 @@ During the 1.0.0-dev phase, fixes target the latest development version only;
 there is no support or response-time SLA. A public source release is not an
 assertion of a completed independent security audit or native device acceptance.
 
-See [the protocol and execution boundaries](docs/host.en.md) for authentication,
+See [the protocol and execution boundaries](docs/completed.md) for authentication,
 resource limits, terminal/agent behavior and restart semantics.

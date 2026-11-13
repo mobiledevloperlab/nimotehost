@@ -131,7 +131,7 @@ func (p *windowsProcess) Close() error {
 
 // startProcess uses the Win32 process boundary only on Windows. Job-list startup
 // attributes assign the entire process tree atomically, with kill-on-close.
-// See docs/host.md for the Microsoft ConPTY and Job Object contracts.
+// See docs/completed.md for the Microsoft ConPTY and Job Object contracts.
 type windowsProtocolIO struct{ input, stderr *os.File }
 
 func startProcess(cmd *exec.Cmd, interactive bool, output io.Writer) (processHandle, io.ReadWriteCloser, error) {
