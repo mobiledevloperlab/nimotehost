@@ -7,17 +7,14 @@ Nimote Host 是通过既有认证 SSH 使用的独立 Go 服务，可托管持�
 控制面、Tailcat 或公网中继。
 
 当前是 **`1.0.0-dev` 开发预览版**，提供 Linux、macOS、Windows 的 amd64/arm64 构建。
-macOS/Windows 原生服务安装、重启、升级和卸载已在登录用户会话内实机验证；完整移动
-客户端/Agent 验收仍待完成，见[更新记录](CHANGELOG.zh-CN.md)。
+完整原生平台和移动客户端/Agent 验收仍待完成，见[未完成功能](docs/pending.md)。
 
-
-文档与验收材料见[文档索引](docs/README.md)，源码来源见[仓库拆分记录](docs/repository-split.md)。
+当前文档仅保留[已完成功能](docs/completed.md)和[未完成功能](docs/pending.md)。
 
 ## 部署预编译版本
 
-普通用户无需安装 Go。按照[部署指南](docs/deployment.zh-CN.md)下载并校验分发包、
-复制到固定目录、配置当前用户后台服务，再通过 SSH 验证访问。指南提供 Linux/macOS
-及 Windows PowerShell 命令、排障和卸载步骤。
+普通用户无需安装 Go。按照[已实现的安装与服务说明](docs/completed.md#安装与服务--installation)校验完整分发包、
+复制到固定目录、配置当前用户后台服务，再通过 SSH 验证访问。
 
 ## 一键安装
 
@@ -29,7 +26,7 @@ sh scripts/install.sh
 
 也可跨平台直接运行 `go run ./tools/install`（源码安装）。Windows PowerShell 使用 `.\scripts\install.ps1`。安装器校验完整包、复制到固定用户
 目录、注册后台服务并确认就绪；重复执行不重启正常服务。升级保留旧包，并拒绝
-中断活动任务。系统前置条件、旧预览版升级及恢复见[部署指南](docs/deployment.zh-CN.md)。
+中断活动任务。系统前置条件、旧预览版升级及恢复见[安装与服务说明](docs/completed.md#安装与服务--installation)。
 
 ## 构建与运行
 
@@ -52,7 +49,7 @@ go run ./tools/build
 go run ./tools/build -os windows -arch arm64 -version 1.0.0-dev
 ```
 
-完整分发目录包含中英文部署文档、许可证、模块清单、构建信息和 SHA256SUMS。
+完整分发目录包含当前中英文功能说明、许可证、模块清单、构建信息和 SHA256SUMS。
 构建还会生成带版本的 `.tar.gz`（Linux/macOS）或 `.zip`（Windows）以及配套 `.sha256`。也可使用 Bash 包装脚本：
 `./scripts/build-host.sh <os> <arch> [version]`。分发二进制时请保留整个分发目录。
 
@@ -65,9 +62,9 @@ go run ./tools/build -os windows -arch arm64 -version 1.0.0-dev
 - 已认证 SSH exec：`nimote-host rpc` 或 `rpc-encoded`。
 - 本地认证 HTTP RPC：任务/会话管理、终端输入与尺寸调整、按字节偏移恢复输出、持久化事件。
 - stdio MCP：默认只读，写工具必须由本地操作者显式开启。
-- Agent 终端适配：已安装的 Codex、Claude Code 和 OpenCode CLI；尚无统一结构化审批。
+- Agent 终端适配：已安装的 Codex、Claude Code 和 OpenCode CLI；已有 app-server/ACP 结构化审批与原生历史，运行时能力和完整实机验收分别判定。
 
-详细说明：[安装与协议](docs/host.md)、[升级与维护](docs/maintenance.zh-CN.md)、
+详细说明：[已完成功能与协议](docs/completed.md)、[未完成功能与验收](docs/pending.md)、
 [贡献指南](CONTRIBUTING.zh-CN.md)、[安全政策](SECURITY.zh-CN.md)。
 
 ## 开发
@@ -84,5 +81,6 @@ go vet ./...
 ## 许可证
 
 本独立 Host 源码树采用 [Apache-2.0](LICENSE)，版权署名为 2026 Nimote contributors。
+源码从 `nimote-connect/host` 提取，Connect 基线提交为 `4701d14`。
 第三方组件保留各自许可证，见[第三方声明](THIRD_PARTY_NOTICES.zh-CN.md)。许可证和上游
 授权文本保留英文原文；中文说明不替代这些原文。

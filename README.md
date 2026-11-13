@@ -8,19 +8,16 @@ loopback, authenticates every RPC request and requires no Nimote account,
 control plane, Tailcat or public relay.
 
 Host is a **development preview (`1.0.0-dev`)**. It supports Linux/macOS/Windows
-on amd64 and arm64. Native macOS/Windows service setup, restart, upgrade and
-uninstall have been tested in logged-in user sessions. Full mobile-client/Agent
-acceptance remains outstanding; see [CHANGELOG.md](CHANGELOG.md).
+on amd64 and arm64. Full native-platform and mobile/Agent acceptance remains
+outstanding; see
+[pending functionality](docs/pending.md).
 
-
-Documentation and acceptance records: [index](docs/README.md). Repository origin: [source split](docs/repository-split.md).
+Current documentation: [completed functionality](docs/completed.md) and [pending functionality](docs/pending.md).
 
 ## Deploy a prebuilt release
 
-End users do not need Go. Follow the [deployment guide](docs/deployment.md) to
-download and verify a bundle, install it at a fixed path, configure the per-user
-service and verify access through SSH. It includes Linux/macOS and Windows
-PowerShell instructions, diagnostics and uninstall steps.
+End users do not need Go. See [implemented installation and service behavior](docs/completed.md#安装与服务--installation)
+for bundle verification, stable installation paths and the per-user service commands.
 
 ## One-command installation
 
@@ -34,7 +31,7 @@ For source installation, `go run ./tools/install` also works across platforms.
 Windows PowerShell: `.\scripts\install.ps1`. The installer verifies the full bundle,
 installs to a fixed user directory, starts the service and checks readiness.
 Repeating a healthy installation does not restart it. Updates preserve the old
-bundle and refuse to interrupt active tasks. See [deployment](docs/deployment.md)
+bundle and refuse to interrupt active tasks. See [implemented installation behavior](docs/completed.md#安装与服务--installation)
 for prerequisites, older preview upgrades and recovery.
 
 ## Build and run
@@ -58,7 +55,7 @@ For other targets or a versioned distribution:
 go run ./tools/build -os windows -arch arm64 -version 1.0.0-dev
 ```
 
-The complete distribution includes bilingual deployment instructions, licenses,
+The complete distribution includes current bilingual feature documentation, licenses,
 a module manifest, build metadata and SHA256SUMS. Builds also produce a versioned
 `.tar.gz` (Linux/macOS) or `.zip` (Windows) and an adjacent `.sha256`. A Bash wrapper, `./scripts/build-host.sh <os> <arch> [version]`,
 is also available. Preserve the entire distribution when sharing binaries.
@@ -76,10 +73,11 @@ interrupted and does not resurrect their processes.
   byte-offset output replay and persistent state events.
 - Stdio MCP: read-only by default; writes require explicit local opt-in.
 - Agent terminal adapters: installed Codex, Claude Code and OpenCode CLIs.
-  Unified structured approval is not implemented.
+  Structured app-server/ACP approvals and native history are implemented; runtime
+  capabilities and broader real-agent acceptance remain separate.
 
-Read [installation and protocol details](docs/host.en.md),
-[upgrade and maintenance instructions](docs/maintenance.md),
+Read [implemented functionality and protocol](docs/completed.md),
+[pending functionality and acceptance](docs/pending.md),
 [contribution guidelines](CONTRIBUTING.md) and [security policy](SECURITY.md).
 
 ## Development
@@ -97,5 +95,6 @@ the versioned RPC/MCP protocol. Module path: `github.com/mobiledevloperlab/nimot
 ## License
 
 [Apache-2.0](LICENSE), copyright 2026 Nimote contributors. The license applies
-to this standalone Host source tree. Third-party components retain their own
+to this standalone Host source tree, extracted from `nimote-connect/host` at
+Connect commit `4701d14`. Third-party components retain their own
 licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
