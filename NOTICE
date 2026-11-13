@@ -1,0 +1,7 @@
+Nimote Host
+Copyright 2026 Nimote contributors
+
+This distribution includes third-party components under their own licenses.
+See THIRD_PARTY_NOTICES.md and third_party/ (source) or licenses/ (binary).
+The Apache-2.0 license covers the standalone Host tree. It does not grant
+rights to the parent Nimote Connect repository or to Nimote trademarks.

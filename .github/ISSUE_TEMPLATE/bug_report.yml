@@ -1,0 +1,20 @@
+name: Bug report / 缺陷反馈
+description: Report a reproducible Host problem without credentials or private output.
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment / 环境
+      description: Host version, OS/architecture, install method, and service manager.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction / 复现步骤
+      description: Minimal steps, expected behavior, actual result. Redact tokens, paths, and private task output.
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: "For vulnerabilities, follow SECURITY.md and request a private channel. Do not post exploit details or secrets here."

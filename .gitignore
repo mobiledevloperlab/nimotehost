@@ -1,0 +1,18 @@
+/nimote-host
+/nimote-host.exe
+/dist/
+*.test
+*.test.exe
+*.prof
+coverage.out
+.DS_Store
+.idea/
+.vscode/
+.env
+.env.*
+*.pem
+*.key
+
+# Local Python checks
+__pycache__/
+*.pyc
