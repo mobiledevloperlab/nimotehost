@@ -42,10 +42,17 @@ func main() {
 	targetOS := flag.String("os", runtime.GOOS, "linux, darwin or windows")
 	arch := flag.String("arch", runtime.GOARCH, "amd64 or arm64")
 	version := flag.String("version", "1.0.0-dev", "release version")
+	gui := flag.Bool("gui", false, "also build the native Fyne desktop bundle (requires CGO and a native SDK)")
 	flag.Parse()
 	if err := build(*targetOS, *arch, *version); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+	if *gui {
+		if err := buildGUI(*targetOS, *arch, *version); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	}
 }
 func validate(targetOS, arch, version string) error {

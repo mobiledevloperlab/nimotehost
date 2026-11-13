@@ -44,6 +44,11 @@ func NewHostDefault() (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("locate nimote-host executable: %w", err)
 	}
+	return NewHostExecutable(executable)
+}
+
+// NewHostExecutable uses the bundled CLI, never the GUI, for native services.
+func NewHostExecutable(executable string) (*Service, error) {
 	configDir, err := os.UserConfigDir()
 	if err != nil {
 		return nil, fmt.Errorf("locate user configuration directory: %w", err)

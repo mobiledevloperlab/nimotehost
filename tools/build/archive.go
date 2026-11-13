@@ -18,11 +18,14 @@ import (
 // packageDistribution archives only this build's distribution, preserving Unix
 // executable modes. Checksums are adjacent to each versioned download.
 func packageDistribution(directory, targetOS, arch, version string) (string, error) {
+	return packageNamedDistribution(directory, targetOS, arch, version, "nimote-host")
+}
+func packageNamedDistribution(directory, targetOS, arch, version, prefix string) (string, error) {
 	extension := ".tar.gz"
 	if targetOS == "windows" {
 		extension = ".zip"
 	}
-	path := filepath.Join("dist", "nimote-host-"+version+"-"+targetOS+"-"+arch+extension)
+	path := filepath.Join("dist", prefix+"-"+version+"-"+targetOS+"-"+arch+extension)
 	files := []string{}
 	if err := filepath.WalkDir(directory, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
@@ -156,7 +159,7 @@ func addTarFile(writer *tar.Writer, root, path string) error {
 // cannot represent Unix executable bits when cross-packaging Linux/macOS builds.
 func distributionMode(name string) os.FileMode {
 	switch name {
-	case "nimote-host", "nimote-host.exe", "scripts/install.sh":
+	case "nimote-host", "nimote-host.exe", "nimote-host-gui", "nimote-host-gui.exe", "Nimote Host.app/Contents/MacOS/nimote-host", "Nimote Host.app/Contents/MacOS/nimote-host-gui", "scripts/install.sh":
 		return 0755
 	default:
 		return 0644

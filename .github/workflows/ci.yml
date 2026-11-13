@@ -1,6 +1,8 @@
 name: Host CI
 on:
   push:
+    branches: ["**"]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -50,6 +52,8 @@ jobs:
           cache: false
       - run: sh scripts/check-clean-build.sh
   cross-build:
+    env:
+      HOST_VERSION: ${{ inputs.version || '1.0.0-dev' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -60,11 +64,16 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: Use tag version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "HOST_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          fi
       - run: go run ./tools/build -os "$TARGET_OS" -arch "$TARGET_ARCH" -version "$HOST_VERSION"
         env:
           TARGET_OS: ${{ matrix.os }}
           TARGET_ARCH: ${{ matrix.arch }}
-          HOST_VERSION: ${{ inputs.version || '1.0.0-dev' }}
       - uses: actions/upload-artifact@v4
         with:
           name: nimote-host-${{ matrix.os }}-${{ matrix.arch }}
@@ -88,3 +97,74 @@ jobs:
         with:
           name: nimote-host-source
           path: dist/public/nimote-host-source.tar.gz
+
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            os: linux
+            arch: amd64
+          - runner: windows-2025
+            os: windows
+            arch: amd64
+          - runner: macos-15-intel
+            os: darwin
+            arch: amd64
+          - runner: macos-15
+            os: darwin
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    env:
+      HOST_VERSION: ${{ inputs.version || '1.0.0-dev' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            cmd/nimote-host-gui/go.sum
+      - name: Linux desktop dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libxkbcommon-dev
+      - name: Windows C compiler
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo 'C:/msys64/mingw64/bin' >> "$GITHUB_PATH"
+      - name: Use tag version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "HOST_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          fi
+      - name: Desktop unit checks
+        working-directory: cmd/nimote-host-gui
+        run: go test -tags ci ./...
+      - name: Build CLI and native desktop bundle
+        shell: bash
+        run: go run ./tools/build -gui -version "$HOST_VERSION"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nimote-host-gui-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            dist/nimote-host-gui-*-${{ matrix.os }}-${{ matrix.arch }}.*
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [native, clean-source, cross-build, source-export, desktop]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Publish both editions from this tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "$GITHUB_REF_NAME" release-assets/* --verify-tag --generate-notes

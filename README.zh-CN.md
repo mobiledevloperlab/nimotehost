@@ -84,3 +84,34 @@ go vet ./...
 源码从 `nimote-connect/host` 提取，Connect 基线提交为 `4701d14`。
 第三方组件保留各自许可证，见[第三方声明](THIRD_PARTY_NOTICES.zh-CN.md)。许可证和上游
 授权文本保留英文原文；中文说明不替代这些原文。
+
+## Fyne 桌面管理器 / Desktop
+
+CLI 与 GUI 复用现有 Go Host、认证本地 RPC 和三平台用户服务；Fyne 在
+`cmd/nimote-host-gui` 独立 module 中，CLI 不引入图形依赖。
+
+```sh
+go run ./tools/build -gui -version 1.0.0-dev
+```
+
+需在目标系统本机构建并安装 C 编译器/桌面 SDK。产物为
+`nimote-host-gui-<版本>-<系统>-<架构>.tar.gz`（Windows 为 zip），包含 CLI、
+GUI、完整许可证、GUI-MODULES.json 和校验清单；原 CLI 发行包继续单独生成。
+从解压包运行原安装脚本，会把整个包复制到固定目录并启动用户服务：Unix 为
+`~/.local/share/nimote-host`，Windows 为 `%LOCALAPPDATA%/NimoteHost`。
+随后打开安装目录中的 Windows `nimote-host-gui.exe`、macOS `Nimote Host.app`、
+Linux `nimote-host-gui`。Linux desktop 文件需 GUI 在 PATH，或把 Exec 改为绝对路径。
+也可从 `dist/gui-<系统>-<架构>` 直接运行；启用登录启动后不要移动此目录。
+
+首屏管理 Host 启停、重启；Sessions 展示真实会话及结构化 Agent 状态/待审批；
+Settings 提供登录启动、端口、日志级别和 System/Light/Dark；Diagnostics 提供
+健康信息、64 KiB 有界运行日志、诊断复制及导出。配置复用 OS 用户配置目录下
+`nimote-host/config.json`，默认 `127.0.0.1:47831`，修改前需停止 Host。
+GUI 主题与 Linux 托盘偏好由 Fyne 单独持久化。
+
+Windows/macOS 关闭窗口隐藏到托盘；Linux 默认关闭窗口仅退出 GUI，确认有托盘支持
+后可在设置启用。退出 GUI 不停止 Host、SSH 或后台任务；明确 Stop/Restart 才结束
+Host 任务。设备认证继续依赖 SSH 系统账号，当前无逐设备身份/撤销接口，GUI 不伪造
+设备列表，也不改写 SSH 密钥。SSH 由系统管理，诊断不猜测其健康状态。
+详细审计、构建依赖和限制见[已完成](docs/completed.md#desktop-architecture-audit)，
+原生平台与手机验收见[待完成](docs/pending.md)。

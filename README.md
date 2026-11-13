@@ -66,6 +66,48 @@ for foreground operation. This does not configure SSH or install Agent CLIs.
 Tasks outlive client disconnection; Host/OS restart marks unfinished sessions
 interrupted and does not resurrect their processes.
 
+## Desktop edition (Fyne)
+
+The CLI and desktop manager share the existing Go Host and authenticated loopback
+RPC. Desktop dependencies live in `cmd/nimote-host-gui/go.mod`; a CLI build does
+not compile or download Fyne. No mobile protocol or public transport is changed.
+
+```sh
+# Native desktop SDK / C compiler required; also builds the CLI distribution
+go run ./tools/build -gui -version 1.0.0-dev
+# Or: make desktop
+```
+
+Downloads are named `nimote-host-<version>-<os>-<arch>` (CLI) and
+`nimote-host-gui-<version>-<os>-<arch>` (desktop, including CLI). Desktop archives
+include dependency licenses, GUI-MODULES.json and checksums. Run the existing
+installer from the extracted desktop bundle to copy the complete bundle to a stable
+path and start the login service. Then open the installed `nimote-host-gui.exe`
+(Windows), `Nimote Host.app` (macOS), or `nimote-host-gui` (Linux).
+Unix installation: `~/.local/share/nimote-host`; Windows: `%LOCALAPPDATA%/NimoteHost`.
+The Linux `.desktop` file assumes the installed GUI directory is on PATH; copy it
+to `~/.local/share/applications` or set its Exec to the absolute GUI path.
+
+You can also run directly from `dist/gui-<os>-<arch>`; keep that directory stable
+when enabling login startup. Start attaches to a running Host; otherwise it uses
+the installed service or starts an independent background CLI. Closing/quitting
+GUI keeps Host and its sessions alive. Stop/restart explicitly ends Host tasks.
+Linux defaults to normal window close because trays are desktop-dependent; enable
+tray use in Settings only with a working tray. Windows/macOS close hides to tray.
+
+Settings share `config.json` in the existing OS user configuration directory under
+`nimote-host`. Defaults remain port 47831 and log level info; changes require Host
+stopped. The port always binds 127.0.0.1, **not LAN IPs**. SSH remains externally
+managed. Runtime logs are owner-private and bounded at 64 KiB; diagnostic exports
+exclude logs, credentials, command arguments and session contents. GUI preferences
+(theme, Linux tray) are stored separately by Fyne.
+
+Sessions and structured Agent approvals use live existing RPC data. Devices explains
+the current SSH-account identity boundary: per-device identity/revocation is not
+implemented. SSH health is reported as externally managed rather than guessed.
+See [desktop audit, build prerequisites and limits](docs/completed.md#desktop-architecture-audit)
+and [remaining acceptance](docs/pending.md).
+
 ## Interfaces
 
 - Authenticated SSH exec: `nimote-host rpc` or `rpc-encoded`.

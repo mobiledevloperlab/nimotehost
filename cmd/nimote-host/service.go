@@ -100,7 +100,11 @@ func manageService(ctx context.Context, command, dir string, out io.Writer, serv
 	if err := awaitState(ctx, dir, true, call); err != nil {
 		return fmt.Errorf("service command completed, but Host is not ready: %w. %s", err, service.Diagnostics())
 	}
-	_, err = fmt.Fprintln(out, "Host is running on "+host.Address+".\nNext: nimote-host capabilities\nConnect using your existing SSH account and the absolute path to this binary.")
+	address := host.Address
+	if config, configErr := host.ReadConfig(dir); configErr == nil {
+		address = config.Address()
+	}
+	_, err = fmt.Fprintln(out, "Host is running on "+address+".\nNext: nimote-host capabilities\nConnect using your existing SSH account and the absolute path to this binary.")
 	return err
 }
 

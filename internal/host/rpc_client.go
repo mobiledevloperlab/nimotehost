@@ -53,7 +53,11 @@ func Call(ctx context.Context, dir string, req RPCRequest) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	r, err := http.NewRequestWithContext(ctx, req.Method, "http://"+Address+req.Path, bytes.NewReader(req.Body))
+	config, err := ReadConfig(dir)
+	if err != nil {
+		return nil, err
+	}
+	r, err := http.NewRequestWithContext(ctx, req.Method, "http://"+config.Address()+req.Path, bytes.NewReader(req.Body))
 	if err != nil {
 		return nil, err
 	}

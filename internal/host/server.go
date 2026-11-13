@@ -47,11 +47,6 @@ type Server struct {
 // Serve reserves the loopback listener before reading or recovering session
 // state. A second daemon cannot mark the live daemon's processes interrupted.
 func Serve(ctx context.Context, dir string, ready io.Writer) error {
-	listener, err := net.Listen("tcp4", Address)
-	if err != nil {
-		return fmt.Errorf("listen on Host loopback address: %w", err)
-	}
-	defer listener.Close()
 	if err := privateDir(dir); err != nil {
 		return err
 	}
@@ -63,6 +58,15 @@ func Serve(ctx context.Context, dir string, ready io.Writer) error {
 	if err := lockState(lock); err != nil {
 		return fmt.Errorf("Host state is already in use: %w", err)
 	}
+	config, err := ReadConfig(dir)
+	if err != nil {
+		return err
+	}
+	listener, err := net.Listen("tcp4", config.Address())
+	if err != nil {
+		return fmt.Errorf("listen on Host loopback address: %w", err)
+	}
+	defer listener.Close()
 	token, err := loadSecret(dir, "token")
 	if err != nil {
 		return err
@@ -90,9 +94,9 @@ func Serve(ctx context.Context, dir string, ready io.Writer) error {
 			_ = server.Close()
 		}
 	}()
-	slog.Info("Nimote Host listening", "address", Address, "protocol", Protocol)
+	slog.Info("Nimote Host listening", "address", config.Address(), "protocol", Protocol)
 	if ready != nil {
-		_, _ = fmt.Fprintf(ready, "Nimote Host %s listening on %s\n", Version, Address)
+		_, _ = fmt.Fprintf(ready, "Nimote Host %s listening on %s\n", Version, config.Address())
 	}
 	err = server.Serve(listener)
 	cancel()
