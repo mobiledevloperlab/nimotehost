@@ -34,12 +34,12 @@ func TestACPProtocolChild(t *testing.T) {
 			if os.Getenv("NIMOTE_ACP_PROTOCOL_VARIANT") == "timeout" {
 				continue
 			}
-			fmt.Printf("{\"jsonrpc\":\"2.0\",\"id\":%q,\"result\":{\"protocolVersion\":%d,\"futureField\":true}}\n", frame["id"], version)
+			fmt.Printf("{\"jsonrpc\":\"2.0\",\"id\":%v,\"result\":{\"protocolVersion\":%d,\"futureField\":true}}\n", frame["id"], version)
 		case "session/new":
-			fmt.Printf("{\"jsonrpc\":\"2.0\",\"id\":%q,\"result\":{\"sessionId\":\"fake-acp\"}}\n", frame["id"])
+			fmt.Printf("{\"jsonrpc\":\"2.0\",\"id\":%v,\"result\":{\"sessionId\":\"fake-acp\"}}\n", frame["id"])
 		case "session/prompt":
 			fmt.Println(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"fake-acp","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"hello from ACP subprocess"}}}}`)
-			fmt.Printf("{\"jsonrpc\":\"2.0\",\"id\":%q,\"result\":{\"stopReason\":\"end_turn\"}}\n", frame["id"])
+			fmt.Printf("{\"jsonrpc\":\"2.0\",\"id\":%v,\"result\":{\"stopReason\":\"end_turn\"}}\n", frame["id"])
 		}
 	}
 	os.Exit(0)

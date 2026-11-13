@@ -29,10 +29,12 @@ func startStructuredAgent(cmd *exec.Cmd, a *structuredAgent) (processHandle, err
 		return nil, err
 	}
 	defer stderrW.Close()
-	process, _, err := startWindowsProcess(cmd, false, &agentLines{agent: a}, &windowsProtocolIO{input: inputR, stderr: stderrW})
+	a.prepareRPCTransport()
+	process, _, err := startWindowsProcess(cmd, false, &agentLines{writer: a.rpc.writer, onError: a.fail, ready: a.rpc.ready}, &windowsProtocolIO{input: inputR, stderr: stderrW})
 	if err != nil {
 		inputW.Close()
 		stderrR.Close()
+		a.close()
 		return nil, err
 	}
 	_ = inputR.Close()
@@ -41,7 +43,7 @@ func startStructuredAgent(cmd *exec.Cmd, a *structuredAgent) (processHandle, err
 	a.input = inputW
 	a.stopProcess = process.Kill
 	go func() { _, _ = io.Copy(&a.diagnostics, stderrR); close(handle.stderrDone) }()
-	go a.writeLoop()
+	a.startProtocolIO()
 	if err = a.initialize(); err != nil {
 		_ = process.Kill()
 		_, _ = handle.Wait()

@@ -4,6 +4,10 @@
 
 ## 尚未发布 — 1.0.0-dev
 
+- Codex/ACP 会话与历史查询统一复用现有 Coder SDK 的通用 JSON-RPC 引擎，集中维护通信生命周期与审批交接。
+- 异常 RPC 流先取消再等待工作协程；严格要求 Bearer 认证、支持 JSON 媒体类型参数、拒绝超限响应，并隔离会话结果中的可变字段。
+- 拆分 HTTP 历史路由与 RPC 客户端，对齐历史查询、服务端和客户端的超时预算。
+
 - 在已登录用户会话内实测 macOS 26.2/arm64 launchd 与 Windows build 26200/amd64
   Task Scheduler 的安装、重启、空闲升级和卸载。
 - macOS 显式重启重新加载已保存的 LaunchAgent，避免正常关闭后 kickstart 卡住，保留原服务环境。

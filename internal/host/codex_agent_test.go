@@ -15,21 +15,27 @@ func (discardAgentInput) Write(p []byte) (int, error) { return len(p), nil }
 func (discardAgentInput) Close() error                { return nil }
 func testAgent() (*structuredAgent, *bytes.Buffer) {
 	output := &bytes.Buffer{}
-	a := newCodexAgent(output, "/workspace")
+	a := newStructuredAgent("codex", output, "/workspace")
 	a.input = discardAgentInput{}
 	return a, output
 }
 func queuedFrame(t *testing.T, a *structuredAgent) map[string]any {
 	t.Helper()
 	select {
-	case data := <-a.queue:
-		var f map[string]any
-		if err := json.Unmarshal(data, &f); err != nil {
-			t.Fatal(err)
+	case batch := <-a.rpc.queue:
+		if len(batch) != 1 {
+			t.Fatalf("expected single operation, got %v", batch)
 		}
-		return f
+		frame := batch[0]
+		if a.acp != nil {
+			frame["jsonrpc"] = "2.0"
+		}
+		data, _ := json.Marshal(frame)
+		var normalized map[string]any
+		_ = json.Unmarshal(data, &normalized)
+		return normalized
 	default:
-		t.Fatal("no queued RPC frame")
+		t.Fatal("no queued RPC operation")
 		return nil
 	}
 }
@@ -64,7 +70,7 @@ func TestCodexHandshakePromptDedupAndInterrupt(t *testing.T) {
 	if err := a.message(req); err != nil {
 		t.Fatal(err)
 	}
-	if len(a.queue) != 0 {
+	if len(a.rpc.queue) != 0 {
 		t.Fatal("duplicate prompt was dispatched")
 	}
 	if err := a.message(AgentMessage{Action: "prompt", RequestID: "request-2", Text: "second"}); err == nil {
@@ -115,8 +121,8 @@ func TestCodexApprovalsRejectArbitraryResponsesAndUnsupportedRequests(t *testing
 func TestCodexInputQueueBoundsAndTurnErrors(t *testing.T) {
 	a, out := testAgent()
 	a.thread = "thread-1"
-	for i := 0; i < cap(a.queue); i++ {
-		if err := a.send(map[string]string{"method": "test"}); err != nil {
+	for i := 0; i < cap(a.rpc.queue); i++ {
+		if err := a.send(map[string]any{"method": "test"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -126,7 +132,7 @@ func TestCodexInputQueueBoundsAndTurnErrors(t *testing.T) {
 	if a.busy || a.seen["retry"] {
 		t.Fatal("rejected request mutated turn state")
 	}
-	<-a.queue
+	<-a.rpc.queue
 	if err := a.message(AgentMessage{Action: "prompt", RequestID: "retry", Text: "hello"}); err != nil {
 		t.Fatal(err)
 	}
@@ -140,8 +146,8 @@ func TestCodexInputQueueBoundsAndTurnErrors(t *testing.T) {
 	}
 }
 func TestCodexJSONLFraming(t *testing.T) {
-	a, out := testAgent()
-	w := &agentLines{agent: a}
+	out := &bytes.Buffer{}
+	w := &agentLines{writer: out}
 	for _, chunk := range []string{`{"method":"item/agentMessage/`, "delta\",\"params\":{\"delta\":\"你好\"}}\n{\"method\":\"turn/completed\",\"params\":{}}\n"} {
 		if _, err := io.WriteString(w, chunk); err != nil {
 			t.Fatal(err)
@@ -154,3 +160,49 @@ func TestCodexJSONLFraming(t *testing.T) {
 		t.Fatal("unbounded frame accepted")
 	}
 }
+
+// These fixtures test Host projections without replacing the upstream SDK's
+// own transport tests. Integration tests use real SDK connections and pipes.
+func receiveAgentFrameForTest(a *structuredAgent, data []byte) {
+	if a.acp == nil {
+		var frame codexFrame
+		if json.Unmarshal(data, &frame) == nil {
+			a.receiveCodex(frame)
+		}
+		return
+	}
+	var frame struct {
+		ID     json.RawMessage `json:"id"`
+		Method string          `json:"method"`
+		Params json.RawMessage `json:"params"`
+		Result json.RawMessage `json:"result"`
+		Error  json.RawMessage `json:"error"`
+	}
+	_ = json.Unmarshal(data, &frame)
+	if frame.Method == "" {
+		var id string
+		_ = json.Unmarshal(frame.ID, &id)
+		a.receiveACPResult(id, frame.Result, frame.Error)
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.closed {
+		return
+	}
+	if frame.Method == "session/update" {
+		a.updateACP(frame.Params)
+	} else if frame.Method == "session/request_permission" {
+		a.permissionACP(frame.ID, frame.Params)
+	} else if len(frame.ID) > 0 {
+		_ = a.send(map[string]any{"id": frame.ID, "error": map[string]any{"code": -32601}})
+	}
+}
+func queuedAgentOperations(a *structuredAgent) int {
+	if a.acp != nil {
+		return len(a.rpc.queue)
+	}
+	return len(a.rpc.queue)
+}
+
+func (a *structuredAgent) receive(data []byte) { receiveAgentFrameForTest(a, data) }

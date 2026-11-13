@@ -21,7 +21,8 @@ Host 不打包 Agent 可执行程序或系统 SSH，用户自行安装的这些�
 
 ## 协议 SDK 依赖
 
-MCP 使用官方 Go SDK；ACP 历史查询使用 Coder 维护的社区 Go SDK。
+MCP 使用官方 Go SDK。Agent 会话和历史查询统一复用 Coder 社区 ACP Go SDK 的通用
+JSON-RPC 连接，Codex 使用薄线路适配层。
 MCP SDK 的许可证说明了 Apache-2.0 / MIT 的迁移状态；应保留其完整原文。
 间接模块（包括构建和测试依赖）记录于下表及 `third_party/dependencies.json`。
 

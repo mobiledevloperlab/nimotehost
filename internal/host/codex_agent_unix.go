@@ -19,14 +19,16 @@ func startStructuredAgent(cmd *exec.Cmd, a *structuredAgent) (processHandle, err
 		return nil, err
 	}
 	a.input = input
-	cmd.Stdout = &agentLines{agent: a}
+	a.prepareRPCTransport()
+	cmd.Stdout = &agentLines{writer: a.rpc.writer, onError: a.fail, ready: a.rpc.ready}
 	cmd.Stderr = &a.diagnostics
 	if err = cmd.Start(); err != nil {
 		_ = input.Close()
+		a.close()
 		return nil, err
 	}
 	a.stopProcess = func() error { return killProcess(cmd) }
-	go a.writeLoop()
+	a.startProtocolIO()
 	if err = a.initialize(); err != nil {
 		_ = killProcess(cmd)
 		_ = cmd.Wait()

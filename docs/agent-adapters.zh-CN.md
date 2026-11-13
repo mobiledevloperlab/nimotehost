@@ -12,7 +12,8 @@ RPC 和能力字段接入。适配器不应依赖 Nimote 控制面、自动下�
 | --- | --- |
 | 请求校验与命令解析 | `internal/host/manager.go`：Agent 名称白名单、工作目录、参数校验和生命周期集成 |
 | 启动与回退 | `internal/host/agent_compatibility.go`：结构化握手、超时、取消和终端回退 |
-| 结构化会话 | `internal/host/codex_agent.go`：共享状态和 Codex app-server；`internal/host/acp_agent.go`：OpenCode、Claude 的 ACP 处理 |
+| Agent 通信 | `internal/host/agent_rpc.go`：共用 SDK 连接、有界派发、审批响应与清理 |
+| 结构化会话 | `internal/host/agent.go`：共享状态和快照；`internal/host/codex_agent.go`：Codex app-server；`internal/host/acp_agent.go`：OpenCode、Claude 的 ACP 处理 |
 | 平台支持 | `internal/host/` 中平台专属的终端和结构化进程文件；保留构建约束和进程清理 |
 | 能力发现 | `internal/host/protocol.go`：请求、会话字段、工具与能力标记 |
 | RPC 操作 | `internal/host/server.go`：校验、认证边界和语义操作 |

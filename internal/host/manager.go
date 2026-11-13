@@ -328,7 +328,18 @@ func (m *Manager) wait(item *managed) {
 	close(item.done)
 }
 
-func cloneSession(s Session) Session { s.Args = append([]string(nil), s.Args...); return s }
+func cloneSession(s Session) Session {
+	s.Args = append([]string(nil), s.Args...)
+	if s.Finished != nil {
+		finished := *s.Finished
+		s.Finished = &finished
+	}
+	if s.ExitCode != nil {
+		code := *s.ExitCode
+		s.ExitCode = &code
+	}
+	return s
+}
 func (m *Manager) List(after uint64) []Session {
 	m.mu.Lock()
 	defer m.mu.Unlock()

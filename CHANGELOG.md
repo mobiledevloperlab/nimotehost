@@ -4,6 +4,12 @@
 
 ## Unreleased — 1.0.0-dev
 
+- Reuse the existing Coder SDK's generic JSON-RPC engine for Codex/ACP sessions
+  and history queries; centralize transport lifecycle and approval handoff.
+- Cancel RPC workers before joining on invalid streams, require Bearer authentication,
+  accept JSON media-type parameters, reject oversized RPC replies, and isolate mutable session results.
+- Split HTTP history routes and RPC client code; align history query/server/client deadlines.
+
 - Validate native macOS 26.2/arm64 launchd and Windows build 26200/amd64 Task
   Scheduler setup, restart, idle upgrade and uninstall in logged-in user sessions.
 - Reload the saved LaunchAgent definition on explicit restart to avoid a stuck

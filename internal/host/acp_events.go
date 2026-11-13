@@ -135,7 +135,7 @@ func (a *structuredAgent) updateACP(raw json.RawMessage) {
 		}
 	}
 }
-func (a *structuredAgent) permissionACP(id json.RawMessage, raw json.RawMessage) {
+func (a *structuredAgent) permissionACP(id json.RawMessage, raw json.RawMessage) error {
 	var p struct {
 		SessionID string  `json:"sessionId"`
 		Tool      acpTool `json:"toolCall"`
@@ -145,12 +145,10 @@ func (a *structuredAgent) permissionACP(id json.RawMessage, raw json.RawMessage)
 		} `json:"options"`
 	}
 	if json.Unmarshal(raw, &p) != nil || p.SessionID != a.thread || a.thread == "" || p.Tool.ID == "" {
-		_ = a.send(map[string]any{"id": id, "error": map[string]any{"code": -32602, "message": "Invalid ACP permission request"}})
-		return
+		return a.send(map[string]any{"id": id, "error": map[string]any{"code": -32602, "message": "Invalid ACP permission request"}})
 	}
 	if a.acp.canceling || len(a.approvals) >= 64 {
-		_ = a.send(map[string]any{"id": id, "result": map[string]any{"outcome": map[string]string{"outcome": "cancelled"}}})
-		return
+		return a.send(map[string]any{"id": id, "result": map[string]any{"outcome": map[string]string{"outcome": "cancelled"}}})
 	}
 	key := string(id)
 	options := map[string]string{}
@@ -173,4 +171,5 @@ func (a *structuredAgent) permissionACP(id json.RawMessage, raw json.RawMessage)
 	a.acp.options[key] = options
 	a.approvalDetails[key] = detail
 	a.emit("approval", detail)
+	return nil
 }
