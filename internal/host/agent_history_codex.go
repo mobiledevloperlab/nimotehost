@@ -4,21 +4,22 @@
 package host
 
 import (
-	"bufio"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
+
+	acp "github.com/coder/acp-go-sdk"
 )
 
 const maxHistoryPage = 50
-const maxHistoryFrame = 2 << 20
 
 type codexHistoryPage struct {
 	Items      []map[string]any `json:"items"`
@@ -73,72 +74,31 @@ func codexRPC(ctx context.Context, cwd, method string, params any) (json.RawMess
 		_ = cmd.Wait()
 	}()
 
-	reader := bufio.NewScanner(stdout)
-	reader.Buffer(make([]byte, 64<<10), maxHistoryFrame)
-	write := func(frame any) error {
-		data, err := json.Marshal(frame)
-		if err != nil {
-			return err
-		}
-		data = append(data, '\n')
-		_, err = stdin.Write(data)
-		return err
-	}
-	wait := func(id string) (json.RawMessage, error) {
-		for {
-			if !reader.Scan() {
-				if ctx.Err() != nil {
-					return nil, ctx.Err()
-				}
-				if reader.Err() == nil && stderr.String() != "" {
-					return nil, fmt.Errorf("Codex app-server stopped: %s", stderr.String())
-				}
-				if reader.Err() != nil {
-					return nil, fmt.Errorf("read Codex app-server: %w", reader.Err())
-				}
-				return nil, io.EOF
-			}
-			var frame struct {
-				ID     json.RawMessage `json:"id"`
-				Result json.RawMessage `json:"result"`
-				Error  json.RawMessage `json:"error"`
-			}
-			if json.Unmarshal(reader.Bytes(), &frame) != nil || len(frame.ID) == 0 {
-				continue // Ignore valid server notifications and diagnostics.
-			}
-			var responseID string
-			if json.Unmarshal(frame.ID, &responseID) != nil || responseID != id {
-				continue
-			}
-			if len(frame.Error) != 0 && string(frame.Error) != "null" {
-				return nil, fmt.Errorf("Codex %s failed: %s", method, frame.Error)
-			}
-			if len(frame.Result) == 0 || string(frame.Result) == "null" {
-				return nil, errors.New("Codex app-server returned an empty result")
-			}
-			return frame.Result, nil
-		}
-	}
-
-	if err := write(map[string]any{
-		"id": "host-init", "method": "initialize",
-		"params": map[string]any{
-			"clientInfo":   map[string]string{"name": "nimote_host_history", "version": Version},
-			"capabilities": map[string]any{},
-		},
+	reader := &rpcConfiguredReader{Reader: stdout, configured: make(chan struct{})}
+	conn := acp.NewConnection(func(_ context.Context, method string, _ json.RawMessage) (any, *acp.RequestError) {
+		return nil, acp.NewMethodNotFound(method)
+	}, codexRPCWriter{stdin}, reader)
+	conn.SetLogger(slog.New(slog.DiscardHandler))
+	close(reader.configured)
+	if _, err := acp.SendRequest[json.RawMessage](conn, ctx, "initialize", map[string]any{
+		"clientInfo": map[string]string{"name": "nimote_host_history", "version": Version}, "capabilities": map[string]any{},
 	}); err != nil {
 		return nil, err
 	}
-	if _, err := wait("host-init"); err != nil {
+	if err := conn.SendNotification(ctx, "initialized", nil); err != nil {
 		return nil, err
 	}
-	if err := write(map[string]any{"method": "initialized"}); err != nil {
-		return nil, err
+	result, err := acp.SendRequest[json.RawMessage](conn, ctx, method, params)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, fmt.Errorf("Codex %s failed: %w", method, err)
 	}
-	if err := write(map[string]any{"id": "host-history", "method": method, "params": params}); err != nil {
-		return nil, err
+	if len(result) == 0 || string(result) == "null" {
+		return nil, errors.New("Codex app-server returned an empty result")
 	}
-	return wait("host-history")
+	return result, nil
 }
 
 func listCodexHistory(ctx context.Context, cwd, cursor string) (codexHistoryPage, error) {
@@ -341,3 +301,22 @@ func (b *boundedBuffer) Write(p []byte) (int, error) {
 }
 
 func (b *boundedBuffer) String() string { return strings.TrimSpace(string(b.data)) }
+
+// The generic SDK emits standard JSON-RPC; Codex omits its version member.
+type codexRPCWriter struct{ io.Writer }
+
+func (w codexRPCWriter) Write(data []byte) (int, error) {
+	length := len(data)
+	wire, err := codexWireFrame(data)
+	if err != nil {
+		return 0, err
+	}
+	n, err := w.Writer.Write(wire)
+	if err == nil && n != len(wire) {
+		err = io.ErrShortWrite
+	}
+	if err != nil {
+		return 0, err
+	}
+	return length, nil
+}

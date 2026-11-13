@@ -19,7 +19,7 @@ func TestCodexModelEffortControlsReachTurns(t *testing.T) {
 	if f := queuedFrame(t, a); f["method"] != "model/list" {
 		t.Fatal(f)
 	}
-	a.receive([]byte(`{"id":"host-models","result":` + testModelCatalog + `}`))
+	receiveAgentFrameForTest(a, []byte(`{"id":"host-models","result":`+testModelCatalog+`}`))
 	if len(a.controls.Options) != 2 || !a.controls.Codex {
 		t.Fatal(a.controls)
 	}
@@ -36,7 +36,7 @@ func TestCodexModelEffortControlsReachTurns(t *testing.T) {
 	if err := a.message(AgentMessage{Action: "configure", RequestID: "busy", OptionID: "model", Value: "model-b"}); err == nil {
 		t.Fatal("changed model during turn")
 	}
-	a.receive([]byte(`{"method":"turn/completed","params":{}}`))
+	receiveAgentFrameForTest(a, []byte(`{"method":"turn/completed","params":{}}`))
 	if err := a.message(AgentMessage{Action: "configure", RequestID: "model", OptionID: "model", Value: "model-b"}); err != nil {
 		t.Fatal(err)
 	}
@@ -64,20 +64,20 @@ func TestCodexCompactIsRPCAndReleasesBusyOnFailure(t *testing.T) {
 	if f["method"] != "thread/compact/start" || !a.busy {
 		t.Fatal(f)
 	}
-	if err := a.message(req); err != nil || len(a.queue) != 0 {
+	if err := a.message(req); err != nil || queuedAgentOperations(a) != 0 {
 		t.Fatal("duplicate compaction", err)
 	}
 	response, _ := json.Marshal(map[string]any{"id": f["id"], "error": map[string]any{"message": "failed"}})
-	a.receive(response)
+	receiveAgentFrameForTest(a, response)
 	if a.busy {
 		t.Fatal("failed compact left session busy")
 	}
 }
 func TestACPDiscoversCommandsBeforeReadyAndConfiguresProviderIDs(t *testing.T) {
 	a, out := testACP()
-	a.receive([]byte(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"acp-session","update":{"sessionUpdate":"available_commands_update","availableCommands":[{"name":"review","description":"Review workspace"}]}}}`))
+	receiveAgentFrameForTest(a, []byte(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"acp-session","update":{"sessionUpdate":"available_commands_update","availableCommands":[{"name":"review","description":"Review workspace"}]}}}`))
 	readyACP(t, a)
-	a.receive([]byte(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"acp-session","update":{"sessionUpdate":"config_option_update","configOptions":[{"id":"provider-model","name":"Model","category":"model","currentValue":"one","options":[{"value":"one","name":"One"},{"value":"two","name":"Two"}]}]}}}`))
+	receiveAgentFrameForTest(a, []byte(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"acp-session","update":{"sessionUpdate":"config_option_update","configOptions":[{"id":"provider-model","name":"Model","category":"model","currentValue":"one","options":[{"value":"one","name":"One"},{"value":"two","name":"Two"}]}]}}}`))
 	if len(a.controls.Commands) != 1 || a.controls.Commands[0].Name != "review" {
 		t.Fatal(a.controls)
 	}
@@ -97,14 +97,14 @@ func TestACPDiscoversCommandsBeforeReadyAndConfiguresProviderIDs(t *testing.T) {
 		t.Fatal("prompt raced pending config")
 	}
 	response, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": frame["id"], "result": map[string]any{}})
-	a.receive(response)
+	receiveAgentFrameForTest(a, response)
 	if a.configuring || a.controls.Options[0].Value != "two" {
 		t.Fatal(a.controls)
 	}
 	if !strings.Contains(out.String(), `"type":"controls"`) {
 		t.Fatal(out.String())
 	}
-	if err := a.message(req); err != nil || len(a.queue) != 0 {
+	if err := a.message(req); err != nil || queuedAgentOperations(a) != 0 {
 		t.Fatal("selection retry resent RPC", err)
 	}
 }
@@ -120,7 +120,7 @@ func TestACPModelFailureKeepsSelection(t *testing.T) {
 		t.Fatal(f)
 	}
 	response, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": f["id"], "error": map[string]any{"message": "unavailable"}})
-	a.receive(response)
+	receiveAgentFrameForTest(a, response)
 	if a.configuring || a.controls.Options[0].Value != "one" {
 		t.Fatal(a.controls)
 	}
@@ -135,10 +135,10 @@ func TestCodexCatalogRefreshPreservesSelectionsAndDeduplicatesInFlight(t *testin
 		t.Fatal(err)
 	}
 	_ = queuedFrame(t, a)
-	if err := a.message(AgentMessage{Action: "discover", RequestID: "refresh-again"}); err != nil || len(a.queue) != 0 {
+	if err := a.message(AgentMessage{Action: "discover", RequestID: "refresh-again"}); err != nil || queuedAgentOperations(a) != 0 {
 		t.Fatal("concurrent catalog requests", err)
 	}
-	a.receive([]byte(`{"id":"host-models","error":{"message":"offline"}}`))
+	receiveAgentFrameForTest(a, []byte(`{"id":"host-models","error":{"message":"offline"}}`))
 	if a.loadingModels || len(a.models) != 2 {
 		t.Fatal("failed refresh discarded working catalog")
 	}
@@ -154,8 +154,8 @@ func TestAutomaticCompactionDoesNotReleaseActiveTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = queuedFrame(t, a)
-	a.receive([]byte(`{"method":"turn/started","params":{"turn":{"id":"turn"}}}`))
-	a.receive([]byte(`{"method":"thread/compacted","params":{}}`))
+	receiveAgentFrameForTest(a, []byte(`{"method":"turn/started","params":{"turn":{"id":"turn"}}}`))
+	receiveAgentFrameForTest(a, []byte(`{"method":"thread/compacted","params":{}}`))
 	if !a.busy || a.turn != "turn" {
 		t.Fatal("auto-compaction released active turn")
 	}

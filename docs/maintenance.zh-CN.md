@@ -9,6 +9,31 @@ Connect 账号或中继依赖。传输客户端放在模块之外，通过已记
 `internal/host` 负责协议、持久化和进程管理；`internal/hostservice` 负责用户服务；
 `cmd/nimote-host` 负责命令路由；`tools/build` 负责生成分发包。
 
+## 复用与职责
+
+通用协议、序列化、HTTP、密码学和平台基础能力应使用 Go 标准库、官方 SDK 或维护中的
+开源库。引入依赖前检查兼容性、取消语义、内存上限、许可证和上游测试；已有 SDK 的
+协议不再另写一套通信引擎。
+
+| 职责 | 实现 |
+| --- | --- |
+| MCP | 官方 `modelcontextprotocol/go-sdk` |
+| Agent JSON-RPC 连接 | Coder ACP SDK 的通用 `Connection`，交互会话与历史查询统一复用 |
+| Codex 线路兼容 | 用 `encoding/json` 去掉 `jsonrpc` 成员的薄适配层；方法、状态和事件映射由 Host 负责 |
+| Unix PTY | `creack/pty` |
+| Windows ConPTY 与进程归属 | `golang.org/x/sys/windows`；Host 连接原生句柄与 Job Object |
+| HTTP、JSON、令牌和 XML 转义 | Go 标准库 |
+| 重放游标、会话持久化、服务定义与事务升级 | Host 业务逻辑，保持已记录的状态与操作系统契约 |
+
+`internal/host/agent_rpc.go` 负责 SDK 生命周期、有上限的操作派发和审批交接。
+提供方文件负责将结果映射到 Host 状态；内部操作名称不依赖 SDK 的线路请求 ID。
+输入写入应在状态锁之外执行，取消请求不能越过尚未发出的提示词，关闭时须清理待审批操作。
+实时记录在交给 SDK 前执行 2 MiB 单帧限制；历史查询使用 SDK 自带的有界扫描器。
+
+`server.go` 负责认证 HTTP 边界，`rpc_client.go` 负责本地 RPC 调用，
+`agent_history_http.go` 负责历史路由及超时预算。历史查询的 20 秒预算包含在服务端
+25 秒响应预算和客户端 30 秒预算内。此次通信层重构不改变 Protocol 1 或持久化格式。
+
 ## 开发和依赖升级
 
 运行 `make check`，或[贡献指南](../CONTRIBUTING.zh-CN.md)中的 Go 命令。Connect 是独立仓库，其模块与检查单独维护；Host 检查不要求同级检出。

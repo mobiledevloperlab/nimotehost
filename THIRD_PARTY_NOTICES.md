@@ -24,7 +24,8 @@ licenses and service terms continue to apply to the user's installations.
 
 ## Protocol SDK dependencies
 
-MCP uses the official Go SDK; ACP history uses Coder’s community Go SDK.
+MCP uses the official Go SDK. Agent sessions and history queries reuse the generic
+JSON-RPC connection from Coder’s community ACP Go SDK, with a small Codex wire adapter.
 The MCP SDK license describes its Apache-2.0 / MIT transition; preserve the complete text.
 Transitive modules, including build/test dependencies, are recorded below and in `third_party/dependencies.json`.
 

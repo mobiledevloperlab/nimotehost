@@ -13,7 +13,8 @@ credentials. Propose new integrations in an issue before implementation.
 | --- | --- |
 | Request validation and command resolution | `internal/host/manager.go`: allowed Agent names, workspace and argument checks, lifecycle integration |
 | Startup and fallback | `internal/host/agent_compatibility.go`: structured handshake, deadlines, cancellation and terminal fallback |
-| Structured conversation | `internal/host/codex_agent.go`: shared state and Codex app-server handling; `internal/host/acp_agent.go`: ACP handling for OpenCode and Claude |
+| Agent transport | `internal/host/agent_rpc.go`: shared SDK connection, bounded dispatch, approval replies and cleanup |
+| Structured conversation | `internal/host/agent.go`: shared state and snapshots; `internal/host/codex_agent.go`: Codex app-server handling; `internal/host/acp_agent.go`: ACP handling for OpenCode and Claude |
 | Platform support | Platform-specific terminal and structured-process files in `internal/host/`; preserve build constraints and process cleanup |
 | Public discovery | `internal/host/protocol.go`: request/session fields, tools and feature flags |
 | RPC operations | `internal/host/server.go`: validation, authentication boundary and semantic operations |

@@ -25,56 +25,29 @@ func (a *structuredAgent) initializeACP() error {
 	a.acp.version = version
 	return a.send(map[string]any{"id": "host-init", "method": "initialize", "params": map[string]any{"protocolVersion": version, "clientCapabilities": map[string]any{}, "clientInfo": map[string]string{"name": "nimote_host", "version": Version}}})
 }
-func (a *structuredAgent) receiveACP(line []byte) {
-	var frame struct {
-		JSONRPC string          `json:"jsonrpc"`
-		ID      json.RawMessage `json:"id"`
-		Method  string          `json:"method"`
-		Params  json.RawMessage `json:"params"`
-		Result  json.RawMessage `json:"result"`
-		Error   json.RawMessage `json:"error"`
-	}
-	if json.Unmarshal(line, &frame) != nil || frame.JSONRPC != "2.0" {
-		a.completeStartup(errors.New("invalid ACP JSON-RPC response"))
-		a.emit("error", "Invalid ACP JSON-RPC response")
-		return
-	}
+
+// receiveACPResult projects SDK results into Host session state. IDs here are
+// local operation names; the SDK exclusively owns wire IDs and correlations.
+func (a *structuredAgent) receiveACPResult(id string, payload, rpcError json.RawMessage) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.closed {
 		return
 	}
-	if frame.Method != "" {
-		if len(frame.ID) > 0 && string(frame.ID) != "null" {
-			if frame.Method == "session/request_permission" {
-				a.permissionACP(frame.ID, frame.Params)
-				return
-			}
-			_ = a.send(map[string]any{"id": frame.ID, "error": map[string]any{"code": -32601, "message": "Unsupported client capability"}})
-			a.emit("error", "Unsupported interactive request: "+frame.Method)
-			return
-		}
-		if frame.Method == "session/update" {
-			a.updateACP(frame.Params)
-		}
-		return
-	}
-	var id string
-	_ = json.Unmarshal(frame.ID, &id)
-	if len(frame.Error) > 0 && string(frame.Error) != "null" {
+	if len(rpcError) > 0 && string(rpcError) != "null" {
 		if id == "host-init" || id == "host-session" {
-			a.completeStartup(fmt.Errorf("ACP handshake rejected: %s", frame.Error))
+			a.completeStartup(fmt.Errorf("ACP handshake rejected: %s", rpcError))
 		}
 		if a.pending[id] == "prompt" {
 			a.finishACP("failed")
-			a.emit("turn_rejected", frame.Error)
+			a.emit("turn_rejected", rpcError)
 		}
 		if a.pending[id] == "configure" {
 			a.configuring = false
 			a.pendingConfig = nil
 		}
 		delete(a.pending, id)
-		a.emit("error", frame.Error)
+		a.emit("error", rpcError)
 		return
 	}
 	switch id {
@@ -82,7 +55,7 @@ func (a *structuredAgent) receiveACP(line []byte) {
 		var result struct {
 			ProtocolVersion int `json:"protocolVersion"`
 		}
-		if json.Unmarshal(frame.Result, &result) != nil || result.ProtocolVersion == 0 || result.ProtocolVersion != a.acp.version {
+		if json.Unmarshal(payload, &result) != nil || result.ProtocolVersion == 0 || result.ProtocolVersion != a.acp.version {
 			a.completeStartup(errors.New("agent did not negotiate supported ACP v1"))
 			return
 		}
@@ -102,12 +75,12 @@ func (a *structuredAgent) receiveACP(line []byte) {
 		var result struct {
 			SessionID string `json:"sessionId"`
 		}
-		if json.Unmarshal(frame.Result, &result) != nil || result.SessionID == "" {
+		if json.Unmarshal(payload, &result) != nil || result.SessionID == "" {
 			a.completeStartup(errors.New("ACP did not return a session ID"))
 			return
 		}
 		a.thread = result.SessionID
-		a.configACP(frame.Result)
+		a.configACP(payload)
 		if a.onConversationID != nil {
 			a.onConversationID(a.thread)
 		}
@@ -124,13 +97,13 @@ func (a *structuredAgent) receiveACP(line []byte) {
 				}
 				a.pendingConfig = nil
 			}
-			a.configACP(frame.Result)
+			a.configACP(payload)
 		}
 		if a.pending[id] == "prompt" {
 			var result struct {
 				StopReason string `json:"stopReason"`
 			}
-			if json.Unmarshal(frame.Result, &result) != nil || result.StopReason == "" {
+			if json.Unmarshal(payload, &result) != nil || result.StopReason == "" {
 				a.finishACP("failed")
 				a.emit("error", "ACP prompt response did not include a stop reason")
 			} else {
@@ -242,7 +215,7 @@ func (a *structuredAgent) messageACP(req AgentMessage) error {
 		return errors.New("unknown agent action")
 	}
 	if len(batch) > 0 {
-		if err := a.sendACPBatch(batch); err != nil {
+		if err := a.sendRPCBatch(batch); err != nil {
 			return err
 		}
 	} else if err := a.send(frame); err != nil {
@@ -276,20 +249,4 @@ func (a *structuredAgent) messageACP(req AgentMessage) error {
 		a.emit("approval_resolved", req.ApprovalID)
 	}
 	return nil
-}
-
-// Cancellation and its permission responses are queued atomically, so queue
-// pressure cannot leave the agent waiting forever on an unanswered approval.
-func (a *structuredAgent) sendACPBatch(frames []map[string]any) error {
-	var buffer bytes.Buffer
-	for _, frame := range frames {
-		frame["jsonrpc"] = "2.0"
-		b, err := json.Marshal(frame)
-		if err != nil {
-			return err
-		}
-		buffer.Write(b)
-		buffer.WriteByte('\n')
-	}
-	return a.enqueue(buffer.Bytes())
 }

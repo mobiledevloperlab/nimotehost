@@ -32,20 +32,20 @@ func TestCodexProtocolChild(t *testing.T) {
 			}
 			switch os.Getenv("NIMOTE_CODEX_PROTOCOL_VARIANT") {
 			case "incompatible":
-				fmt.Printf("{\"id\":%q,\"error\":{\"code\":-32601,\"message\":\"initialize removed\"}}\n", f["id"])
+				fmt.Printf("{\"id\":%v,\"error\":{\"code\":-32601,\"message\":\"initialize removed\"}}\n", f["id"])
 				continue
 			case "timeout":
 				continue
 			}
-			fmt.Printf("{\"id\":%q,\"result\":{}}\n", f["id"])
+			fmt.Printf("{\"id\":%v,\"result\":{}}\n", f["id"])
 		case "thread/start":
 			if os.Getenv("NIMOTE_CODEX_PROTOCOL_VARIANT") == "broken-input" {
 				_ = os.Stdin.Close()
-				fmt.Printf("{\"id\":%q,\"result\":{\"thread\":{\"id\":\"fake-thread\"}}}\n", f["id"])
+				fmt.Printf("{\"id\":%v,\"result\":{\"thread\":{\"id\":\"fake-thread\"}}}\n", f["id"])
 				time.Sleep(time.Minute)
 				return
 			}
-			fmt.Printf("{\"id\":%q,\"result\":{\"thread\":{\"id\":\"fake-thread\"}}}\n", f["id"])
+			fmt.Printf("{\"id\":%v,\"result\":{\"thread\":{\"id\":\"fake-thread\"}}}\n", f["id"])
 		case "turn/start":
 			fmt.Println(`{"method":"turn/started","params":{"turn":{"id":"fake-turn"}}}`)
 			fmt.Println(`{"method":"item/agentMessage/delta","params":{"itemId":"answer","delta":"hello from subprocess"}}`)

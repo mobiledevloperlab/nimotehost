@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 type brokenAgentInput struct{ short bool }
@@ -31,15 +32,23 @@ func TestAgentWriteFailureStopsProcessAndRejectsOperations(t *testing.T) {
 				a.input = brokenAgentInput{short: short}
 				a.thread = "thread"
 				stops := 0
-				a.stopProcess = func() error { stops++; return nil }
+				stopped := make(chan struct{})
+				a.stopProcess = func() error { stops++; close(stopped); return nil }
 				if err := a.message(AgentMessage{Action: "prompt", RequestID: "p", Text: "hello"}); err != nil {
 					t.Fatal(err)
 				}
-				a.writeLoop()
+				a.prepareRPCTransport()
+				a.startProtocolIO()
+				select {
+				case <-stopped:
+				case <-time.After(time.Second):
+					t.Fatal("SDK input failure did not stop process")
+				}
+
 				if stops != 1 || !a.closed || a.busy || len(a.pending) != 0 {
 					t.Fatalf("failure did not settle state: stops=%d closed=%t busy=%t", stops, a.closed, a.busy)
 				}
-				if err := a.send(map[string]string{"method": "late"}); err == nil {
+				if err := a.send(map[string]any{"method": "late"}); err == nil {
 					t.Fatal("dead writer accepted a frame")
 				}
 				if err := a.message(AgentMessage{Action: "prompt", RequestID: "next", Text: "hello"}); err == nil {
@@ -79,7 +88,7 @@ func TestRequestLimitAllowsApprovalAndInterrupt(t *testing.T) {
 					t.Fatal(req.Action, err)
 				}
 				_ = queuedFrame(t, a)
-				if err := a.message(req); err != nil || len(a.queue) != 0 {
+				if err := a.message(req); err != nil || queuedAgentOperations(a) != 0 {
 					t.Fatal("control retry was not deduplicated", err)
 				}
 			}
@@ -108,9 +117,9 @@ func TestClosedAgentSnapshotAndLateEvents(t *testing.T) {
 			m.sessions["test"] = &managed{agent: a, output: output}
 			a.close()
 			if a.acp == nil {
-				a.receive([]byte(`{"method":"turn/started","params":{"turn":{"id":"late"}}}`))
+				receiveAgentFrameForTest(a, []byte(`{"method":"turn/started","params":{"turn":{"id":"late"}}}`))
 			} else {
-				a.receive([]byte(`{"jsonrpc":"2.0","id":43,"method":"session/request_permission","params":{"sessionId":"thread","toolCall":{"toolCallId":"late"}}}`))
+				receiveAgentFrameForTest(a, []byte(`{"jsonrpc":"2.0","id":43,"method":"session/request_permission","params":{"sessionId":"thread","toolCall":{"toolCallId":"late"}}}`))
 			}
 			state, err := m.AgentSnapshot("test")
 			if err != nil || state["ready"] != false || state["busy"] != false || len(state["approvals"].([]any)) != 0 {

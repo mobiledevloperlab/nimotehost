@@ -11,6 +11,37 @@ clients outside this module and use the documented RPC/MCP interfaces.
 `internal/hostservice` owns native per-user service definitions;
 `cmd/nimote-host` owns CLI routing; `tools/build` owns distributions.
 
+## Reuse and ownership
+
+Use the Go standard library, official SDKs, or maintained open-source libraries
+for general protocol, serialization, HTTP, cryptography and platform primitives.
+Evaluate compatibility, cancellation, memory bounds, license and upstream tests
+before adding a dependency. Do not introduce a second protocol engine alongside
+an existing SDK.
+
+| Responsibility | Implementation |
+| --- | --- |
+| MCP | Official `modelcontextprotocol/go-sdk` |
+| Agent JSON-RPC connections | Coder ACP SDK's generic `Connection`, shared by interactive sessions and history queries |
+| Codex wire compatibility | Small `encoding/json` adapter removes the `jsonrpc` member; method/state/event mapping remains in Host |
+| Unix PTY | `creack/pty` |
+| Windows ConPTY and process ownership | `golang.org/x/sys/windows`; Host connects the native handles and Job Objects |
+| HTTP, JSON, tokens and XML escaping | Go standard library |
+| Replay cursors, session persistence, service definitions and transactional upgrades | Host-specific behavior; preserve the documented state and operating-system contracts |
+
+`internal/host/agent_rpc.go` owns SDK lifecycle, bounded operation dispatch and
+approval handoff. Provider files project results into Host state; their pending
+operation names are internal and never depend on SDK wire IDs. Keep input writes
+outside state locks, transmit a prompt before cancellation, and resolve pending
+approvals on shutdown. The 2 MiB live-frame limit is enforced before forwarding
+to the SDK; history connections use the SDK's bounded scanner.
+
+`server.go` owns the authenticated HTTP boundary, `rpc_client.go` the local RPC
+client, and `agent_history_http.go` history routes and their timeout budget.
+The 20-second history query budget fits inside the 25-second server response
+budget and the 30-second RPC client budget. Protocol 1 and persisted formats are
+unchanged by the transport refactor.
+
 ## Development and dependency updates
 
 Run `make check`, or the equivalent Go commands from CONTRIBUTING.md. Connect is a separate repository with its own module and checks. Host checks

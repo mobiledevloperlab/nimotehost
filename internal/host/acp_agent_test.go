@@ -23,12 +23,12 @@ func readyACP(t *testing.T, a *structuredAgent) {
 	if init["jsonrpc"] != "2.0" || init["params"].(map[string]any)["protocolVersion"] != float64(1) {
 		t.Fatal(init)
 	}
-	a.receive([]byte(`{"jsonrpc":"2.0","id":"host-init","result":{"protocolVersion":1,"agentCapabilities":{"future":true}}}`))
+	receiveAgentFrameForTest(a, []byte(`{"jsonrpc":"2.0","id":"host-init","result":{"protocolVersion":1,"agentCapabilities":{"future":true}}}`))
 	session := queuedFrame(t, a)
 	if session["method"] != "session/new" || session["params"].(map[string]any)["cwd"] != "/workspace" {
 		t.Fatal(session)
 	}
-	a.receive([]byte(`{"jsonrpc":"2.0","id":"host-session","result":{"sessionId":"acp-session","futureField":true}}`))
+	receiveAgentFrameForTest(a, []byte(`{"jsonrpc":"2.0","id":"host-session","result":{"sessionId":"acp-session","futureField":true}}`))
 	if err := <-a.startup; err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func readyACP(t *testing.T, a *structuredAgent) {
 func TestACPVersionNegotiationAndUnknownMethods(t *testing.T) {
 	for _, version := range []string{`2`, `null`, `"1"`} {
 		a, _ := testACP()
-		a.receive([]byte(`{"jsonrpc":"2.0","id":"host-init","result":{"protocolVersion":` + version + `}}`))
+		receiveAgentFrameForTest(a, []byte(`{"jsonrpc":"2.0","id":"host-init","result":{"protocolVersion":`+version+`}}`))
 		if err := <-a.startup; err == nil {
 			t.Fatal("unsupported version accepted:", version)
 		}
@@ -44,11 +44,11 @@ func TestACPVersionNegotiationAndUnknownMethods(t *testing.T) {
 	a, out := testACP()
 	readyACP(t, a)
 	before := out.Len()
-	a.receive([]byte(`{"jsonrpc":"2.0","method":"future/notification","params":{"new":"shape"}}`))
+	receiveAgentFrameForTest(a, []byte(`{"jsonrpc":"2.0","method":"future/notification","params":{"new":"shape"}}`))
 	if out.Len() != before {
 		t.Fatal("unknown optional notification was not ignored")
 	}
-	a.receive([]byte(`{"jsonrpc":"2.0","id":7,"method":"fs/read_text_file","params":{}}`))
+	receiveAgentFrameForTest(a, []byte(`{"jsonrpc":"2.0","id":7,"method":"fs/read_text_file","params":{}}`))
 	if queuedFrame(t, a)["error"] == nil {
 		t.Fatal("unsupported capability was accepted")
 	}
@@ -64,12 +64,12 @@ func TestACPPromptUpdatesAndCompletion(t *testing.T) {
 	if frame["method"] != "session/prompt" {
 		t.Fatal(frame)
 	}
-	if err := a.message(req); err != nil || len(a.queue) != 0 {
+	if err := a.message(req); err != nil || len(a.rpc.queue) != 0 {
 		t.Fatal("duplicate turn dispatched", err)
 	}
-	a.receive([]byte(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"another-session","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"wrong session"}}}}`))
-	a.receive([]byte(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"acp-session","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"hello ACP"},"future":true}}}`))
-	a.receive([]byte(`{"jsonrpc":"2.0","id":"host-1","result":{"stopReason":"end_turn"}}`))
+	receiveAgentFrameForTest(a, []byte(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"another-session","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"wrong session"}}}}`))
+	receiveAgentFrameForTest(a, []byte(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"acp-session","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"hello ACP"},"future":true}}}`))
+	receiveAgentFrameForTest(a, []byte(`{"jsonrpc":"2.0","id":"host-1","result":{"stopReason":"end_turn"}}`))
 	if a.busy || !strings.Contains(out.String(), "hello ACP") || strings.Contains(out.String(), "wrong session") || strings.Contains(out.String(), "session/update") {
 		t.Fatal(out.String())
 	}
@@ -82,7 +82,7 @@ func TestACPPermissionsUseOnceAndCancellationRespondsToPendingRequests(t *testin
 	}
 	_ = queuedFrame(t, a)
 	permission := `{"jsonrpc":"2.0","id":42,"method":"session/request_permission","params":{"sessionId":"acp-session","toolCall":{"toolCallId":"tool-1","title":"Edit source","kind":"edit","content":[{"type":"diff","path":"main.go","oldText":"old","newText":"new"}]},"options":[{"optionId":"once-id","kind":"allow_once"},{"optionId":"always-id","kind":"allow_always"},{"optionId":"no-id","kind":"reject_once"}]}}`
-	a.receive([]byte(permission))
+	receiveAgentFrameForTest(a, []byte(permission))
 	if !strings.Contains(out.String(), "main.go") {
 		t.Fatal("permission lost file preview", out.String())
 	}
@@ -94,23 +94,22 @@ func TestACPPermissionsUseOnceAndCancellationRespondsToPendingRequests(t *testin
 	if outcome["optionId"] != "once-id" {
 		t.Fatal("approval scope expanded", response)
 	}
-	a.receive([]byte(permission))
+	receiveAgentFrameForTest(a, []byte(permission))
 	if err := a.message(AgentMessage{Action: "interrupt", RequestID: "stop"}); err != nil {
 		t.Fatal(err)
 	}
-	data := <-a.queue
-	lines := bytes.Split(bytes.TrimSpace(data), []byte("\n"))
-	if len(lines) != 2 || !bytes.Contains(lines[0], []byte("session/cancel")) || !bytes.Contains(lines[1], []byte("cancelled")) {
-		t.Fatalf("cancel frames: %s", data)
+	batch := <-a.rpc.queue
+	if len(batch) != 2 || batch[0]["method"] != "session/cancel" || batch[1]["result"] == nil {
+		t.Fatalf("cancel operations: %v", batch)
 	}
 	if !a.busy || len(a.approvals) != 0 {
 		t.Fatal("cancellation must await prompt result and resolve pending approvals")
 	}
-	a.receive([]byte(permission))
+	receiveAgentFrameForTest(a, []byte(permission))
 	if queuedFrame(t, a)["result"] == nil {
 		t.Fatal("new permission during cancel remained pending")
 	}
-	a.receive([]byte(`{"jsonrpc":"2.0","id":"host-1","result":{"stopReason":"cancelled"}}`))
+	receiveAgentFrameForTest(a, []byte(`{"jsonrpc":"2.0","id":"host-1","result":{"stopReason":"cancelled"}}`))
 	if a.busy {
 		t.Fatal("cancelled prompt remained active")
 	}
@@ -118,7 +117,7 @@ func TestACPPermissionsUseOnceAndCancellationRespondsToPendingRequests(t *testin
 func TestACPDoesNotConvertAlwaysPermissionToOnce(t *testing.T) {
 	a, _ := testACP()
 	readyACP(t, a)
-	a.receive([]byte(`{"jsonrpc":"2.0","id":"approval","method":"session/request_permission","params":{"sessionId":"acp-session","toolCall":{"toolCallId":"tool","title":"tool"},"options":[{"optionId":"always","kind":"allow_always"}]}}`))
+	receiveAgentFrameForTest(a, []byte(`{"jsonrpc":"2.0","id":"approval","method":"session/request_permission","params":{"sessionId":"acp-session","toolCall":{"toolCallId":"tool","title":"tool"},"options":[{"optionId":"always","kind":"allow_always"}]}}`))
 	if err := a.message(AgentMessage{Action: "approval", RequestID: "yes", ApprovalID: `"approval"`, Decision: "accept"}); err == nil {
 		t.Fatal("always permission was granted through one-time UI")
 	}
@@ -134,8 +133,8 @@ func TestACPDoesNotConvertAlwaysPermissionToOnce(t *testing.T) {
 func TestACPToolPartialUpdatesPreserveDescription(t *testing.T) {
 	a, out := testACP()
 	readyACP(t, a)
-	a.receive([]byte(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"acp-session","update":{"sessionUpdate":"tool_call","toolCallId":"tool","title":"Read source","kind":"read","rawInput":"freeform input"}}}`))
-	a.receive([]byte(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"acp-session","update":{"sessionUpdate":"tool_call_update","toolCallId":"tool","status":"completed","content":[{"type":"content","content":{"type":"text","text":"file contents"}}]}}}`))
+	receiveAgentFrameForTest(a, []byte(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"acp-session","update":{"sessionUpdate":"tool_call","toolCallId":"tool","title":"Read source","kind":"read","rawInput":"freeform input"}}}`))
+	receiveAgentFrameForTest(a, []byte(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"acp-session","update":{"sessionUpdate":"tool_call_update","toolCallId":"tool","status":"completed","content":[{"type":"content","content":{"type":"text","text":"file contents"}}]}}}`))
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
 	last := lines[len(lines)-1]
 	if !strings.Contains(last, "Read source") || !strings.Contains(last, "file contents") || !strings.Contains(last, `"status":"completed"`) {

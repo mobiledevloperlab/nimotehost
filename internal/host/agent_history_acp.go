@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -69,7 +68,7 @@ func acpHistoryRPC(ctx context.Context, agent, cwd, method string, params any) (
 	// disconnect/cancellation handling. Host only projects history updates.
 	var updatesMu sync.Mutex
 	updates := []map[string]any{}
-	reader := &acpHistoryReader{Reader: out, configured: make(chan struct{})}
+	reader := &rpcConfiguredReader{Reader: out, configured: make(chan struct{})}
 	conn = acp.NewConnection(func(_ context.Context, incoming string, raw json.RawMessage) (any, *acp.RequestError) {
 		if incoming != "session/update" {
 			return nil, acp.NewMethodNotFound(incoming)
@@ -113,16 +112,6 @@ func acpHistoryRPC(ctx context.Context, agent, cwd, method string, params any) (
 	snapshot := append([]map[string]any(nil), updates...)
 	updatesMu.Unlock()
 	return result, snapshot, nil
-}
-
-type acpHistoryReader struct {
-	io.Reader
-	configured chan struct{}
-}
-
-func (r *acpHistoryReader) Read(p []byte) (int, error) {
-	<-r.configured
-	return r.Reader.Read(p)
 }
 
 func listACPHistory(ctx context.Context, agent, cwd, cursor string) (codexHistoryPage, error) {

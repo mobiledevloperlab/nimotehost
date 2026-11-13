@@ -28,12 +28,16 @@ func serveRPCStream(ctx context.Context, input io.Reader, output io.Writer, call
 		defer stop()
 	}
 	var mu sync.Mutex
+	var writeErr error
 	encoder := json.NewEncoder(output)
 	write := func(value any) error {
 		mu.Lock()
 		defer mu.Unlock()
 		err := encoder.Encode(value)
 		if err != nil {
+			if writeErr == nil {
+				writeErr = err
+			}
 			cancel()
 		}
 		return err
@@ -45,7 +49,9 @@ func serveRPCStream(ctx context.Context, input io.Reader, output io.Writer, call
 	scanner.Buffer(make([]byte, 4096), maxRequest+1024)
 	slots := make(chan struct{}, 8)
 	var workers sync.WaitGroup
-	defer workers.Wait()
+	// On malformed input or cancellation, stop calls before joining them.
+	// A clean EOF still drains accepted calls below.
+	defer func() { cancel(); workers.Wait() }()
 	for scanner.Scan() {
 		var frame struct {
 			ID uint64 `json:"id"`
@@ -78,5 +84,11 @@ func serveRPCStream(ctx context.Context, input io.Reader, output io.Writer, call
 		cancel()
 		return err
 	}
-	return nil
+	workers.Wait()
+	mu.Lock()
+	defer mu.Unlock()
+	if writeErr != nil {
+		return writeErr
+	}
+	return ctx.Err()
 }
