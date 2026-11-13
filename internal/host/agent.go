@@ -39,6 +39,8 @@ type structuredAgent struct {
 	failure            error
 	onConversationID   func(string)
 	resumeConversation string
+	historyThread      string
+	historyCursors     map[string]bool
 	provider           string
 	acp                *acpState
 	activeItems        map[string]map[string]any
