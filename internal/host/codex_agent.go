@@ -51,6 +51,7 @@ func (a *structuredAgent) receiveCodex(f codexFrame) {
 			return
 		}
 		if f.Method == "turn/started" {
+			a.lastTurnStatus = ""
 			var p struct {
 				Turn struct {
 					ID string `json:"id"`
@@ -61,12 +62,22 @@ func (a *structuredAgent) receiveCodex(f codexFrame) {
 			a.busy = true
 		}
 		if f.Method == "thread/compacted" && a.compacting {
+			a.lastTurnStatus = "completed"
 			a.compacting = false
 			a.turn = ""
 			a.busy = false
 			a.emit("turn_completed", map[string]string{"status": "completed"})
 		}
 		if f.Method == "turn/completed" {
+			a.lastTurnStatus = "unknown"
+			var p struct {
+				Turn struct {
+					Status string `json:"status"`
+				} `json:"turn"`
+			}
+			if json.Unmarshal(f.Params, &p) == nil && p.Turn.Status != "" {
+				a.lastTurnStatus = p.Turn.Status
+			}
 			a.compacting = false
 			a.busy = false
 			a.turn = ""
@@ -88,6 +99,7 @@ func (a *structuredAgent) receiveCodex(f codexFrame) {
 			a.completeStartup(fmt.Errorf("app-server handshake rejected: %s", f.Error))
 		}
 		if a.pending[id] == "prompt" || a.pending[id] == "compact" {
+			a.lastTurnStatus = "failed"
 			a.compacting = false
 			a.busy = false
 			a.emit("turn_rejected", f.Error)
@@ -240,16 +252,21 @@ func (a *structuredAgent) message(req AgentMessage) error {
 		a.modelPage = nil
 	case "compact":
 		a.compacting = true
+		a.lastTurnStatus = ""
 		a.busy = true
 		a.pending[id] = "compact"
 		a.emit("turn_started", map[string]string{"id": id})
 	case "prompt":
 		a.busy = true
+		a.lastTurnStatus = ""
 		a.pending[id] = "prompt"
 		a.emit("user", req.Text)
 	case "interrupt":
 		a.pending[id] = "interrupt"
 	case "approval":
+		if a.onActivity != nil {
+			a.onActivity("approval_"+req.Decision+"_requested", map[string]string{"id": req.ApprovalID})
+		}
 		delete(a.approvals, req.ApprovalID)
 		delete(a.approvalDetails, req.ApprovalID)
 		a.emit("approval_resolved", req.ApprovalID)

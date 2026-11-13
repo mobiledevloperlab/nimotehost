@@ -98,8 +98,10 @@ explicit `cmd.exe` command for complex shell tasks. Native executable arguments
 use Win32 argv quoting.
 
 Creation generates a random session ID: save it after a successful response.
-There is no idempotency key. If a response is lost, list sessions before retrying
-to avoid duplicate tasks. Processes run as the current OS user without elevation.
+Hosts advertising `mutation_idempotency_v1` accept an optional `request_id`
+(up to 128 bytes) on creation and terminal input; structured Agent messages
+already require it. See the retry contract below. Older Hosts require listing
+sessions after a lost create response; never blindly retry an old Host. Processes run as the current OS user without elevation.
 The token grants that user's command-execution authority; there is no multi-tenant
 role system.
 
@@ -276,3 +278,137 @@ rejections or process exits still fall back immediately; mutations are never rep
 A real delayed subprocess/socket regression exceeds the legacy initialization and
 HTTP deadlines, alongside virtual-clock tests for all agents and both transports.
 Both Host and App must be updated for the complete deadline chain.
+
+## Mutation receipts and Agent activity
+
+`mutation_idempotency_v1` adds a persistent per-user request ledger without
+changing protocol 1. New clients generate random IDs and reuse the exact ID and
+payload for a retry. Keys bind the operation, session and decoded JSON payload;
+reuse for another operation/payload returns 409. Authentication runs before any
+receipt lookup. Start responses include `start_request_id` for list-based recovery.
+A successful retry returns the original receipt, not a new process or fresh
+session snapshot; query the session for current state. Terminal input returns
+`ok`, `request_id`, `stage: terminal_written`; Agent messages return
+`stage: accepted` (queued by Host). Neither proves Agent acknowledgement or task
+completion. Structured events/snapshots provide that later evidence.
+
+Reservations are synced before dispatch. A concurrent request still executing,
+an incomplete reservation after daemon restart, a partial terminal write, or a
+failure to persist the result returns 503 with an uncertain outcome. Never retry
+under a new key to bypass uncertainty. Start recovery can inspect
+`start_request_id`; input cannot be proved delivered after an uncertain write.
+This is duplicate suppression, not a filesystem/Agent distributed transaction or
+an exactly-once guarantee under sudden power/storage failure. Unknown operations
+are never automatically replayed. A timeout/cancel of a reader only detaches it;
+explicit session cancellation terminates the process tree.
+
+Receipts contain hashes and result metadata/errors, including the usual create
+command/argv metadata; they do not duplicate terminal streams or structured prompt
+bodies. Limits: 65,536 retained keys, 64 in-flight mutations, and 64 MiB of ledger
+storage including reserved space for results (each at most 2 MiB). Limits reject
+before dispatch. Receipts remain after session deletion so a late create retry
+cannot recreate deleted work; no automatic eviction permits delayed replay.
+There is currently no online ledger rotation command. Back up state and review
+retention before long-term deployments; do not delete receipts while retries may
+still arrive. Old clients omitting keys keep their previous behavior and lack
+these retry guarantees. NimoteCode retries a lost create response once only when
+the same Host identity still advertises this capability; it never automatically
+replays terminal input.
+
+Protocol compatibility covers old App/new Host and capability-gated new App/old
+Host. It does not promise state-file downgrade: older binaries strictly decode
+session metadata and may reject the new persisted `start_request_id` field.
+Preserve a state backup before rolling a Host binary back.
+
+`agent_status_v1` adds `agent_status` to full session reads and `status` to
+`agent-state`. The process `state` field keeps its protocol-1 semantics. Structured
+activity uses only adapter events: `running`, `idle`, `needs_approval`, `completed`,
+`failed`, `disconnected`, `unknown`. A successful completed turn may leave its
+process alive for another turn. Unknown stop reasons stay unknown. A live terminal
+Agent reports unknown activity; process liveness is not approval/idle evidence.
+`after` revisions and `/v1/events` still describe process metadata changes only;
+use full session polling or structured output cursors for Agent activity.
+
+`session_disconnect_survival=true` and `session_restart_survival=false` explicitly
+separate mobile disconnection from Host restart. Existing native conversation
+resume starts a new managed process for the selected provider conversation;
+it does not recover a dead PTY. The existing SSH OS-user boundary owns every
+session; this is not per-device or multi-tenant authorization.
+
+The final evidenced structured result is saved when the process ends. Reloaded
+sessions retain that result; legacy structured records with only a successful
+process exit and no saved evidence report unknown rather than completed.
+
+The client retains its current Host surface. Foreground lifecycle
+events feed the existing NotificationService with a guarded session action;
+initial historical states do not generate completion notifications. Hosts with
+`session_activity_v1` use durable event cursors, including short turns that finish
+between list polls; older Hosts retain snapshot polling and can miss those turns.
+There is no background/offline push.
+The session menu opens existing Git source control only for the same authenticated
+workspace and matching absolute directory. Other repositories require the normal
+workspace switch. Git output is queried by the existing Git runner, not copied
+from Agent claims. Task references and bounded lifecycle history are described below.
+
+## Task references and lifecycle history
+
+`session_task_v1` allows an optional `task: {"id":"existing-task-id","label":"Task label"}`
+on session creation, also returned in session snapshots. The ID is required and
+limited to 512 bytes, the optional label to 160 bytes. A reference belongs to the
+session's Host and directory; it never authorizes running the Task command, changes
+Task configuration, or marks a TaskService command execution as tested/successful.
+
+In NimoteCode, an existing SSH Task's menu opens Host sessions filtered by that
+Task and the current workspace directory. Selecting an existing session reattaches
+to its original ID. New sessions and explicit native conversation resumes can carry
+the Task reference only when the Host advertises support and directories match.
+Changes to Task/Host scope while a creation/history dialog is open reject the stale
+action. An older Host requires updating or clearing this filter; the client never
+silently creates an unlinked session. Original Task terminal execution remains intact.
+
+`session_activity_v1` adds `activity_sequence` to session reads/start receipts and
+`GET /v1/sessions/{id}/activity?after=<sequence>`. The response contains `events`,
+`cursor`, and `resync_required`. Each event has a per-session monotonic `sequence`,
+`type`, `time`, `output_offset`, and optional `state`/`reference_id`. Sequence cursors
+are distinct from process revisions and output byte offsets. Negative/invalid cursors
+return 400; expired or future cursors return retained history with resync required.
+
+History includes session start/finish/interruption, Agent ready, prompt acceptance,
+turn start/completion/rejection, approval requests, queued accept/decline responses,
+and approval closure. `turn_started` may be synthesized after Host queue acceptance;
+it does not prove provider acknowledgement. A queued approval decision does not
+prove upstream execution. `session_finished.state` is the **process** state, while
+`turn_completed.state` comes from the structured provider result. A clean process
+exit without a completed structured turn is not shown as task completion.
+
+Only the latest 256 events are retained in a private `.activity` sidecar; input/output,
+commands, prompts and tool diffs remain in their existing stores. Input size is bounded
+when loading history. Each summary references the existing output cursor; that output
+may have expired independently. Metadata is atomically synced on lifecycle changes,
+not on text deltas. The journal has its own mutex and does not acquire the Manager
+mutex from Agent callbacks. Corrupt/unwritable history reports unavailable (500) and
+does not hide or terminate an existing session. Deleting a session removes its sidecar.
+Sessions imported from an older Host have no fabricated pre-upgrade lifecycle history.
+
+The session menu's Timeline sheet uses the shared sheet/list components, displays Task
+identity and retained lifecycle summaries, and supports explicit refresh. It supplements
+the existing Agent tool narrative; it is not a second Task runner or conversation store.
+Host restart records interrupted sessions honestly and does not restart commands.
+
+After an explicit, successful connection to a Host with activity support, its retained
+panel can observe metadata/events while IDE, AI or Git is foreground in the same
+workspace. Hidden panels do not read terminal output or send input. App backgrounding
+or changing workspace stops observation; an unknown/unvisited Host is never contacted
+automatically. A known Host that becomes unreachable is probed at most every 15 seconds
+while the panel is hidden. Older Hosts keep their original pause-when-hidden behavior.
+
+Foreground notification delivery stores only per-session sequence cursors in existing,
+Host-scoped preferences. A newly discovered historical session establishes a baseline;
+a locally created session retains its create cursor so immediate completions can be
+read later. Reconnect/reopen continues from the stored cursor. Queries run in batches
+of at most four and history failures back off 30 seconds per session. A retention gap
+produces one resync notice, not a flood of expired approvals. Late responses after scope
+changes are ignored. Delivery/checkpointing is not transactional with App termination,
+so a crash may repeat a notice; mutation idempotency and native approval ownership
+remain independent. First-observed history and events beyond retention cannot be
+promised as notifications. Background suspension and LAN reachability limits still apply.

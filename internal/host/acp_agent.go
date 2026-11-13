@@ -114,6 +114,7 @@ func (a *structuredAgent) receiveACPResult(id string, payload, rpcError json.Raw
 	}
 }
 func (a *structuredAgent) finishACP(status string) {
+	a.lastTurnStatus = status
 	a.acp.canceling = false
 	a.busy = false
 	a.turn = ""
@@ -229,6 +230,7 @@ func (a *structuredAgent) messageACP(req AgentMessage) error {
 		a.pending[id] = "configure"
 	case "prompt":
 		a.acp.canceling = false
+		a.lastTurnStatus = ""
 		a.busy = true
 		a.turn = id
 		a.pending[id] = "prompt"
@@ -243,6 +245,9 @@ func (a *structuredAgent) messageACP(req AgentMessage) error {
 		a.approvalDetails = map[string]map[string]any{}
 		a.acp.options = map[string]map[string]string{}
 	case "approval":
+		if a.onActivity != nil {
+			a.onActivity("approval_"+req.Decision+"_requested", map[string]string{"id": req.ApprovalID})
+		}
 		delete(a.approvals, req.ApprovalID)
 		delete(a.approvalDetails, req.ApprovalID)
 		delete(a.acp.options, req.ApprovalID)
