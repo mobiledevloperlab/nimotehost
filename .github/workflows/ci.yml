@@ -1,0 +1,90 @@
+name: Host CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Distribution version (starts with a digit)
+        default: 1.0.0-dev
+        required: true
+permissions:
+  contents: read
+jobs:
+  native:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Installer help (Unix)
+        if: runner.os != 'Windows'
+        run: sh scripts/install.sh --help
+      - name: Installer help (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./scripts/install.ps1 -Help
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: python -m unittest discover -s test -p 'test_*.py'
+      - run: go mod verify
+      - run: go test -mod=readonly -race ./...
+      - run: go vet ./...
+      - run: go run ./tools/build
+  clean-source:
+    strategy:
+      matrix:
+        go: [minimum, stable]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ matrix.go == 'minimum' && 'go.mod' || '' }}
+          go-version: ${{ matrix.go == 'stable' && 'stable' || '' }}
+          cache: false
+      - run: sh scripts/check-clean-build.sh
+  cross-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [linux, darwin, windows]
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go run ./tools/build -os "$TARGET_OS" -arch "$TARGET_ARCH" -version "$HOST_VERSION"
+        env:
+          TARGET_OS: ${{ matrix.os }}
+          TARGET_ARCH: ${{ matrix.arch }}
+          HOST_VERSION: ${{ inputs.version || '1.0.0-dev' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nimote-host-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            dist/nimote-host-*-${{ matrix.os }}-${{ matrix.arch }}.*
+
+  source-export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export standalone source
+        run: ./scripts/export-source.sh
+      - name: Check exported documentation and export tests
+        shell: bash
+        run: |
+          source_dir="$(mktemp -d)"
+          tar -xzf dist/public/nimote-host-source.tar.gz -C "$source_dir"
+          cd "$source_dir"
+          python3 -m unittest discover -s test -p 'test_*.py'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nimote-host-source
+          path: dist/public/nimote-host-source.tar.gz
