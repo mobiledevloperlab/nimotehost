@@ -25,6 +25,12 @@ func (a *structuredAgent) completeStartup(err error) {
 // upgrade-incompatible CLI cannot freeze other terminals. No user turn is sent
 // during probing, and running turns are never retried through another adapter.
 func (m *Manager) Start(req StartRequest) (Session, error) {
+	return runOnce(m, req.RequestID, "session.start", req, func() (Session, error) {
+		return m.startRequest(req)
+	})
+}
+
+func (m *Manager) startRequest(req StartRequest) (Session, error) {
 	if req.Interaction != "auto" {
 		return m.start(req)
 	}

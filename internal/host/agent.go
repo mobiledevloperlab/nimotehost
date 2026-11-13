@@ -25,6 +25,8 @@ type AgentMessage struct {
 }
 
 type structuredAgent struct {
+	onActivity         func(string, any)
+	lastTurnStatus     string
 	controls           agentControls
 	models             []codexModel
 	loadingModels      bool
@@ -61,7 +63,9 @@ type structuredAgent struct {
 
 func (a *structuredAgent) emit(kind string, data any) {
 	b, _ := json.Marshal(map[string]any{"type": kind, "data": data})
-	_, _ = a.output.Write(append(b, '\n'))
+	if _, err := a.output.Write(append(b, '\n')); err == nil && a.onActivity != nil {
+		a.onActivity(kind, data)
+	}
 }
 
 // Queue bounded frames instead of blocking on subprocess stdin while holding
@@ -172,7 +176,7 @@ func (m *Manager) AgentSnapshot(id string) (map[string]any, error) {
 	m.mu.Lock()
 	item, ok := m.sessions[id]
 	if ok && item.agent == nil && item.session.Interaction == "structured" {
-		snapshot := map[string]any{"cursor": item.session.OutputBytes, "ready": false, "busy": false, "approvals": []any{}}
+		snapshot := map[string]any{"cursor": item.session.OutputBytes, "status": sessionAgentStatus(item.session, nil), "ready": false, "busy": false, "approvals": []any{}}
 		m.mu.Unlock()
 		return snapshot, nil
 	}
@@ -207,7 +211,75 @@ func (m *Manager) AgentSnapshot(id string) (map[string]any, error) {
 	for i := range controls.Options {
 		controls.Options[i].Values = slices.Clone(controls.Options[i].Values)
 	}
-	return map[string]any{"cursor": cursor, "ready": !a.closed && a.thread != "", "busy": a.busy || a.configuring, "approvals": pending, "controls": controls}, nil
+	return map[string]any{"cursor": cursor, "status": a.statusLocked(), "ready": !a.closed && a.thread != "", "busy": a.busy || a.configuring, "approvals": pending, "controls": controls}, nil
+}
+
+// Only structured protocol state is evidence of Agent activity. A live PTY
+// alone cannot tell whether a tool is thinking, idle or asking permission.
+func (a *structuredAgent) statusLocked() string {
+	switch {
+	case a.closed:
+		return "disconnected"
+	case len(a.approvals) > 0:
+		return "needs_approval"
+	case a.busy || a.configuring:
+		return "running"
+	case a.thread == "":
+		return "unknown"
+	case a.lastTurnStatus == "completed" || a.lastTurnStatus == "end_turn":
+		return "completed"
+	case a.lastTurnStatus == "failed":
+		return "failed"
+	case a.lastTurnStatus == "", a.lastTurnStatus == "cancelled", a.lastTurnStatus == "interrupted", a.lastTurnStatus == "max_tokens", a.lastTurnStatus == "max_turn_requests", a.lastTurnStatus == "refusal":
+		return "idle"
+	default:
+		return "unknown"
+	}
+}
+
+func sessionAgentStatus(record Session, agent *structuredAgent) string {
+	if record.Kind != "agent" {
+		return ""
+	}
+	switch record.State {
+	case "succeeded":
+		if agent != nil {
+			agent.mu.Lock()
+			defer agent.mu.Unlock()
+			return structuredTurnResult(agent.lastTurnStatus)
+		}
+		if record.Interaction == "structured" {
+			switch record.AgentStatus {
+			case "completed", "failed", "disconnected", "unknown":
+				return record.AgentStatus
+			default:
+				return "unknown"
+			}
+		}
+		return "completed"
+	case "failed":
+		return "failed"
+	case "interrupted":
+		return "disconnected"
+	case "running":
+		if agent != nil {
+			agent.mu.Lock()
+			defer agent.mu.Unlock()
+			return agent.statusLocked()
+		}
+	}
+	return "unknown"
+}
+
+func structuredTurnResult(status string) string {
+	switch status {
+	case "completed", "end_turn":
+		return "completed"
+	case "failed":
+		return "failed"
+	default:
+		return "disconnected"
+	}
 }
 
 func newStructuredAgent(provider string, output io.Writer, cwd string, resume ...string) *structuredAgent {

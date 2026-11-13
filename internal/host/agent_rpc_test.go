@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +27,9 @@ func TestAgentRPCTransportSDKPermissionAndNotificationOrdering(t *testing.T) {
 			output := &outputWriter{file: file}
 			defer output.Close()
 			a := newStructuredAgent(provider, output, t.TempDir())
+			journal := &activityJournal{path: filepath.Join(t.TempDir(), "activity")}
+			item := &managed{activity: journal, output: output}
+			a.onActivity = item.agentActivity
 			input, inputW := io.Pipe()
 			a.input = inputW
 			a.prepareRPCTransport()
@@ -116,6 +120,19 @@ func TestAgentRPCTransportSDKPermissionAndNotificationOrdering(t *testing.T) {
 			}
 			if err := a.message(AgentMessage{Action: "approval", RequestID: "approve", ApprovalID: approval, Decision: "accept"}); err != nil {
 				t.Fatal(err)
+			}
+			page, err := journal.page(0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			requested := false
+			for _, event := range page.Events {
+				if event.Type == "approval_accept_requested" && event.ReferenceID == approval {
+					requested = true
+				}
+			}
+			if !requested {
+				t.Fatal("SDK permission response missing from lifecycle history")
 			}
 			select {
 			case err := <-permissionDone:

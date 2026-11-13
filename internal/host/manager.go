@@ -24,6 +24,7 @@ type processHandle interface {
 }
 
 type managed struct {
+	activity     *activityJournal
 	userCanceled bool
 	session      Session
 	process      processHandle
@@ -34,6 +35,7 @@ type managed struct {
 }
 
 type Manager struct {
+	requests *requestLedger
 	mu       sync.Mutex
 	dir      string
 	sessions map[string]*managed
@@ -47,6 +49,11 @@ func NewManager(dir string) (*Manager, error) {
 		return nil, err
 	}
 	m := &Manager{dir: dir, sessions: make(map[string]*managed), revision: uint64(time.Now().UnixNano())}
+	requests, err := newRequestLedger(filepath.Join(dir, "requests"))
+	if err != nil {
+		return nil, err
+	}
+	m.requests = requests
 	if err := m.loadEvents(); err != nil {
 		return nil, err
 	}
@@ -72,6 +79,11 @@ func NewManager(dir string) (*Manager, error) {
 		}
 		if record.ID != id {
 			return nil, errors.New("session ID mismatch")
+		}
+		activity, err := loadActivity(filepath.Join(dir, id+".activity"))
+		if err != nil {
+			slog.Warn("load session activity", "session", id, "error", err)
+			activity = &activityJournal{path: filepath.Join(dir, id+".activity"), failure: err}
 		}
 		if f, err := os.Open(filepath.Join(dir, id+".ring")); err == nil {
 			total, readErr := ringTotal(f)
@@ -99,10 +111,11 @@ func NewManager(dir string) (*Manager, error) {
 				return nil, err
 			}
 			m.emit(record)
+			_ = activity.append("session_interrupted", "disconnected", "", record.OutputBytes)
 		}
 		done := make(chan struct{})
 		close(done)
-		m.sessions[id] = &managed{session: record, done: done}
+		m.sessions[id] = &managed{session: record, done: done, activity: activity}
 	}
 	return m, nil
 }
@@ -122,6 +135,9 @@ func validID(id string) bool {
 // Terminal adapters preserve the installed CLI interface. Structured Codex
 // sessions use app-server and explicit semantic operations instead of PTY I/O.
 func resolveCommand(req *StartRequest) error {
+	if req.Task != nil && (req.Task.ID == "" || len(req.Task.ID) > 512 || len(req.Task.Label) > 160 || strings.ContainsRune(req.Task.ID, '\x00')) {
+		return errors.New("invalid task reference")
+	}
 	if req.Interaction != "" && req.Interaction != "terminal" && req.Interaction != "structured" {
 		return errors.New("invalid interaction mode")
 	}
@@ -219,6 +235,11 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 	record := Session{CompatibilityFallback: req.fallbackReason, Interaction: req.Interaction, ID: id, ConversationID: resumeConversationID(req.Resume), Kind: req.Kind, Agent: req.Agent, Command: req.Command, Args: append([]string(nil), req.Args...), Directory: req.Directory, State: "running", Started: time.Now().UTC()}
 	m.revision++
 	record.Revision = m.revision
+	record.StartRequestID = req.RequestID
+	if req.Task != nil {
+		task := *req.Task
+		record.Task = &task
+	}
 	// Persist intent before launching; a crash cannot leave a surviving process
 	// with no record. Failed launch removes both files.
 	if err := saveJSON(filepath.Join(m.dir, id+".json"), record); err != nil {
@@ -227,10 +248,18 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 		return Session{}, err
 	}
 	item := &managed{session: record, output: output, done: make(chan struct{})}
+	item.activity = &activityJournal{path: filepath.Join(m.dir, id+".activity"), events: []Activity{}}
+	if err := item.activity.append("session_started", "running", "", 0); err != nil {
+		f.Close()
+		os.Remove(path)
+		os.Remove(filepath.Join(m.dir, id+".json"))
+		return Session{}, err
+	}
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 	if req.Interaction == "structured" {
 		item.agent = newStructuredAgent(req.Agent, output, req.Directory, record.ConversationID)
 		item.agent.onConversationID = func(conversationID string) { m.setConversationID(item, conversationID) }
+		item.agent.onActivity = item.agentActivity
 		item.process, err = startStructuredAgent(cmd, item.agent)
 	} else {
 		item.process, item.terminal, err = startProcess(cmd, req.Kind != "task", output)
@@ -239,12 +268,14 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 		f.Close()
 		os.Remove(path)
 		os.Remove(filepath.Join(m.dir, id+".json"))
+		os.Remove(filepath.Join(m.dir, id+".activity"))
 		return Session{}, fmt.Errorf("start %s: %w", req.Kind, err)
 	}
 	m.sessions[id] = item
 	m.emit(record)
 	slog.Info("Host session started", "id", id, "kind", req.Kind)
 	go m.wait(item)
+	record.ActivitySequence = item.activity.cursor()
 	return cloneSession(record), nil
 }
 
@@ -278,6 +309,7 @@ func (m *Manager) wait(item *managed) {
 		go func() { _, _ = io.Copy(item.output, item.terminal); close(copied) }()
 	}
 	code, err := item.process.Wait()
+	finalAgentStatus := ""
 	if item.agent != nil {
 		if code != 0 {
 			if detail := item.agent.diagnostics.text(); detail != "" {
@@ -287,6 +319,7 @@ func (m *Manager) wait(item *managed) {
 		item.agent.close()
 		item.agent.mu.Lock()
 		err = errors.Join(err, item.agent.failure)
+		finalAgentStatus = structuredTurnResult(item.agent.lastTurnStatus)
 		item.agent.mu.Unlock()
 	}
 	if copied != nil {
@@ -318,17 +351,29 @@ func (m *Manager) wait(item *managed) {
 		item.session.Error = outputErr.Error()
 	}
 	item.process = nil
+	if item.session.Kind == "agent" {
+		if item.session.Interaction == "structured" && item.session.State == "succeeded" {
+			item.session.AgentStatus = finalAgentStatus
+		} else {
+			item.session.AgentStatus = sessionAgentStatus(item.session, nil)
+		}
+	}
 	m.revision++
 	item.session.Revision = m.revision
 	if err := saveJSON(filepath.Join(m.dir, item.session.ID+".json"), item.session); err != nil {
 		slog.Error("persist session completion", "id", item.session.ID, "error", err)
 	}
 	m.emit(item.session)
+	item.recordActivity("session_finished", item.session.State, "")
 	slog.Info("Host session finished", "id", item.session.ID, "state", item.session.State)
 	close(item.done)
 }
 
 func cloneSession(s Session) Session {
+	if s.Task != nil {
+		task := *s.Task
+		s.Task = &task
+	}
 	s.Args = append([]string(nil), s.Args...)
 	if s.Finished != nil {
 		finished := *s.Finished
@@ -342,8 +387,9 @@ func cloneSession(s Session) Session {
 }
 func (m *Manager) List(after uint64) []Session {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	sessions := make([]Session, 0, len(m.sessions))
+	agents := make(map[string]*structuredAgent)
+	activity := make(map[string]*activityJournal)
 	for _, item := range m.sessions {
 		if item.session.Revision > after {
 			record := cloneSession(item.session)
@@ -351,22 +397,34 @@ func (m *Manager) List(after uint64) []Session {
 				record.OutputBytes, record.OutputTruncated = item.output.stats()
 			}
 			sessions = append(sessions, record)
+			agents[record.ID] = item.agent
+			activity[record.ID] = item.activity
 		}
+	}
+	m.mu.Unlock()
+	for i := range sessions {
+		sessions[i].AgentStatus = sessionAgentStatus(sessions[i], agents[sessions[i].ID])
+		sessions[i].ActivitySequence = activity[sessions[i].ID].cursor()
 	}
 	sortSessions(sessions)
 	return sessions
 }
 func (m *Manager) Get(id string) (Session, error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	item, ok := m.sessions[id]
 	if !ok {
+		m.mu.Unlock()
 		return Session{}, os.ErrNotExist
 	}
 	record := cloneSession(item.session)
 	if item.output != nil {
 		record.OutputBytes, record.OutputTruncated = item.output.stats()
 	}
+	agent := item.agent
+	activity := item.activity
+	m.mu.Unlock()
+	record.AgentStatus = sessionAgentStatus(record, agent)
+	record.ActivitySequence = activity.cursor()
 	return record, nil
 }
 func (m *Manager) Cancel(id string) error { return m.cancel(id, true) }
@@ -412,7 +470,13 @@ func (m *Manager) Input(id string, data []byte) error {
 	if !running || terminal == nil {
 		return errors.New("session has no active terminal")
 	}
-	_, err := terminal.Write(data)
+	n, err := terminal.Write(data)
+	if err == nil && n != len(data) {
+		err = io.ErrShortWrite
+	}
+	if err != nil {
+		return errors.Join(errRequestUncertain, err)
+	}
 	return err
 }
 func (m *Manager) Resize(id string, rows, cols uint16) error {
@@ -502,7 +566,7 @@ func (m *Manager) delete(id string, probeOnly bool) error {
 	item.session.Revision = m.revision
 	item.session.State = "deleted"
 	m.emit(item.session)
-	for _, ext := range []string{".ring", ".log"} {
+	for _, ext := range []string{".ring", ".log", ".activity"} {
 		if err := os.Remove(filepath.Join(m.dir, id+ext)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}

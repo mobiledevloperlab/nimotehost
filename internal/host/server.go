@@ -202,7 +202,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			record, err := s.manager.Start(req)
 			if err != nil {
-				fail(w, 400, err.Error())
+				mutationFailure(w, err)
 				return
 			}
 			respond(w, 201, record)
@@ -234,6 +234,25 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		err = s.manager.Delete(id)
 	case action == "cancel" && r.Method == http.MethodPost:
 		err = s.manager.Cancel(id)
+	case action == "activity" && r.Method == http.MethodGet:
+		var after uint64
+		if value := r.URL.Query().Get("after"); value != "" {
+			after, err = strconv.ParseUint(value, 10, 64)
+			if err != nil {
+				fail(w, 400, "invalid activity sequence")
+				return
+			}
+		}
+		var page ActivityPage
+		page, err = s.manager.Activity(id, after)
+		if err == nil {
+			respond(w, 200, page)
+			return
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			fail(w, 500, "session activity is unavailable")
+			return
+		}
 	case action == "agent-state" && r.Method == http.MethodGet:
 		var snapshot map[string]any
 		snapshot, err = s.manager.AgentSnapshot(id)
@@ -246,15 +265,32 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !readJSON(w, r, &req) {
 			return
 		}
-		err = s.manager.AgentMessage(id, req)
+		var receipt mutationReceipt
+		receipt, err = runOnce(s.manager, req.RequestID, "session.agent-message/"+id, req, func() (mutationReceipt, error) {
+			err := s.manager.AgentMessage(id, req)
+			return mutationReceipt{OK: err == nil, RequestID: req.RequestID, Stage: "accepted"}, err
+		})
+		if err == nil {
+			respond(w, 200, receipt)
+			return
+		}
 	case action == "input" && r.Method == http.MethodPost:
 		var req struct {
-			Data []byte `json:"data"`
+			Data      []byte `json:"data"`
+			RequestID string `json:"request_id,omitempty"`
 		}
 		if !readJSON(w, r, &req) {
 			return
 		}
-		err = s.manager.Input(id, req.Data)
+		var receipt mutationReceipt
+		receipt, err = runOnce(s.manager, req.RequestID, "session.input/"+id, req, func() (mutationReceipt, error) {
+			err := s.manager.Input(id, req.Data)
+			return mutationReceipt{OK: err == nil, RequestID: req.RequestID, Stage: "terminal_written"}, err
+		})
+		if err == nil {
+			respond(w, 200, receipt)
+			return
+		}
 	case action == "resize" && r.Method == http.MethodPost:
 		var req struct {
 			Rows uint16 `json:"rows"`
@@ -314,11 +350,27 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, os.ErrNotExist) {
 			fail(w, 404, "session not found")
 		} else {
-			fail(w, 400, err.Error())
+			mutationFailure(w, err)
 		}
 		return
 	}
 	respond(w, 200, map[string]bool{"ok": true})
+}
+
+type mutationReceipt struct {
+	OK        bool   `json:"ok"`
+	RequestID string `json:"request_id,omitempty"`
+	Stage     string `json:"stage"`
+}
+
+func mutationFailure(w http.ResponseWriter, err error) {
+	status := http.StatusBadRequest
+	if errors.Is(err, errRequestConflict) {
+		status = http.StatusConflict
+	} else if errors.Is(err, errRequestUncertain) {
+		status = http.StatusServiceUnavailable
+	}
+	fail(w, status, err.Error())
 }
 
 func readJSON(w http.ResponseWriter, r *http.Request, value any) bool {
