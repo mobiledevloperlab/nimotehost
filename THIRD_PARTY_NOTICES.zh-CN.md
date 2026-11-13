@@ -41,3 +41,13 @@ MCP SDK 的许可证说明了 Apache-2.0 / MIT 的迁移状态；应保留其完
 | golang.org/x/sync | v0.20.0 | [LICENSE](third_party/x-sync/LICENSE), [PATENTS](third_party/x-sync/PATENTS) |
 | golang.org/x/time | v0.15.0 | [LICENSE](third_party/x-time/LICENSE), [PATENTS](third_party/x-time/PATENTS) |
 | golang.org/x/tools | v0.42.0 | [LICENSE](third_party/x-tools/LICENSE), [PATENTS](third_party/x-tools/PATENTS) |
+
+## Desktop dependencies / 桌面依赖
+
+Fyne and its transitive dependencies are isolated in
+`cmd/nimote-host-gui/go.mod` / `go.sum`; the CLI dependency manifest is unchanged.
+Desktop distributions carry `GUI-MODULES.json` and upstream LICENSE/COPYING/NOTICE
+files in `licenses-gui/`, in addition to the CLI licenses. The builder fails if a
+resolved desktop module has no root license file. Fyne uses the BSD 3-Clause
+license; consult each bundled notice for its dependencies. These libraries are not
+linked into the CLI. Fyne 及其依赖仅用于桌面版，随桌面包附完整上游许可证。

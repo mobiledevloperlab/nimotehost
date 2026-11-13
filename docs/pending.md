@@ -53,3 +53,16 @@ Implemented behavior lives in [completed functionality](completed.md). Items bel
 
 已删除的历史记录不作为当前版本验收结论；需要追溯时查阅 Git 历史。
 Deleted historical reports are available in Git history and do not establish current release acceptance.
+
+## 桌面版本剩余验收 / Desktop follow-up
+
+- [ ] 逐设备列表/在线状态/撤销：当前 SSH OS 用户域没有设备主体 API；需要兼容的认证设计，
+  GUI Devices 当前明确显示该限制，不展示虚构设备。Per-device authorization remains absent.
+- [ ] Windows/macOS/Linux 真实桌面托盘、窗口、主题切换、登录/系统重启服务验收；
+  Linux 不支持托盘的窗口回退已实现，Fyne 测试驱动不证明真实托盘可用。
+- [ ] 新增 GUI 原生 GitHub Actions 四目标实际执行；Windows arm64/Linux arm64 GUI 评估，
+  不以 Go 跨编译或 macOS 本机结果替代。Windows MSI、macOS 签名/公证、Linux 系统包后续评估。
+- [ ] Desktop 中的原生 Agent 历史浏览/指定对话恢复、SSH 连接历史、自动版本查询/更新安装；
+  已有 Agent 历史底层保留，但 GUI 目前仅映射会话、结构化状态与真实待审批。
+- [ ] NimoteCode 手机连接实测：共享配置默认端口及自定义端口、原 SSH RPC 行为、
+  Host 未安装/已停止/运行三种状态；本仓库测试不代替移动端真机验收。

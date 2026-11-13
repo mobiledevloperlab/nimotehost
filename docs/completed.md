@@ -68,7 +68,7 @@ back up state before downgrading because old binaries strictly decode metadata.
 
 ## 身份与生命周期 / Ownership and lifecycle
 
-Host 固定监听 `127.0.0.1:47831`；每个请求需要本地随机 256-bit Bearer token 和
+Host 默认监听 `127.0.0.1:47831`（可通过共享私有配置改端口，始终为 loopback）；每个请求需要本地随机 256-bit Bearer token 和
 `Nimote-Host-Protocol: 1`。手机通过原认证 SSH 调用远端 CLI，本地 token 不返回手机。
 Unix 目录/文件使用 0700/0600，Windows 使用当前用户 DACL；启动使用状态锁。
 Credentials stay on the host. Every RPC is authenticated within the existing SSH OS-user boundary.
@@ -210,3 +210,79 @@ The latest functional regression passed locally; the complete native/mobile matr
 源码、发行、维护流程见根目录 [README](../README.md)、[贡献指南](../CONTRIBUTING.md)、
 [安全政策](../SECURITY.md)和[更新记录](../CHANGELOG.md)。历史审计与截图已移出维护文档，
 可从 Git 历史查阅；当前状态只维护本页与[未完成功能](pending.md)。
+
+<a id="desktop-architecture-audit"></a>
+
+## 双入口审计与桌面版本 / Desktop architecture audit
+
+本次审计依据入口、RPC/server/storage/manager/provider、hostservice、hostinstall、
+构建器、CI 和现有测试完成；保留 `internal/host` 作为单一 Core，不机械搬迁目录。
+Audit findings and reuse boundaries:
+
+| 范围 / Area | 已有实现与处理 / Finding and decision |
+| --- | --- |
+| 入口 / Entry | cmd/nimote-host: help/version/setup/install/uninstall/start/stop/restart/status/capabilities/rpc/rpc-encoded/rpc-stream/mcp；参数与语义保留。 |
+| 生命周期 / Lifecycle | start 前台 daemon；状态锁、认证 shutdown、Manager.Close 托管进程树；GUI 仅客户端，未安装服务时 detached 启动独立 CLI。 |
+| Core | 原任务、32 活跃/256 保留会话、输出环、幂等、事件、Agent SDK、历史、MCP 全部保留。无需重新实现终端或 Agent。 |
+| SSH/认证 / Auth | SSH exec 携带 RPC，Host 不实现 SSH server；本地 256-bit Token + 用户权限已有，无逐设备身份/撤销。GUI 不扫描 authorized_keys 冒充手机清单。 |
+| IPC | 原认证 loopback HTTP 满足已有 IPC 优先复用原则；没有增加管理 HTTP 端口，也没有新增 UDS/Named Pipe 或公开监听。 |
+| 服务 / Services | systemd user、launchd、Windows 登录计划任务；新增显式 CLI 路径构造器，避免原生服务错误启动 GUI。 |
+| 平台 / Platform | Unix PTY/flock/进程组；Windows ConPTY/Job Objects/LockFileEx/DACL；保留。GUI 启动使用 Unix setsid / Windows detached process group。 |
+| 配置 / Configuration | 原无配置文件，端口为固定 loopback；现新增共享私有 config.json，默认不变，停止 Host 才能修改。GUI 生命周期通过 control.lock 跨进程串行化。 |
+| 环境 / Environment | 原 NIMOTE_HOST_MCP_WRITE=1、Unix PATH/XDG_CONFIG_HOME、Windows LOCALAPPDATA、交互 SHELL 均保留。新增 Fyne 自身主题/首选项存储；不复制环境凭证。 |
+| 发布 / Distribution | 原 tools/build、安装事务、许可证校验、源码导出和六目标 CLI 构建保留；-gui 原生附加构建，独立归档，打包 CLI 与 GUI 许可证。 |
+| 移动协议 / Protocol | Protocol=1、RPC 路径/请求/响应、能力协商不变；旧移动端通过同一已更新 CLI 读取端口。没有启用 P2P/DERP。 |
+
+新增代码 / Added boundaries:
+
+- `internal/desktop`: 认证 RPC facade、Host 状态、真实会话、Agent 快照/审批、
+  跨进程启停锁、独立进程启动和脱敏诊断。它不导入 Fyne。
+- `cmd/nimote-host-gui`: 独立 Fyne module、原生紧凑选项卡、托盘、主题和管理界面。
+  系统托盘菜单与关闭拦截使用 [Fyne 原生接口](https://developer.fyne.io/explore/systray)。
+- `internal/host/config.go`, `log.go`: 私有共享配置、Host 锁下写入、64 KiB 有界日志。
+  Token、Agent/终端输出不进入新运行日志；导出仅包括健康摘要，不包含运行日志。
+
+启动 GUI 不自动启动 Host。Start 检测已有 Host；未运行时复用用户服务或启动独立 CLI。
+GUI 五秒轮询元数据，不读取终端输出；关闭/崩溃不拥有 daemon 的取消上下文。
+Windows/macOS 关闭隐藏；Linux 托盘能力无法通过 Fyne desktop 接口可靠探测，因此默认
+正常窗口退出，仅在用户明确启用已知可用托盘后隐藏。Quit GUI 与 Stop Host 分开。
+Enabling login startup installs/starts the existing user service; disabling removes it.
+Both require Host stopped to avoid implicit interruption. User login, not machine boot
+without a user session, is the native service guarantee.
+
+### 桌面构建与安装 / Desktop build and installation
+
+```sh
+# 必须在目标 OS / 架构的原生 runner 上运行 / native build
+# Go 1.26.5+；CLI 仍可 CGO_ENABLED=0 独立编译
+go run ./tools/build -gui -version 1.0.0-dev
+```
+
+- Linux amd64：gcc、libgl1-mesa-dev、xorg-dev、libxkbcommon-dev；运行需要兼容
+  OpenGL/X11（Wayland 可通过 XWayland）的桌面环境。CLI 服务器不需要这些依赖。
+- macOS amd64/arm64：Xcode Command Line Tools；生成包含 GUI 与 CLI 的 `.app`。
+  发布包目前未签名/公证；开发者正式分发须使用自己的 Developer ID 对内部 CLI、GUI、
+  app 依次 codesign，再 notarize/staple，重新生成校验和与归档。不得声称已完成签名。
+- Windows amd64：原生 Go + MinGW-w64 gcc（CI 使用 msys64/mingw64/bin）；生成无控制台
+  GUI 与 CLI zip。沿用用户安装脚本，无需管理员权限，不提供 MSI/Authenticode 签名。
+- Windows arm64、Linux arm64 CLI 保留。GUI 可在对应原生桌面/SDK 下执行相同构建命令，
+  但当前 GUI CI 不覆盖这两个目标，不能当作已支持的 GUI 发布产物。
+
+`dist/gui-<os>-<arch>` 和 `nimote-host-gui-<version>-<os>-<arch>` 为桌面完整分发；
+原 CLI 名称不变。现有脚本可安装完整 GUI 包，保留整个固定安装目录。
+macOS 应启动已安装目录中的 app，不要在临时解压目录启用长期服务后删除它。
+同一 v* Tag 在所有必需 CI 成功后统一上传 CLI、GUI 与源码；所用 runner 标签参考
+[GitHub 官方列表](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)。
+GUI 构建不支持无 SDK 的普通 GOOS/GOARCH 交叉编译，构建器会明确失败。
+
+原有自动测试覆盖协议、认证、会话、Agent、幂等、安装事务与服务定义。
+新增自动测试覆盖真实 CLI 后台进程、管理进程退出后继续运行、重新连接、重复启动、
+配置锁/一致性、端口冲突、窗口隐藏/关闭/重新打开/GUI 退出后活跃任务继续运行。
+Fyne 窗口测试使用无显示器测试驱动；不能替代真实系统托盘、登录/重启与手机验收。
+
+本次桌面改造实际验证 / Verification for this change: 完整 `go test -mod=readonly -race ./...`、
+根模块 `go vet ./...`、桌面模块 `go test -tags ci ./...` 与 `go vet -tags ci ./...`、
+两模块 `go mod verify`、5 项 Python 检查均通过。CLI 六目标构建成功，
+macOS arm64 GUI 原生编译、联合打包和真实图形启动通过，GUI 退出不发送 Host 停止请求；
+归档清单逐文件校验通过。真实图形启动出现 Fyne zh-Hans 内建选择器缺译的非致命日志，
+不影响启动；三平台托盘、签名、服务/系统重启和手机矩阵仍列在 pending。

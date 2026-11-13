@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"strings"
@@ -65,7 +66,27 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 	case "mcp":
 		return host.ServeMCP(ctx, dir, stdin, stdout, os.Getenv("NIMOTE_HOST_MCP_WRITE") == "1")
 	case "start":
-		return host.Serve(ctx, dir, stdout)
+		config, err := host.ReadConfig(dir)
+		if err != nil {
+			return err
+		}
+		log, err := host.OpenRunLog(dir)
+		if err != nil {
+			return err
+		}
+		defer log.Close()
+		var level slog.Level
+		if err = level.UnmarshalText([]byte(config.LogLevel)); err != nil {
+			return err
+		}
+		slog.SetDefault(slog.New(slog.NewTextHandler(io.MultiWriter(os.Stderr, log), &slog.HandlerOptions{Level: level})))
+		err = host.Serve(ctx, dir, stdout)
+		if err != nil {
+			slog.Error("Host failed", "error", err)
+		} else {
+			slog.Info("Host stopped")
+		}
+		return err
 	case "install", "uninstall", "restart":
 		service, err := hostservice.NewHostDefault()
 		if err != nil {
