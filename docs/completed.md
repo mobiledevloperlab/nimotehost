@@ -141,6 +141,7 @@ Use encoded argv, not shell interpolation. Closing the RPC bridge only detaches 
 | Feature flag | 合同 / Contract |
 | --- | --- |
 | mutation_idempotency_v1 | 创建与 input 的可选请求键；结构化消息已有必需键。 |
+| mutation_expiry_v1 | 支持七天有效期的请求键、安全回执轮换及状态中的容量诊断。 |
 | agent_status_v1 | Agent 状态与进程 state 分离，未知协议停止原因保持 unknown。 |
 | session_task_v1 | task.id 必填且最多 512 字节，label 可选且最多 160 字节；不执行原 Task 命令。 |
 | session_activity_v1 | 会话内递增 activity_sequence；摘要页最多保留 256 条，过期/超前游标要求 resync。 |
@@ -153,6 +154,16 @@ Gate new fields by capability. The umbrella approval flag remains false pending 
 
 相同 request_id 必须绑定相同操作、会话和请求内容。执行前同步预留，完成后保存回执；
 重试返回原回执而非最新快照。创建回执含 start_request_id。
+声明 `mutation_expiry_v1` 的 Host 接受 `v2.<Unix秒时间戳>.<64位小写随机十六进制>`，
+Go 客户端可调用 `host.NewRequestID()`；GUI 在后台协商能力后用于审批与恢复操作，
+连接旧 Host 时使用原有不透明请求键，协商失败则不提交操作。
+请求键有效期七天，允许客户端时钟最多超前五分钟。过期请求在副作用前返回 400，
+不能通过改用新键自动重试；应先核对会话。Host 启动及后续变更请求触发的每小时清理中，
+先持久化只增不减的过期边界，再删除过期回执；时钟回拨或重启不会重新允许这些键。
+旧格式回执继续保留，不通过淘汰旧键破坏原有防重放保证。
+`GET /v1/status` 的 `request_storage` 与 GUI Diagnostics 提供数量、空间、旧回执数量和 80% 容量告警。
+New expiring IDs allow safe bounded-window cleanup; legacy receipts remain reserved indefinitely.
+Clients must negotiate the capability on each connection and must not submit expiring IDs to older Hosts.
 `accepted` 只表示 Host 接收/排队，`terminal_written` 只表示写入终端；不等于 Agent 确认或任务完成。
 Only structured provider evidence confirms completion; queue acceptance is not acknowledgement.
 
@@ -163,6 +174,9 @@ Do not replay uncertain operations with a new key. A filesystem/process transact
 
 进程 revision、活动 sequence、输出字节 offset 分开使用。生命周期只存事件摘要与输出引用，
 不存提示、输出或工具 diff；审批响应排队不代表上游已执行。损坏的摘要报告不可用，不杀死会话。
+单个输出日志损坏不再阻止 Host 启动：保留会话状态，在 error 中标记输出不可用，
+读取该日志仍返回错误；不清空或覆盖原损坏文件。超前事件游标明确要求全量同步。
+Unix 状态文件替换同步文件内容和父目录；Windows 保留文件刷新，不声称具备 POSIX 目录同步语义。
 通知游标按 Host 保存在既有偏好中，首次历史建立基线，重连补取；序号缺失/重复拒绝推进游标。
 窗口不足只提示重同步，不批量弹出过期审批。通知与偏好保存不具备跨进程事务，崩溃可能重复提示。
 
@@ -311,7 +325,13 @@ Unix 管理员为每台设备准备独立 SSH 公钥，把 GUI 显示的 `restri
 撤销 Host 权限后，还应移除相应受限 SSH key 来禁止后续 SSH 登录；Host 撤销无需等待该操作。
 
 GUI History 从当前 Host 的原生 provider API 读取历史列表（支持列表分页）与 transcript，
-使用原 conversation_id 显式恢复新结构化 Agent 会话；不重放旧提示，不自动转成新对话。
+Codex transcript 可用 Next transcript page 继续读取，保持原生游标。
+每条历史投影按编码后的 JSON 限制为 24 KiB，缩短内容明确标记 `truncated`，
+最多 50 条的 Codex 页保持在 RPC 的 2 MiB 限额内。ACP 没有可续读的 transcript 游标，
+先用最多 4 MiB 的轻量原始通知缓冲排空 SDK，再生成最多 2,000 条、总预算 1 MiB 的投影；
+超过任一预算返回 `truncated=true`，
+不把截断结果当作完整历史。
+GUI 使用原 conversation_id 显式恢复新结构化 Agent 会话；不重放旧提示，不自动转成新对话。
 加载目录/Agent 与展示数据绑定，编辑查询条件不会改变已选记录的恢复目标。
 Settings 可显式查询官方 GitHub 最新发行版，并在用户确认后打开下载页，使用原有校验和
 安装事务更新；不执行下载代码、不静默覆盖活跃服务。版本查询使用

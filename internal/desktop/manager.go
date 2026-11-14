@@ -5,6 +5,7 @@ package desktop
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,14 +24,15 @@ import (
 
 type Manager struct{ Dir, Binary string }
 type Snapshot struct {
-	State       string
-	Version     string
-	Name        string
-	Platform    string
-	Address     string
-	LAN         []string
-	Autostart   bool
-	ServiceHelp string
+	RequestStorage *host.RequestStorageStatus
+	State          string
+	Version        string
+	Name           string
+	Platform       string
+	Address        string
+	LAN            []string
+	Autostart      bool
+	ServiceHelp    string
 }
 
 func New(binary string) (*Manager, error) {
@@ -97,8 +99,9 @@ func (m *Manager) Status(ctx context.Context) (Snapshot, error) {
 		return s, err
 	}
 	var status struct {
-		Running bool   `json:"running"`
-		Version string `json:"version"`
+		RequestStorage *host.RequestStorageStatus `json:"request_storage"`
+		Running        bool                       `json:"running"`
+		Version        string                     `json:"version"`
 	}
 	if err = json.Unmarshal(b, &status); err != nil {
 		return s, err
@@ -108,6 +111,7 @@ func (m *Manager) Status(ctx context.Context) (Snapshot, error) {
 	}
 	s.State = "Running"
 	s.Version = status.Version
+	s.RequestStorage = status.RequestStorage
 	return s, nil
 }
 func (m *Manager) Sessions(ctx context.Context) ([]host.Session, error) {
@@ -278,7 +282,11 @@ func (m *Manager) launch() error {
 // Diagnostics intentionally excludes tokens, session contents, commands, and environment.
 func (m *Manager) Diagnostics(ctx context.Context) string {
 	s, err := m.Status(ctx)
-	return fmt.Sprintf("Nimote Host Desktop\nObserved: %s\nState: %s\nHost: %s\nPlatform: %s\nHost version: %s\nLocal IPC: %s\nLAN: %s (SSH only; IPC is loopback)\nLogin service: %t\nSSH: externally managed; availability not probed\n%s\nError: %v\n", time.Now().Format(time.RFC3339), s.State, s.Name, s.Platform, s.Version, s.Address, strings.Join(s.LAN, ", "), s.Autostart, s.ServiceHelp, err)
+	storage := "Request storage: unavailable"
+	if r := s.RequestStorage; r != nil {
+		storage = fmt.Sprintf("Request storage: %d/%d receipts (%d legacy); %d/%d bytes; capacity warning: %t", r.Receipts, r.ReceiptLimit, r.LegacyReceipts, r.Bytes+r.ReservedBytes, r.ByteLimit, r.CapacityWarning)
+	}
+	return fmt.Sprintf("Nimote Host Desktop\nObserved: %s\nState: %s\nHost: %s\nPlatform: %s\nHost version: %s\nLocal IPC: %s\nLAN: %s (SSH only; IPC is loopback)\nLogin service: %t\nSSH: externally managed; availability not probed\n%s\n%s\nError: %v\n", time.Now().Format(time.RFC3339), s.State, s.Name, s.Platform, s.Version, s.Address, strings.Join(s.LAN, ", "), s.Autostart, s.ServiceHelp, storage, err)
 }
 
 // AgentState is a fresh provider snapshot, never inferred from terminal text.
@@ -288,6 +296,24 @@ func (m *Manager) AgentState(ctx context.Context, id string) (json.RawMessage, e
 	}
 	return host.Call(ctx, m.Dir, host.RPCRequest{Method: "GET", Path: "/v1/sessions/" + id + "/agent-state"})
 }
+
+// MutationRequestID negotiates the retry contract on the current connection.
+// Old Hosts continue to receive opaque keys with their original semantics.
+func (m *Manager) MutationRequestID(ctx context.Context) (string, error) {
+	raw, err := host.Call(ctx, m.Dir, host.RPCRequest{Method: "GET", Path: "/v1/capabilities"})
+	if err != nil {
+		return "", err
+	}
+	var caps host.Capabilities
+	if err := json.Unmarshal(raw, &caps); err != nil {
+		return "", err
+	}
+	if caps.Features["mutation_expiry_v1"] {
+		return host.NewRequestID()
+	}
+	return rand.Text(), nil
+}
+
 func sessionID(id string) bool {
 	if len(id) != 64 {
 		return false

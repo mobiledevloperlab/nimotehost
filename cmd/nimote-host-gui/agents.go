@@ -3,8 +3,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"fyne.io/fyne/v2"
@@ -58,16 +56,13 @@ func inspectAgent(w fyne.Window, m *desktop.Manager, id string) {
 						if !ok {
 							return
 						}
-						var key [24]byte
-						if _, err := rand.Read(key[:]); err != nil {
-							dialog.ShowError(err, w)
-							return
-						}
-						requestID := hex.EncodeToString(key[:])
 						go func() {
 							ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 							defer cancel()
-							err := m.Decide(ctx, id, detail.ID, decision, requestID)
+							requestID, err := m.MutationRequestID(ctx)
+							if err == nil {
+								err = m.Decide(ctx, id, detail.ID, decision, requestID)
+							}
 							fyne.Do(func() {
 								if err != nil {
 									dialog.ShowError(fmt.Errorf("response %s: %w; inspect current state before any further response", requestID, err), w)

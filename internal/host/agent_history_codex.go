@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	acp "github.com/coder/acp-go-sdk"
 )
@@ -137,6 +138,9 @@ func listCodexHistory(ctx context.Context, cwd, cursor string) (codexHistoryPage
 	if err := json.Unmarshal(result, &response); err != nil {
 		return codexHistoryPage{}, err
 	}
+	if len(response.Data) > maxHistoryPage || len(response.NextCursor) > 4096 {
+		return codexHistoryPage{}, errors.New("Codex returned an invalid history page")
+	}
 	page := codexHistoryPage{Items: make([]map[string]any, 0, len(response.Data))}
 	for _, thread := range response.Data {
 		title := strings.TrimSpace(thread.Name)
@@ -197,6 +201,12 @@ func projectCodexHistory(result json.RawMessage) (map[string]any, error) {
 	if response.Data == nil {
 		return nil, errors.New("Codex history response is missing items")
 	}
+	if len(response.Data) > maxHistoryPage {
+		return nil, errors.New("Codex history response exceeds the requested page size")
+	}
+	if len(response.NextCursor) > 4096 {
+		return nil, errors.New("Codex history cursor exceeds the supported size")
+	}
 	items := make([]map[string]any, 0)
 	for _, entry := range response.Data {
 		var item map[string]any
@@ -213,11 +223,10 @@ func projectCodexHistory(result json.RawMessage) (map[string]any, error) {
 		} else if kind == "agentMessage" || kind == "plan" {
 			role = "assistant"
 		}
-		text := boundedHistoryText(itemText(item), 64<<10)
-		items = append(items, map[string]any{
-			"id": item["id"], "role": role, "kind": kind, "text": text,
+		items = append(items, boundHistoryItem(map[string]any{
+			"id": item["id"], "role": role, "kind": kind, "text": itemText(item),
 			"tool": safeToolDetails(item),
-		})
+		}))
 	}
 	page := map[string]any{"items": items, "next_cursor": nil}
 	if response.NextCursor != "" {
@@ -282,6 +291,9 @@ func itemText(item map[string]any) string {
 func boundedHistoryText(value string, limit int) string {
 	if len(value) <= limit {
 		return value
+	}
+	for limit > 0 && !utf8.RuneStart(value[limit]) {
+		limit--
 	}
 	return value[:limit] + "…"
 }

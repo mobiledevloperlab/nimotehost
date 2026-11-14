@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 var errRequestConflict = errors.New("request_id was already used for a different operation")
@@ -20,6 +21,7 @@ var errRequestUncertain = errors.New("request outcome is uncertain; inspect the 
 // A reservation without a result is never executed again. Exactly-once execution
 // cannot be promised across a process/terminal write and a filesystem transaction.
 type requestRecord struct {
+	CreatedAt   int64           `json:"created_at,omitempty"`
 	Fingerprint string          `json:"fingerprint"`
 	Complete    bool            `json:"complete"`
 	Result      json.RawMessage `json:"result,omitempty"`
@@ -29,12 +31,17 @@ type requestRecord struct {
 }
 
 type requestLedger struct {
-	mu       sync.Mutex
-	dir      string
-	count    int
-	active   int
-	bytes    int64
-	reserved int64
+	mu            sync.Mutex
+	dir           string
+	count         int
+	active        int
+	bytes         int64
+	reserved      int64
+	legacy        int
+	retiredBefore int64
+	lastSweep     time.Time
+	now           func() time.Time
+	inflight      map[string]bool
 }
 
 const maxReceipt = 2 << 20
@@ -44,17 +51,17 @@ func newRequestLedger(dir string) (*requestLedger, error) {
 	if err := privateDir(dir); err != nil {
 		return nil, err
 	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
+	ledger := &requestLedger{dir: dir, now: time.Now, inflight: make(map[string]bool)}
+	data, err := os.ReadFile(filepath.Join(dir, "retired-before"))
+	if err == nil {
+		if err := json.Unmarshal(data, &ledger.retiredBefore); err != nil || ledger.retiredBefore < 0 {
+			return nil, errors.New("invalid request retirement watermark")
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
-	ledger := &requestLedger{dir: dir, count: len(entries)}
-	for _, entry := range entries {
-		info, err := entry.Info()
-		if err != nil {
-			return nil, err
-		}
-		ledger.bytes += info.Size()
+	if err := ledger.sweepLocked(ledger.now()); err != nil {
+		return nil, err
 	}
 	return ledger, nil
 }
@@ -69,6 +76,10 @@ func runOnce[T any](m *Manager, id, operation string, payload any, run func() (T
 	if len(id) > 128 {
 		return zero, errors.New("request_id exceeds 128 bytes")
 	}
+	stamp, err := requestTimestamp(id)
+	if err != nil {
+		return zero, err
+	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return zero, err
@@ -79,6 +90,23 @@ func runOnce[T any](m *Manager, id, operation string, payload any, run func() (T
 	path := filepath.Join(ledger.dir, hex.EncodeToString(key[:]))
 	fingerprint := hex.EncodeToString(hash[:])
 	ledger.mu.Lock()
+	now := ledger.now()
+	if stamp > 0 {
+		if stamp <= max(ledger.retiredBefore, now.Add(-requestRetention).Unix()) {
+			ledger.mu.Unlock()
+			return zero, errors.New("request_id has expired; inspect the session before submitting a new operation")
+		}
+		if stamp > now.Add(requestClockSkew).Unix() {
+			ledger.mu.Unlock()
+			return zero, errors.New("request_id timestamp is in the future; check the client clock")
+		}
+	}
+	if now.Sub(ledger.lastSweep) >= requestSweepInterval {
+		if err := ledger.sweepLocked(now); err != nil {
+			ledger.mu.Unlock()
+			return zero, err
+		}
+	}
 	data, err := os.ReadFile(path)
 	if err == nil {
 		var record requestRecord
@@ -113,7 +141,7 @@ func runOnce[T any](m *Manager, id, operation string, payload any, run func() (T
 		return zero, errors.Join(errRequestUncertain, err)
 	}
 	// Never evict a receipt and silently permit a delayed replay.
-	if ledger.count >= 65536 {
+	if ledger.count >= maxRequestRecords {
 		ledger.mu.Unlock()
 		return zero, errors.New("Host request retention limit reached")
 	}
@@ -125,13 +153,17 @@ func runOnce[T any](m *Manager, id, operation string, payload any, run func() (T
 		ledger.mu.Unlock()
 		return zero, errors.New("Host request storage limit reached")
 	}
-	record := requestRecord{Fingerprint: fingerprint}
+	record := requestRecord{Fingerprint: fingerprint, CreatedAt: stamp}
 	if err := saveJSON(path, record); err != nil {
 		ledger.mu.Unlock()
 		return zero, err
 	}
 	ledger.count++
+	if stamp == 0 {
+		ledger.legacy++
+	}
 	ledger.active++
+	ledger.inflight[filepath.Base(path)] = true
 	initial, _ := json.Marshal(record)
 	ledger.bytes += int64(len(initial))
 	ledger.reserved += maxReceipt
@@ -139,6 +171,7 @@ func runOnce[T any](m *Manager, id, operation string, payload any, run func() (T
 	defer func() {
 		ledger.mu.Lock()
 		ledger.active--
+		delete(ledger.inflight, filepath.Base(path))
 		ledger.reserved -= maxReceipt
 		ledger.mu.Unlock()
 	}()
@@ -157,10 +190,11 @@ func runOnce[T any](m *Manager, id, operation string, payload any, run func() (T
 	if err != nil || len(final) > maxReceipt {
 		return zero, errors.Join(errRequestUncertain, errors.New("request receipt exceeds storage budget"))
 	}
+	ledger.mu.Lock()
 	if err := atomicWrite(path, final); err != nil {
+		ledger.mu.Unlock()
 		return zero, errors.Join(errRequestUncertain, err)
 	}
-	ledger.mu.Lock()
 	ledger.bytes += int64(len(final) - len(initial))
 	ledger.mu.Unlock()
 	return value, runErr
