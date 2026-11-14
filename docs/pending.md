@@ -11,9 +11,10 @@ Implemented behavior lives in [completed functionality](completed.md). Items bel
 - [ ] 统一 AI Session Dashboard：在现有 AI 模式按主机/工作区聚合会话、搜索与状态筛选；
   保存带观察时间的离线摘要，不将缓存伪装成实时状态。
   Unified AI-mode dashboard and timestamped cross-host offline summaries.
-- [ ] 逐设备主体和会话权限：当前为 SSH OS 用户权限域，尚无同账号内按手机撤销、
-  会话 ACL 或细粒度设备权限；不能信任客户端自报 device_id 代替认证。
-  Per-device identity, revocation and session authorization within an SSH account.
+- [ ] 完整控制设备隔离及会话 ACL：已实现独立只读设备身份和逐请求撤销；
+  拥有同一 OS 用户任意命令执行权的客户端不在该隔离范围内。完整控制需独立系统身份或沙箱，
+  当前仍无每设备可执行任务或每会话写权限策略。Authenticated observer revocation is implemented;
+  execution-capable device isolation and per-session ACL remain open.
 - [ ] 请求账本长期轮换：当前达到数量/空间限额前拒绝新操作，无在线轮换或安全淘汰协议；
   删除会话仍保留回执，避免延迟请求重建任务。
   Safe long-term idempotency-ledger rotation without enabling delayed replay.
@@ -56,13 +57,14 @@ Deleted historical reports are available in Git history and do not establish cur
 
 ## 桌面版本剩余验收 / Desktop follow-up
 
-- [ ] 逐设备列表/在线状态/撤销：当前 SSH OS 用户域没有设备主体 API；需要兼容的认证设计，
-  GUI Devices 当前明确显示该限制，不展示虚构设备。Per-device authorization remains absent.
+- [ ] 只读设备的真实连接遥测，以及 SSH 密钥自动安装/移除和 Windows forced-command 原生验收。
+  已有设备注册/列表/持久撤销和 GUI；SSH key 绑定目前由管理员配置，连接状态明确 unknown。
 - [ ] Windows/macOS/Linux 真实桌面托盘、窗口、主题切换、登录/系统重启服务验收；
   Linux 不支持托盘的窗口回退已实现，Fyne 测试驱动不证明真实托盘可用。
-- [ ] 新增 GUI 原生 GitHub Actions 四目标实际执行；Windows arm64/Linux arm64 GUI 评估，
+- [ ] 新增 GUI 原生 GitHub Actions 五目标实际执行；Windows arm64/Linux arm64 GUI 评估，
   不以 Go 跨编译或 macOS 本机结果替代。Windows MSI、macOS 签名/公证、Linux 系统包后续评估。
-- [ ] Desktop 中的原生 Agent 历史浏览/指定对话恢复、SSH 连接历史、自动版本查询/更新安装；
-  已有 Agent 历史底层保留，但 GUI 目前仅映射会话、结构化状态与真实待审批。
+- [ ] Desktop 的 SSH 连接历史、后台版本查询策略及自动更新安装。已接入 Agent 历史列表分页、
+  transcript 读取、指定 conversation 恢复，以及显式官方版本查询/下载入口。
+  transcript 后续分页、真实 provider 恢复验收和安装包签名仍需补齐。
 - [ ] NimoteCode 手机连接实测：共享配置默认端口及自定义端口、原 SSH RPC 行为、
   Host 未安装/已停止/运行三种状态；本仓库测试不代替移动端真机验收。

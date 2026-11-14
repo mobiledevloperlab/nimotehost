@@ -39,20 +39,21 @@ func capabilities(hostID string) Capabilities {
 	}
 	_, claudeAdapter := tools["claude-agent-acp"]
 	return Capabilities{Version: Version, Protocol: Protocol, MinProtocol: Protocol, Platform: runtime.GOOS, Arch: runtime.GOARCH, HostID: hostID,
-		Features: map[string]bool{"session_activity_v1": true, "session_task_v1": true, "mutation_idempotency_v1": true, "agent_status_v1": true, "session_disconnect_survival": true, "session_restart_survival": false, "rpc_stream": true, "rolling_output": true, "idle_shutdown": true, "tasks": true, "output_replay": true, "events": true, "environment": true, "terminal": terminalSupported, "agent_terminal": terminalSupported, "agent_structured_approval": false, "public_transport": false, "codex_structured": structuredAgentSupported, "codex_structured_auto": structuredAgentSupported, "agent_events_v1": true, "agent_controls_v1": true, "agent_cold_start_wait": true, "agent_history_v1": structuredAgentSupported && (tools["codex"] != "" || tools["opencode"] != "" || claudeAdapter), "codex_history_v1": structuredAgentSupported && tools["codex"] != "", "opencode_history_v1": structuredAgentSupported && tools["opencode"] != "", "claude_history_v1": structuredAgentSupported && claudeAdapter, "opencode_structured": structuredAgentSupported, "opencode_structured_auto": structuredAgentSupported, "claude_structured": structuredAgentSupported && claudeAdapter, "claude_structured_auto": structuredAgentSupported && claudeAdapter}, Tools: tools}
+		Features: map[string]bool{"session_activity_v1": true, "session_task_v1": true, "mutation_idempotency_v1": true, "agent_status_v1": true, "session_disconnect_survival": true, "session_restart_survival": false, "rpc_stream": true, "rolling_output": true, "idle_shutdown": true, "tasks": true, "output_replay": true, "events": true, "environment": true, "terminal": terminalSupported, "agent_terminal": terminalSupported, "agent_structured_approval": false, "public_transport": false, "codex_structured": structuredAgentSupported, "codex_structured_auto": structuredAgentSupported, "agent_events_v1": true, "agent_controls_v1": true, "agent_execution_policy_v1": true, "agent_cold_start_wait": true, "agent_history_v1": structuredAgentSupported && (tools["codex"] != "" || tools["opencode"] != "" || claudeAdapter), "codex_history_v1": structuredAgentSupported && tools["codex"] != "", "opencode_history_v1": structuredAgentSupported && tools["opencode"] != "", "claude_history_v1": structuredAgentSupported && claudeAdapter, "opencode_structured": structuredAgentSupported, "opencode_structured_auto": structuredAgentSupported, "claude_structured": structuredAgentSupported && claudeAdapter, "claude_structured_auto": structuredAgentSupported && claudeAdapter}, Tools: tools}
 }
 
 type StartRequest struct {
-	Task           *TaskReference `json:"task,omitempty"`
-	RequestID      string         `json:"request_id,omitempty"`
-	fallbackReason string
-	Interaction    string       `json:"interaction,omitempty"` // terminal (default), structured, or auto
-	Kind           string       `json:"kind"`                  // task, terminal, agent
-	Command        string       `json:"command"`
-	Args           []string     `json:"args"`
-	Directory      string       `json:"directory"`
-	Agent          string       `json:"agent"` // codex, claude, opencode
-	Resume         *AgentResume `json:"resume,omitempty"`
+	ExecutionPolicy string         `json:"execution_policy,omitempty"`
+	Task            *TaskReference `json:"task,omitempty"`
+	RequestID       string         `json:"request_id,omitempty"`
+	fallbackReason  string
+	Interaction     string       `json:"interaction,omitempty"` // terminal (default), structured, or auto
+	Kind            string       `json:"kind"`                  // task, terminal, agent
+	Command         string       `json:"command"`
+	Args            []string     `json:"args"`
+	Directory       string       `json:"directory"`
+	Agent           string       `json:"agent"` // codex, claude, opencode
+	Resume          *AgentResume `json:"resume,omitempty"`
 }
 
 type AgentResume struct {
@@ -60,6 +61,7 @@ type AgentResume struct {
 }
 
 type Session struct {
+	ExecutionPolicy       string         `json:"execution_policy,omitempty"`
 	ActivitySequence      uint64         `json:"activity_sequence,omitempty"`
 	Task                  *TaskReference `json:"task,omitempty"`
 	AgentStatus           string         `json:"agent_status,omitempty"`

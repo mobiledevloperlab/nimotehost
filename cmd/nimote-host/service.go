@@ -25,6 +25,11 @@ Advanced setup (binary already at a fixed installation path):
   nimote-host status        Check the running Host (JSON)
   nimote-host capabilities  Show available features and installed Agent CLIs (JSON)
 
+Devices (restricted read-only SSH keys):
+  nimote-host devices list
+  nimote-host devices add <name>
+  nimote-host devices revoke <id>
+
 Manage:
   nimote-host stop          Stop Host and its active tasks; wait until stopped
   nimote-host restart       Restart the installed service; terminates active tasks

@@ -3,6 +3,7 @@ package desktop
 
 import (
 	"context"
+	"encoding/base64"
 	"github.com/mobiledevloperlab/nimote-host/internal/host"
 	"net"
 	"os"
@@ -68,6 +69,28 @@ func TestIndependentHostLifecycle(t *testing.T) {
 	s, err := other.Status(ctx)
 	if err != nil || s.State != "Running" {
 		t.Fatalf("Host died with manager: %v %v", s, err)
+	}
+	device, err := host.CreateDevice(dir, "restricted CLI integration")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bridge := func(request string) error {
+		encoded := base64.StdEncoding.EncodeToString([]byte(request))
+		cmd := exec.CommandContext(ctx, binary, "device-bridge", device.ID)
+		cmd.Env = append(os.Environ(), "SSH_ORIGINAL_COMMAND=nimote-host rpc-encoded "+encoded)
+		return cmd.Run()
+	}
+	if err = bridge(`{"method":"GET","path":"/v1/status"}`); err != nil {
+		t.Fatalf("restricted key bridge: %v", err)
+	}
+	if bridge(`{"method":"POST","path":"/v1/shutdown"}`) == nil {
+		t.Fatal("restricted bridge stopped Host")
+	}
+	if err = host.RevokeDevice(dir, device.ID); err != nil {
+		t.Fatal(err)
+	}
+	if bridge(`{"method":"GET","path":"/v1/status"}`) == nil {
+		t.Fatal("revoked bridge still accepted")
 	}
 	before, err := host.Call(ctx, dir, host.RPCRequest{Method: "GET", Path: "/v1/status"})
 	if err != nil {

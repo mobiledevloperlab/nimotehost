@@ -61,6 +61,13 @@ func Call(ctx context.Context, dir string, req RPCRequest) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	credential, isDevice, err := deviceCredential(ctx, dir)
+	if err != nil {
+		return nil, err
+	}
+	if isDevice {
+		token = []byte(credential)
+	}
 	r.Header.Set("Authorization", "Bearer "+string(token))
 	r.Header.Set("Nimote-Host-Protocol", strconv.Itoa(Protocol))
 	r.Header.Set("Content-Type", "application/json")

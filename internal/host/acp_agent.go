@@ -160,6 +160,9 @@ func (a *structuredAgent) messageACP(req AgentMessage) error {
 		a.seen[req.RequestID] = true
 		return nil
 	case "configure":
+		if req.OptionID == executionPolicyOption {
+			return a.configureExecutionPolicy(req)
+		}
 		if a.thread == "" || a.busy || a.configuring {
 			return errors.New("agent is not idle")
 		}

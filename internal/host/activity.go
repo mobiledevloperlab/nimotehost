@@ -187,7 +187,7 @@ func (item *managed) agentActivity(kind string, data any) {
 		state = "needs_approval"
 	case "approval_resolved":
 		reference, _ = data.(string)
-	case "approval_accept_requested", "approval_decline_requested":
+	case "approval_accept_requested", "approval_decline_requested", "approval_auto_accepted":
 		state = ""
 	case "turn_rejected":
 		state = "failed"

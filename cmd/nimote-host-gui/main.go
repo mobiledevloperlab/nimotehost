@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"image/color"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -191,8 +192,7 @@ func newManagerWindow(a fyne.App, m *desktop.Manager, poll bool) (fyne.Window, c
 		check.SetChecked(a.Preferences().Bool("linux-tray"))
 		settings.Add(check)
 	}
-	devices := widget.NewLabel("Devices authenticate through your existing SSH account.\nThis Host has no per-device identity, connection registry or revocation API.\nManage SSH access in your operating system; changes may affect other clients.\nThis manager does not read or rewrite authorized_keys.")
-	devices.Wrapping = fyne.TextWrapWord
+	devices := devicePanel(w, m)
 	export := widget.NewButton("Export diagnostics…", func() {
 		d := dialog.NewFileSave(func(out fyne.URIWriteCloser, err error) {
 			if err != nil {
@@ -215,7 +215,30 @@ func newManagerWindow(a fyne.App, m *desktop.Manager, poll bool) (fyne.Window, c
 		d.Show()
 	})
 	diagnosticView := container.NewBorder(container.NewHBox(widget.NewButton("Copy diagnostics", func() { w.Clipboard().SetContent(diagnostics.Text) }), export), nil, nil, nil, container.NewVSplit(diagnostics, logs))
-	tabs := container.NewAppTabs(container.NewTabItem("Host", overview), container.NewTabItem("Sessions", sessionView), container.NewTabItem("Devices", devices), container.NewTabItem("Settings", container.NewVScroll(settings)), container.NewTabItem("Diagnostics", diagnosticView))
+	tabs := container.NewAppTabs(container.NewTabItem("Host", overview), container.NewTabItem("Sessions", sessionView), container.NewTabItem("History", historyPanel(w, m)), container.NewTabItem("Devices", devices), container.NewTabItem("Settings", container.NewVScroll(settings)), container.NewTabItem("Diagnostics", diagnosticView))
+	settings.Add(widget.NewSeparator())
+	settings.Add(widget.NewLabel("Desktop version: " + host.Version))
+	settings.Add(widget.NewButton("Check published version…", func() {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+			defer cancel()
+			release, err := desktop.LatestRelease(ctx)
+			fyne.Do(func() {
+				if err != nil {
+					dialog.ShowError(err, w)
+					return
+				}
+				dialog.ShowConfirm("Published version", "Installed: "+host.Version+"\nLatest published: "+release.Version+"\nOpen official downloads? Installation uses the existing verified bundle installer; active tasks must finish before updating.", func(ok bool) {
+					if ok {
+						u, _ := url.Parse(release.URL)
+						if err := a.OpenURL(u); err != nil {
+							dialog.ShowError(err, w)
+						}
+					}
+				}, w)
+			})
+		}()
+	}))
 	w.SetContent(container.NewBorder(nil, container.NewHBox(widget.NewButton("Quit GUI · keep Host running", a.Quit)), nil, nil, tabs))
 	if tray != nil {
 		w.SetCloseIntercept(w.Hide)

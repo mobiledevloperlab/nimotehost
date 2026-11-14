@@ -127,6 +127,10 @@ func (a *structuredAgent) handleAgentRPC(ctx context.Context, method string, par
 		a.mu.Unlock()
 		return nil, acp.NewMethodNotFound(method)
 	}
+	if result, approved := a.automaticApproval(method, params); approved {
+		a.mu.Unlock()
+		return result, nil
+	}
 	// Local approval handles are deliberately independent of remote wire IDs.
 	if len(a.rpc.permissions) >= 64 {
 		a.mu.Unlock()

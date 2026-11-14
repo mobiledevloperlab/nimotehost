@@ -38,6 +38,7 @@ func decodeJSON(data []byte, target any) error {
 }
 
 type Server struct {
+	dir      string
 	manager  *Manager
 	token    string
 	hostID   string
@@ -82,7 +83,7 @@ func Serve(ctx context.Context, dir string, ready io.Writer) error {
 	defer manager.Close()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	api := &Server{manager: manager, token: token, hostID: hostID, shutdown: cancel}
+	api := &Server{dir: dir, manager: manager, token: token, hostID: hostID, shutdown: cancel}
 	server := &http.Server{Handler: api, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
 	stopped := make(chan struct{})
 	go func() {
@@ -125,8 +126,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	provided, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if !bearer || s.token == "" || len(provided) != len(s.token) || subtle.ConstantTimeCompare([]byte(provided), []byte(s.token)) != 1 {
+	owner := bearer && s.token != "" && len(provided) == len(s.token) && subtle.ConstantTimeCompare([]byte(provided), []byte(s.token)) == 1
+	if !owner && (!bearer || s.dir == "" || !authenticateDevice(s.dir, provided)) {
 		fail(w, 401, "authentication required")
+		return
+	}
+	if !owner && !observerAllowed(r.Method, r.URL.Path) {
+		fail(w, 403, "observer devices cannot execute commands, approve tasks or manage Host")
 		return
 	}
 	if r.Header.Get("Nimote-Host-Protocol") != strconv.Itoa(Protocol) {

@@ -37,7 +37,10 @@ type codexModel struct {
 	} `json:"supportedReasoningEfforts"`
 }
 
-func (a *structuredAgent) publishControls() { a.emit("controls", a.controls) }
+func (a *structuredAgent) publishControls() {
+	a.publishExecutionPolicy()
+	a.emit("controls", a.controls)
+}
 func (a *structuredAgent) receiveModels(raw json.RawMessage) {
 	var result struct {
 		Data       []codexModel `json:"data"`

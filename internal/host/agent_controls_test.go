@@ -20,7 +20,7 @@ func TestCodexModelEffortControlsReachTurns(t *testing.T) {
 		t.Fatal(f)
 	}
 	receiveAgentFrameForTest(a, []byte(`{"id":"host-models","result":`+testModelCatalog+`}`))
-	if len(a.controls.Options) != 2 || !a.controls.Codex {
+	if len(a.controls.Options) != 3 || !a.controls.Codex {
 		t.Fatal(a.controls)
 	}
 	if err := a.message(AgentMessage{Action: "configure", RequestID: "effort", OptionID: "reasoning", Value: "high"}); err != nil {

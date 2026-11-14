@@ -119,6 +119,8 @@ func (a *structuredAgent) receiveCodex(f codexFrame) {
 			return
 		}
 		method := "thread/start"
+		// Execution policies answer native requests; retain the provider's own
+		// approval and sandbox configuration, including on resumed threads.
 		params := map[string]any{"cwd": a.cwd}
 		if a.resumeConversation != "" {
 			method = "thread/resume"
@@ -153,6 +155,7 @@ func (a *structuredAgent) receiveCodex(f codexFrame) {
 			if a.onConversationID != nil {
 				a.onConversationID(a.thread)
 			}
+			a.publishControls()
 			a.emit("ready", map[string]string{"thread_id": a.thread})
 			a.completeStartup(nil)
 		}
@@ -222,6 +225,9 @@ func (a *structuredAgent) message(req AgentMessage) error {
 		}
 		frame = map[string]any{"id": "host-models", "method": "model/list", "params": map[string]any{"limit": 100}}
 	case "configure":
+		if req.OptionID == executionPolicyOption {
+			return a.configureExecutionPolicy(req)
+		}
 		if a.thread == "" || a.busy || a.configuring {
 			return errors.New("agent is not idle")
 		}
