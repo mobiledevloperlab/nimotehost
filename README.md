@@ -15,6 +15,30 @@ outstanding; see
 Current functionality: [completed](docs/completed.md) and [pending](docs/pending.md).
 Hardening decisions and verification: [audit](docs/host-hardening.md) and [test results](docs/host-hardening-tests.md).
 
+## Agent upstream monitoring
+
+The [compatibility workflow](.github/workflows/agent-compatibility.yml) checks upstream releases
+every six hours (00:23, 06:23, 12:23 and 18:23 UTC). On its first run or a version change,
+it temporarily installs exact versions of Codex, OpenCode, the Claude ACP adapter and Claude Code,
+checks real structured session initialization, runs existing Host Agent/protocol/approval regressions, and exports
+Codex JSON Schema. It sends no prompts and makes no model calls. Claude Agent SDK, ACP SDK,
+and ACP Go SDK releases are also watched without automatically updating project dependencies.
+
+Push to the private repository's default branch, enable Actions and Issues, and manually run
+`Agent compatibility monitor` to establish a baseline. Subscribe to the issue it creates;
+subsequent updates post comments, with email delivery controlled by your GitHub notification settings.
+A failed version snapshot is retried once; use the manual `force` option for further retries.
+Unchanged polls do not install CLIs or run tests. No extra secrets are needed: the workflow uses
+the built-in `GITHUB_TOKEN`, with issue write permission limited to the reporting job.
+
+A pass covers Linux startup and existing protocol fixtures; full approval, streaming and resume
+acceptance still requires model tests. Failures can also be caused by installation, authentication
+or networking. SDK latest versions are watch signals; checks use resolved adapter dependencies
+and the repository's pinned Go SDK. Schema artifacts are exported without semantic diffing.
+Logs and schemas expire after seven days. Scheduled runs can be delayed, and free usage is shared
+across the account: configure an Actions budget with usage stopping in GitHub Billing to control
+costs. The workflow cannot guarantee zero charges. Preserve the issue's hidden state markers.
+
 ## CPU architectures
 
 | Platform | CLI | GUI |
