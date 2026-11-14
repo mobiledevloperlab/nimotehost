@@ -182,7 +182,9 @@ func (m *Manager) Change(ctx context.Context, action string) error {
 		if err != nil {
 			return err
 		}
-		if status.Autostart {
+		// Windows scheduled tasks launch the console CLI visibly. The GUI uses
+		// its detached, hidden process even when login startup is registered.
+		if status.Autostart && runtime.GOOS != "windows" {
 			err = service.Restart(ctx)
 		} else {
 			err = m.launch()
@@ -208,7 +210,7 @@ func (m *Manager) Change(ctx context.Context, action string) error {
 		if err != nil {
 			return err
 		}
-		if status.Autostart {
+		if status.Autostart && runtime.GOOS != "windows" {
 			err = service.Restart(ctx)
 		} else {
 			err = m.launch()
@@ -228,8 +230,13 @@ func (m *Manager) Change(ctx context.Context, action string) error {
 		if err != nil {
 			return err
 		}
-		if err = service.Install(ctx); err != nil {
+		if err = service.InstallForDesktop(ctx); err != nil {
 			return err
+		}
+		if runtime.GOOS == "windows" {
+			if err = m.launch(); err != nil {
+				return err
+			}
 		}
 		return m.wait(ctx, true)
 	case "disable-autostart":
