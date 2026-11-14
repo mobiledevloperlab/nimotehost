@@ -46,9 +46,10 @@ type managerWindow struct {
 }
 
 func newManagerWindow(a fyne.App, m *desktop.Manager, poll bool) (fyne.Window, context.CancelFunc) {
-	w := a.NewWindow("NimoteHost")
-	w.Resize(fyne.NewSize(1180, 820))
 	a.SetIcon(applicationLogo)
+	w := a.NewWindow("NimoteHost")
+	w.SetIcon(applicationLogo)
+	w.Resize(fyne.NewSize(1180, 820))
 	ui := &managerWindow{app: a, window: w, manager: m, poll: poll}
 	trayEnabled := runtime.GOOS != "linux" || a.Preferences().Bool("linux-tray")
 	if tray, ok := a.(fynedesktop.App); ok && trayEnabled {
