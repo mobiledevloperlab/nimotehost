@@ -153,3 +153,40 @@ func TestRingRecoversOutputStatsAfterHostRestart(t *testing.T) {
 		t.Fatal(session, err)
 	}
 }
+
+func TestDamagedSessionOutputDoesNotBlockHostRecovery(t *testing.T) {
+	for _, damage := range []string{"partial", "invalid-header-and-cursor"} {
+		t.Run(damage, func(t *testing.T) {
+			m := newTestManager(t)
+			healthy, err := m.Start(childRequest(t, "output"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			awaitSession(t, m, healthy.ID)
+			m.Close()
+			id := string(bytes.Repeat([]byte("d"), 64))
+			if err := saveJSON(filepath.Join(m.dir, id+".json"), Session{ID: id, State: "succeeded"}); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(m.dir, id+".ring"), []byte(damage), 0600); err != nil {
+				t.Fatal(err)
+			}
+			recovered, err := NewManager(m.dir)
+			if err != nil {
+				t.Fatal("damaged auxiliary data prevented startup:", err)
+			}
+			defer recovered.Close()
+			bad, err := recovered.Get(id)
+			if err != nil || bad.Error == "" || bad.State != "succeeded" {
+				t.Fatal("damage was not surfaced without changing the task outcome", bad, err)
+			}
+			if _, _, err := recovered.Output(id, 0); err == nil {
+				t.Fatal("damaged output was presented as valid")
+			}
+			data, _, err := recovered.Output(healthy.ID, 0)
+			if err != nil || !bytes.Equal(data, []byte{0, 'h', 'i', 255}) {
+				t.Fatal("healthy output was lost", data, err)
+			}
+		})
+	}
+}

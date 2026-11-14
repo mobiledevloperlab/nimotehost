@@ -144,7 +144,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodGet && r.URL.Path == "/v1/status" {
-		respond(w, 200, map[string]any{"running": true, "version": Version, "host_id": s.hostID})
+		respond(w, 200, map[string]any{"running": true, "version": Version, "host_id": s.hostID, "request_storage": s.manager.RequestStorage()})
 		return
 	}
 	if r.URL.Path == "/v1/agent-history" || strings.HasPrefix(r.URL.Path, "/v1/agent-history/") {

@@ -46,7 +46,11 @@ func TestACPHistorySDKChild(t *testing.T) {
 			}
 			result = map[string]any{"sessions": []map[string]any{{"sessionId": "conversation", "cwd": "/workspace", "title": "Saved task"}}}
 		case "session/load", "session/resume":
-			for i := 0; i < 3; i++ {
+			count := 3
+			if os.Getenv("NIMOTE_ACP_HISTORY_VARIANT") == "large-replay" {
+				count = maxHistoryUpdates + 1
+			}
+			for i := 0; i < count; i++ {
 				_ = encoder.Encode(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": "conversation", "update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": fmt.Sprint(i)}}}})
 			}
 			result = map[string]any{}
@@ -90,6 +94,18 @@ func TestACPHistoryUsesSDKAndDrainsReplay(t *testing.T) {
 			}
 		})
 	}
+	t.Run("truncated-replay", func(t *testing.T) {
+		t.Setenv("NIMOTE_ACP_HISTORY_VARIANT", "large-replay")
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		page, err := readACPHistory(ctx, "opencode", "conversation", dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page["truncated"] != true || len(page["items"].([]map[string]any)) != maxHistoryUpdates {
+			t.Fatal("SDK replay silently dropped updates")
+		}
+	})
 	t.Run("wrong-version", func(t *testing.T) {
 		t.Setenv("NIMOTE_ACP_HISTORY_VARIANT", "wrong-version")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

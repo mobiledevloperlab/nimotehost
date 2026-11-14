@@ -4,6 +4,9 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -40,5 +43,34 @@ func TestModuleManifestOmitsLocalPaths(t *testing.T) {
 	}
 	if bytes.Contains(data, []byte("private")) || !bytes.Contains(data, []byte("github.com/mobiledevloperlab/nimote-host")) {
 		t.Fatalf("unexpected public manifest: %s", data)
+	}
+}
+
+func TestCopyTreePreservesExecutables(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not use POSIX executable bits")
+	}
+	source, target := t.TempDir(), t.TempDir()
+	for _, name := range []string{"nimote-host", "scripts/install.sh", "README.md"} {
+		mode := os.FileMode(0755)
+		if name == "README.md" {
+			mode = 0644
+		}
+		path := filepath.Join(source, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(name), mode); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := copyTree(source, target); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"nimote-host", "scripts/install.sh", "README.md"} {
+		info, err := os.Stat(filepath.Join(target, name))
+		if err != nil || (info.Mode()&0111 != 0) != (name != "README.md") {
+			t.Fatalf("mode not preserved for %s: %v %v", name, info, err)
+		}
 	}
 }

@@ -85,16 +85,20 @@ func NewManager(dir string) (*Manager, error) {
 			slog.Warn("load session activity", "session", id, "error", err)
 			activity = &activityJournal{path: filepath.Join(dir, id+".activity"), failure: err}
 		}
+		var outputErr error
 		if f, err := os.Open(filepath.Join(dir, id+".ring")); err == nil {
 			total, readErr := ringTotal(f)
 			f.Close()
 			if readErr != nil {
-				return nil, readErr
+				// Output is auxiliary data. Keep the session metadata and other
+				// sessions available; OutputPage still reports the damaged log.
+				outputErr = readErr
+			} else {
+				record.OutputBytes = total
+				record.OutputTruncated = total > maxOutput
 			}
-			record.OutputBytes = total
-			record.OutputTruncated = total > maxOutput
 		} else if !errors.Is(err, os.ErrNotExist) {
-			return nil, err
+			outputErr = err
 		}
 
 		if record.Revision >= m.revision {
@@ -105,6 +109,9 @@ func NewManager(dir string) (*Manager, error) {
 			now := time.Now().UTC()
 			record.Finished = &now
 			record.Error = "Host stopped before process completion"
+			if outputErr != nil {
+				record.Error += "; output log is unavailable"
+			}
 			m.revision++
 			record.Revision = m.revision
 			if err := saveJSON(filepath.Join(dir, entry.Name()), record); err != nil {
@@ -112,6 +119,12 @@ func NewManager(dir string) (*Manager, error) {
 			}
 			m.emit(record)
 			_ = activity.append("session_interrupted", "disconnected", "", record.OutputBytes)
+		}
+		if outputErr != nil {
+			slog.Warn("session output is unavailable", "session", id, "error", outputErr)
+			if !strings.Contains(record.Error, "output log is unavailable") {
+				record.Error = strings.TrimPrefix(record.Error+"; output log is unavailable", "; ")
+			}
 		}
 		done := make(chan struct{})
 		close(done)

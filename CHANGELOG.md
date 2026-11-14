@@ -4,6 +4,11 @@
 
 ## Unreleased — 1.0.0-dev
 
+- Preserve executable modes in GUI bundles, isolate damaged session output, and require resync for future event cursors.
+- Bound encoded history projections, disclose truncation, and page Codex transcripts in the GUI.
+- Add expiring mutation IDs with a durable monotonic retirement watermark and safe receipt cleanup; retain legacy replay protection and expose storage diagnostics.
+- Sync parent directories after atomic state replacements on Unix; preserve the Windows durability boundary.
+
 - Persist mutation reservations/receipts and evidenced final Agent state; reject
   conflicting or uncertain retries without replaying work.
 - Add Task-linked sessions, bounded lifecycle history, cursor-based foreground

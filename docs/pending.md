@@ -15,9 +15,10 @@ Implemented behavior lives in [completed functionality](completed.md). Items bel
   拥有同一 OS 用户任意命令执行权的客户端不在该隔离范围内。完整控制需独立系统身份或沙箱，
   当前仍无每设备可执行任务或每会话写权限策略。Authenticated observer revocation is implemented;
   execution-capable device isolation and per-session ACL remain open.
-- [ ] 请求账本长期轮换：当前达到数量/空间限额前拒绝新操作，无在线轮换或安全淘汰协议；
-  删除会话仍保留回执，避免延迟请求重建任务。
-  Safe long-term idempotency-ledger rotation without enabling delayed replay.
+- [ ] 旧格式请求键迁移及容量运维：七天有效期的新格式请求键已支持安全在线轮换和容量告警；
+  旧格式回执仍不可安全淘汰，达到保留数量/空间限额时继续拒绝新操作。
+  不通过删除旧回执允许延迟重放；需配套客户端迁移和明确的旧协议退役方案。
+  Legacy-key migration remains open; expiring IDs now rotate safely within a bounded retry window.
 - [ ] 完整同名 Session 方法封装：当前 session.list/start/attach/detach/peek/send/watch/stop/events
   由既有 REST/RPC 和订阅语义对应，尚无一套全部同名 JSON-RPC 方法。
   Same-name semantic Session methods, if needed, over the existing transport.
@@ -65,6 +66,7 @@ Deleted historical reports are available in Git history and do not establish cur
   不以 Go 跨编译或 macOS 本机结果替代。Windows MSI、macOS 签名/公证、Linux 系统包后续评估。
 - [ ] Desktop 的 SSH 连接历史、后台版本查询策略及自动更新安装。已接入 Agent 历史列表分页、
   transcript 读取、指定 conversation 恢复，以及显式官方版本查询/下载入口。
-  transcript 后续分页、真实 provider 恢复验收和安装包签名仍需补齐。
+  Codex transcript 后续分页已接入；ACP 截断已显式标识，仍需上游可续读历史协议、
+  真实 provider 恢复验收和安装包签名。
 - [ ] NimoteCode 手机连接实测：共享配置默认端口及自定义端口、原 SSH RPC 行为、
   Host 未安装/已停止/运行三种状态；本仓库测试不代替移动端真机验收。

@@ -115,6 +115,10 @@ func inspectModules(data []byte, expected []dependency) error {
 	return nil
 }
 func copyFile(source, dest string) error {
+	info, err := os.Stat(source)
+	if err != nil {
+		return err
+	}
 	data, err := os.ReadFile(source)
 	if err != nil {
 		return err
@@ -122,7 +126,14 @@ func copyFile(source, dest string) error {
 	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
 		return err
 	}
-	return os.WriteFile(dest, data, 0644)
+	mode := os.FileMode(0644)
+	if info.Mode()&0111 != 0 {
+		mode = 0755
+	}
+	if err := os.WriteFile(dest, data, mode); err != nil {
+		return err
+	}
+	return os.Chmod(dest, mode)
 }
 func copyTree(source, dest string) error {
 	return filepath.WalkDir(source, func(path string, entry os.DirEntry, err error) error {
