@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -99,6 +100,11 @@ func Serve(ctx context.Context, dir string, ready io.Writer) error {
 	}
 	api := &Server{dir: dir, manager: manager, token: token, hostID: hostID, instanceID: instanceID, shutdown: cancel, requests: make(chan struct{}, 64), controls: make(chan struct{}, 16), helpers: make(chan struct{}, 4), admission: newRequestAdmission()}
 	server := &http.Server{Handler: api, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
+	if runtime.GOOS == "windows" {
+		if err := publishExecutable(dir); err != nil {
+			return fmt.Errorf("publish SSH discovery: %w", err)
+		}
+	}
 	stopped := make(chan struct{})
 	go func() {
 		defer close(stopped)

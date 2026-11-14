@@ -16,7 +16,7 @@ func TestRejectUnreviewedReleaseInputs(t *testing.T) {
 			t.Fatalf("accepted %q", version)
 		}
 	}
-	if validate("freebsd", "amd64", "1.0.0") == nil || validate("linux", "386", "1.0.0") == nil {
+	if validate("freebsd", "amd64", "1.0.0") == nil || validate("darwin", "386", "1.0.0") == nil {
 		t.Fatal("accepted unsupported target")
 	}
 	if validate("windows", "arm64", "1.0.0-rc.1") != nil {
@@ -72,5 +72,32 @@ func TestCopyTreePreservesExecutables(t *testing.T) {
 		if err != nil || (info.Mode()&0111 != 0) != (name != "README.md") {
 			t.Fatalf("mode not preserved for %s: %v %v", name, info, err)
 		}
+	}
+}
+
+func TestWindowsCLIArchitectures(t *testing.T) {
+	for _, arch := range []string{"amd64", "arm64", "386"} {
+		if err := validate("windows", arch, "2.4.0"); err != nil {
+			t.Fatalf("windows/%s: %v", arch, err)
+		}
+	}
+}
+
+func TestDesktopTargetMatrix(t *testing.T) {
+	for _, targetOS := range []string{"linux", "darwin", "windows"} {
+		for _, arch := range []string{"amd64", "arm64"} {
+			if err := validate(targetOS, arch, "2.4.0"); err != nil {
+				t.Fatal(err)
+			}
+			if err := validateGUITarget(targetOS, arch); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if validateGUITarget(targetOS, "386") == nil {
+			t.Fatalf("advertised unverified 32-bit GUI for %s", targetOS)
+		}
+	}
+	if err := validate("linux", "386", "2.4.0"); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -3,6 +3,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"debug/buildinfo"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,8 +15,22 @@ import (
 	"strings"
 )
 
+// GUI distribution targets have native desktop SDKs and CI runners.
+func validateGUITarget(targetOS, arch string) error {
+	if err := validate(targetOS, arch, "1.0.0"); err != nil {
+		return err
+	}
+	if arch != "amd64" && arch != "arm64" {
+		return fmt.Errorf("GUI supports amd64 and arm64; %s/%s is CLI only", targetOS, arch)
+	}
+	return nil
+}
+
 // GUI builds are native by design. CLI cross compilation remains CGO-free.
 func buildGUI(targetOS, arch, version string) error {
+	if err := validateGUITarget(targetOS, arch); err != nil {
+		return err
+	}
 	if targetOS != runtime.GOOS || arch != runtime.GOARCH {
 		return fmt.Errorf("GUI requires a native %s/%s runner with C compiler and desktop SDK; CLI cross-build succeeded separately", targetOS, arch)
 	}
@@ -71,6 +86,10 @@ func buildGUI(targetOS, arch, version string) error {
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err = cmd.Run(); err != nil {
 		return fmt.Errorf("build Fyne GUI (native C SDK required): %w", err)
+	}
+	// Check the produced artifact rather than relying on the runner's label.
+	if err = verifyGUITarget(filepath.Join(absolute, name), targetOS, arch); err != nil {
+		return err
 	}
 	// Carry the complete resolved GUI dependency manifest and upstream notices.
 	cmd = guiCommand("mod", "download", "all")
@@ -189,4 +208,19 @@ func writeGUISums(dir string) error {
 		fmt.Fprintf(&sums, "%x  %s\n", sha256.Sum256(b), filepath.ToSlash(rel))
 	}
 	return os.WriteFile(filepath.Join(dir, "SHA256SUMS"), []byte(sums.String()), 0644)
+}
+
+func verifyGUITarget(path, targetOS, arch string) error {
+	info, err := buildinfo.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	settings := make(map[string]string)
+	for _, setting := range info.Settings {
+		settings[setting.Key] = setting.Value
+	}
+	if settings["GOOS"] != targetOS || settings["GOARCH"] != arch || settings["CGO_ENABLED"] != "1" {
+		return fmt.Errorf("GUI target mismatch: got %s/%s CGO=%s, want %s/%s CGO=1", settings["GOOS"], settings["GOARCH"], settings["CGO_ENABLED"], targetOS, arch)
+	}
+	return nil
 }

@@ -40,10 +40,16 @@ type module struct {
 
 func main() {
 	targetOS := flag.String("os", runtime.GOOS, "linux, darwin or windows")
-	arch := flag.String("arch", runtime.GOARCH, "amd64 or arm64")
+	arch := flag.String("arch", runtime.GOARCH, "amd64, arm64, or 386 (Linux/Windows CLI only)")
 	version := flag.String("version", "2.4.0", "release version")
 	gui := flag.Bool("gui", false, "also build the native Fyne desktop bundle (requires CGO and a native SDK)")
 	flag.Parse()
+	if *gui {
+		if err := validateGUITarget(*targetOS, *arch); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	}
 	if err := build(*targetOS, *arch, *version); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -59,7 +65,7 @@ func validate(targetOS, arch, version string) error {
 	if targetOS != "linux" && targetOS != "darwin" && targetOS != "windows" {
 		return errors.New("unsupported OS")
 	}
-	if arch != "amd64" && arch != "arm64" {
+	if arch != "amd64" && arch != "arm64" && !((targetOS == "windows" || targetOS == "linux") && arch == "386") {
 		return errors.New("unsupported architecture")
 	}
 	if !regexp.MustCompile(`^[0-9][A-Za-z0-9._-]*$`).MatchString(version) {
