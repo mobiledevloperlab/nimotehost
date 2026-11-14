@@ -4,6 +4,8 @@
 
 ## Unreleased — 1.0.0-dev
 
+- Refine desktop spacing, labeled sidebar navigation, status and metric cards, and light/dark palettes; open current approvals directly and cover contrast and control sizing.
+
 - Simplify the desktop to four main pages, readable session/device names, search and filters, conversation text, and on-demand technical details.
 - Match NimoteCode's six languages (English, Simplified Chinese, Spanish, Japanese, Korean, Russian), reusing go-i18n with immediate switching and persistent preferences.
 - Add catalog, template, layout, session-state and GUI lifecycle checks; run race and vet in desktop CI.

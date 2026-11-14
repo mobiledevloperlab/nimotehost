@@ -37,7 +37,7 @@ func newSessionsPanel(u *managerWindow) *sessionsPanel {
 	p.list = widget.NewList(func() int { return len(p.rows) }, func() fyne.CanvasObject {
 		title := widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 		title.Truncation = fyne.TextTruncateEllipsis
-		subtitle := widget.NewLabel("")
+		subtitle := mutedLabel("")
 		subtitle.Truncation = fyne.TextTruncateEllipsis
 		return container.NewBorder(nil, nil, widget.NewIcon(theme.DocumentIcon()), widget.NewLabel(""), container.NewVBox(title, subtitle))
 	}, func(id widget.ListItemID, obj fyne.CanvasObject) {
@@ -47,7 +47,18 @@ func newSessionsPanel(u *managerWindow) *sessionsPanel {
 		labels.Objects[0].(*widget.Label).SetText(sessionTitle(u.messages, item))
 		labels.Objects[1].(*widget.Label).SetText(item.Directory)
 		row.Objects[1].(*widget.Icon).SetResource(sessionIcon(item))
-		row.Objects[2].(*widget.Label).SetText(sessionStatus(u.messages, item))
+		badge := row.Objects[2].(*widget.Label)
+		badge.Importance = widget.MediumImportance
+		if item.State == "interrupted" || item.State == "canceled" {
+			badge.Importance = widget.LowImportance
+		}
+		if item.State == "failed" || item.AgentStatus == "needs_approval" {
+			badge.Importance = widget.WarningImportance
+		}
+		if item.State == "succeeded" {
+			badge.Importance = widget.SuccessImportance
+		}
+		badge.SetText(sessionStatus(u.messages, item))
 		row.Refresh()
 	})
 	p.list.OnSelected = func(id widget.ListItemID) {
@@ -60,7 +71,7 @@ func newSessionsPanel(u *managerWindow) *sessionsPanel {
 	p.filter.OnChanged = func(string) { p.applyFilter() }
 	current := container.NewBorder(container.NewVBox(container.NewBorder(nil, nil, nil, p.filter, p.search), p.empty), nil, nil, nil, p.list)
 	p.tabs = container.NewAppTabs(container.NewTabItem(u.t("sessions.current"), current), container.NewTabItem(u.t("history.title"), historyPanel(u)))
-	p.root = container.NewPadded(container.NewBorder(pageHeading(u.t("nav.sessions"), u.t("sessions.intro")), nil, nil, nil, p.tabs))
+	p.root = inset(container.NewBorder(pageHeading(u.t("nav.sessions"), u.t("sessions.intro")), nil, nil, nil, surface(p.tabs)), 24)
 	return p
 }
 

@@ -273,6 +273,15 @@ Sessions 使用名称与工作区，支持搜索、运行/待审批/结束筛选
 停止/重启进入二级菜单并确认影响；端口/日志级别默认折叠；诊断和原始数据按需打开。
 All four pages use existing Fyne widgets; no web frontend or custom UI framework is introduced.
 
+视觉层采用 Fyne 公开 Theme/ThemeOverride、List 与 Layout 接口：横向图文侧栏、服务状态区、
+活动/待处理计数与手机连接并列卡片，主次文字和状态颜色分层。浅/深主题即时切换，卡片跟随
+当前主题，不保存旧配色。未知/不可用状态的计数显示 `—`，不把不可达显示为零活动。
+点击待处理入口会清空旧搜索并切回本机审批列表，避免历史子页或旧筛选遮住请求。
+主窗口采用 960×640 的最小逻辑尺寸避免导航和长文案挤压，内容区仍可滚动。
+测试额外检查浅/深配色的正文/辅助文字/主要按钮对比度、两主题六语言布局及按钮尺寸。
+These palette checks are scoped to application colors, not a complete accessibility certification.
+
+
 六种语言与 NimoteCode 对齐：`en`、`zh-Hans`、`es`、`ja`、`ko`、`ru`。默认英语，
 Settings → Language 即时切换并保存 Fyne 偏好；重建窗口内容只取消旧视图查询，不停止 Host 或任务。
 `translations/*.json` 内嵌到 GUI，复用 Fyne 已依赖的 go-i18n 和 x/text；无新模块版本。

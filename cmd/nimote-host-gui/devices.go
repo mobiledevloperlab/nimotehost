@@ -100,7 +100,7 @@ func devicePanel(u *managerWindow) fyne.CanvasObject {
 	add.Importance = widget.HighImportance
 	refresh()
 	header := container.NewVBox(pageHeading(u.t("nav.devices"), u.t("devices.intro")), container.NewHBox(add, widget.NewButtonWithIcon(u.t("action.refresh"), theme.ViewRefreshIcon(), refresh)))
-	return container.NewPadded(container.NewBorder(header, nil, nil, nil, container.NewVScroll(cards)))
+	return inset(container.NewBorder(header, nil, nil, nil, container.NewVScroll(cards)), 24)
 }
 
 func (u *managerWindow) showDevice(d host.Device) {
