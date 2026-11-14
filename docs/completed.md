@@ -224,14 +224,17 @@ go run ./tools/build
 sh scripts/check-clean-build.sh
 ```
 
-最近功能回归：macOS 本机 Go race/vet 通过；NimoteCode Host/Tasks/通知 318 项通过、
+既有客户端功能回归记录：NimoteCode Host/Tasks/通知 318 项通过、
 3 项因缺少原生 SSH/paramiko、go-task、just 环境跳过；静态分析通过。
 Linux/macOS/Windows × amd64/arm64 六目标构建通过；交叉构建不等于对应系统实机验收。
-The latest functional regression passed locally; the complete native/mobile matrix remains pending.
+当前 Host 增量的全量测试、race、vet 与原生验收结果见文末及[加固测试记录](host-hardening-tests.md)；
+上述客户端记录不代表本轮重新测试了 NimoteCode。
+The complete native/mobile matrix remains pending; current Host verification is recorded separately.
 
 源码、发行、维护流程见根目录 [README](../README.md)、[贡献指南](../CONTRIBUTING.md)、
 [安全政策](../SECURITY.md)和[更新记录](../CHANGELOG.md)。历史审计与截图已移出维护文档，
-可从 Git 历史查阅；当前状态只维护本页与[未完成功能](pending.md)。
+可从 Git 历史查阅；当前功能状态维护在本页与[未完成功能](pending.md)，
+加固架构及实际测试分别维护在 [host-hardening](host-hardening.md) 与[测试记录](host-hardening-tests.md)。
 
 <a id="desktop-architecture-audit"></a>
 
@@ -246,7 +249,7 @@ Audit findings and reuse boundaries:
 | 入口 / Entry | cmd/nimotehost: help/version/setup/install/uninstall/start/stop/restart/status/capabilities/rpc/rpc-encoded/rpc-stream/mcp；参数与语义保留。 |
 | 生命周期 / Lifecycle | start 前台 daemon；状态锁、认证 shutdown、Manager.Close 托管进程树；GUI 仅客户端，未安装服务时 detached 启动独立 CLI。 |
 | Core | 原任务、32 活跃/256 保留会话、输出环、幂等、事件、Agent SDK、历史、MCP 全部保留。无需重新实现终端或 Agent。 |
-| SSH/认证 / Auth | SSH exec 携带 RPC，Host 不实现 SSH server；本地 256-bit Token + 用户权限；后续补充独立 observer 和 Session 范围身份/撤销。GUI 不扫描 authorized_keys 冒充手机清单。 |
+| SSH/认证 / Auth | SSH exec 携带 RPC，Host 不实现 SSH server；本地 256-bit Token + 用户权限；已提供独立 observer、Session 范围身份/撤销及 Linux opt-in controller。GUI 不扫描 authorized_keys 冒充手机清单。 |
 | IPC | 原认证 loopback HTTP 满足已有 IPC 优先复用原则；没有增加管理 HTTP 端口，也没有新增 UDS/Named Pipe 或公开监听。 |
 | 服务 / Services | systemd user、launchd、Windows 登录计划任务；新增显式 CLI 路径构造器，避免原生服务错误启动 GUI。 |
 | 平台 / Platform | Unix PTY/flock/进程组；Windows ConPTY/Job Objects/LockFileEx/DACL；保留。GUI 启动使用 Unix setsid / Windows detached process group。 |
@@ -381,10 +384,11 @@ Settings 可显式查询官方 GitHub 最新发行版，并在用户确认后打
 原生跨主机 Dashboard、离线推送、活进程跨 daemon/OS 恢复等仍列 pending，不能用本次
 桌面映射或 fake provider 测试代替它们的实现与真机验收。
 
-设备功能本轮验证 / Device verification: 全量 Go race、两模块 vet、Fyne 生命周期、
+设备功能基线验证 / Baseline device verification: 全量 Go race、两模块 vet、Fyne 生命周期、
 真实 CLI device-bridge 集成、旧 RPC stream 后续请求撤销、持久撤销、其他设备和 owner
-隔离、越权写入拒绝均通过。权限边界模糊测试约 51 万次未失败。该结论不包含真实 SSH
-服务器 key 配置、物理手机、Windows/Linux 图形环境或跨平台完整控制设备的发布验收；Linux opt-in 验收见下方加固记录。
+隔离、越权写入拒绝均通过。权限边界模糊测试约 51 万次未失败。此基线不包含真实 SSH
+服务器 key 配置；后续 Linux WSL 的真实 OpenSSH 与 opt-in controller 验收见下方。
+物理手机、Windows/Linux 图形环境和跨平台完整控制设备仍未完成发布验收。
 
 
 ## Host 加固增量 / Host hardening increments
@@ -396,7 +400,8 @@ Settings 可显式查询官方 GitHub 最新发行版，并在用户确认后打
 - Linux 高级独立执行身份：owner 在创建 Session 时显式指定专用 numeric UID/GID，
   root 管理员配置私有有限额 cgroup v2 委派与保护的可执行文件后，
   `devices add-controller <name> <session-id>...` 可授权该 Session 输入、审批等完整控制。
-  UID 每会话独占且永久保留；清除 owner 环境、禁止提权及 Unix socket broker。
+  UID 每会话独占且永久保留；清除 owner 环境、禁止提权及命名 Unix socket broker 连接。
+  允许运行时信号唤醒所需的已连接匿名 stream socketpair，拒绝可重连的其他类型与 io_uring。
   Darwin/Windows 与不满足条件的 Linux 明确拒绝，不能把同用户 shell 当作隔离。
 - 审批校验活动 thread/turn、原生可选决策、轮次结束失效；重复请求绑定完整消息哈希与主体。
 - 私有 resources.json 配置并发、保留、运行时限、磁盘下限；Windows Job Object
@@ -421,16 +426,39 @@ Platform support and verification are bounded by the actual backend; no release 
 权限模型、部署前提、资源语义及回滚见 [Host 加固审计](host-hardening.md)；
 实际测试、未验证项与剩余风险见 [加固测试记录](host-hardening-tests.md) 和 [待办](pending.md)。
 
-### 后续风险关闭 / Follow-up risk closure
+### 已完成清单与验收范围 / Completed checklist and verification scope
 
-- Linux WSL 真实 OpenSSH：独立 daemon/端口/临时密钥验收通过，覆盖强制命令、Session 范围、
-  shell/SFTP/TCP 转发/PTY 拒绝、持久撤权与 owner 不受撤权影响；未改现有 SSH 配置。
-- Linux 独立 UID 下 Codex 0.169.0 + deepseek-flash：用 session_controller 凭据实际完成
-  批准、拒绝、重复审批去重和新 UID 下原 conversation 恢复；owner 显式转移私有 profile。
-- Linux CPU 控制器已在现有委派层级验证真实 cpu.max 配置与 nr_throttled 增长；只操作新建测试子树。
-- Linux 内存硬限制实际验证：触碰 128 MiB 内存，在 512 MiB 配额下成功、64 MiB 下由内核终止；
-  身份边界、CPU/内存、SSH 与隔离 Codex 均以原生 race 二进制另行验收通过。
-- 修复隔离后端过度阻断匿名 Unix stream socketpair 导致 Tokio 启动失败的问题；
-  保留命名 broker、可重连 socketpair、非 IP socket 和 io_uring 的拒绝及对应内核回归。
-- 机器重启与系统配置变更的批准边界、未具备的环境及未实现的后端已逐项记录于 pending；
-  未完成项目没有因提交或短时测试通过而被标记为正式发布完成。
+以下 10 项与 [pending 清单](pending.md) 的已勾选项对应；每项只在明确的平台和测试范围内完成。
+实现提交：`82e86d2`、`4fb0c6e`、`876f481`；pending 状态同步提交：`059d55e`。
+
+- [x] Linux 完整控制设备执行隔离：root、私有有限额 cgroup v2、每会话独占 numeric UID/GID、
+  私有身份记录与 session_controller；Ubuntu WSL 原生身份边界及 race 验收通过。
+- [x] 新格式请求键：七天有效期、安全在线轮换、容量告警；旧格式回执的退役迁移仍未完成。
+- [x] Linux CPU 硬配额：核对 cpu.max，真实负载观察 nr_throttled 增长；只操作新建测试子树，
+  未自动启用全局控制器。
+- [x] Linux 内存硬配额：实际触碰 128 MiB，在 512 MiB 配额下成功、64 MiB 下由内核终止；
+  CPU/内存均通过原生 race 验收。
+- [x] Unix supervisor 与 Linux cgroup 清理：验证 Host SIGKILL 后普通进程组停止，以及
+  cgroup 内 setsid 后代在撤权时停止；默认非 cgroup 后端的主动逃逸后代仍有边界。
+- [x] Linux WSL 真实 OpenSSH：临时 daemon/端口/密钥覆盖强制命令、Session 范围访问、
+  shell/SFTP/TCP 转发/PTY 拒绝、持久撤权及 owner 仍可访问；原生 race 验收通过。
+- [x] macOS owner 的真实 Codex/Claude Code/OpenCode + deepseek-flash：批准、拒绝、
+  重复审批仅一次原生答复、原 conversation 恢复和随机 marker 连续性均已验证。
+- [x] Linux 独立 UID 下 Codex 0.169.0 + deepseek-flash：使用 session_controller 实际完成
+  批准、拒绝、去重及新 UID 下恢复；owner 显式转移私有 profile。原生 race 验收通过，
+  并修复 Tokio 匿名 Unix stream socketpair 启动兼容性；命名 broker 等负向内核回归保留。
+- [x] 公平准入与安全恢复：逐设备读/写并发、有限连接、owner 保留容量；明确状态修复、
+  备份及递增恢复水位均有回归覆盖。
+- [x] Windows Job Object：原生 CPU/committed-memory/进程数限制、真实内存分配拒绝及
+  Job 生命周期已验证；不代表 Windows 独立执行身份后端已经实现。
+
+当前 Host 增量验证：macOS `go test ./...`、`make check`（全量 readonly race、vet、模块校验、
+5 项 Python 检查）、原生构建通过；Ubuntu WSL 全量测试、race、vet、原生构建，以及显式
+root 身份/CPU/内存/SSH/真实 Codex 的 race 验收通过。Windows 当前代码 Host 包原生回归通过，
+本轮未重跑 Windows 全模块 race/vet/build；六目标测试编译通过只表示可编译。
+逐项命令、版本、基线与增量结果见 [host-hardening-tests](host-hardening-tests.md)。
+
+Windows 临时 SSH 验收仍未通过，macOS SSH、独立 Linux OS 运维、系统重启/登录注销、
+长期负载、磁盘硬配额、macOS 硬配额及 macOS/Windows 独立执行身份仍在 pending。
+重启任何机器必须等待用户单独明确批准；本轮未重启、未改现有 SSH 服务，临时目录及模型凭据已清理。
+These checked items do not establish full cross-platform acceptance or release readiness.
