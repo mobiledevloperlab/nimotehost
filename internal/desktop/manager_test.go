@@ -56,6 +56,13 @@ func TestIndependentHostLifecycle(t *testing.T) {
 	if err = host.SaveConfig(dir, host.Config{Port: port, LogLevel: "info"}); err != nil {
 		t.Fatal(err)
 	}
+	if runtime.GOOS == "windows" {
+		// Exercise GUI start and restart with login startup registered, without
+		// touching the real user's scheduled task.
+		if err = os.WriteFile(filepath.Join(dir, "service.xml"), []byte("test"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	m := &Manager{Dir: dir, Binary: binary}

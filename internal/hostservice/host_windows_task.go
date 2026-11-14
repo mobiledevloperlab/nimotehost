@@ -17,7 +17,7 @@ import (
 // system service. It runs while the user is logged in, independently of clients.
 const hostTaskName = "NimoteHost"
 
-func (s *Service) installWindows(ctx context.Context) error {
+func (s *Service) installWindows(ctx context.Context, start bool) error {
 	account, err := user.Current()
 	if err != nil {
 		return err
@@ -50,8 +50,10 @@ func (s *Service) installWindows(ctx context.Context) error {
 		}
 		return errors.Join(s.managerError("register task", err), restoreErr)
 	}
-	if err := s.run(ctx, "schtasks.exe", "/Run", "/TN", hostTaskName); err != nil {
-		return s.managerError("start task", err)
+	if start {
+		if err := s.run(ctx, "schtasks.exe", "/Run", "/TN", hostTaskName); err != nil {
+			return s.managerError("start task", err)
+		}
 	}
 	return nil
 }

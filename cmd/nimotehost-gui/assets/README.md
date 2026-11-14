@@ -6,7 +6,7 @@ Original supplied artwork / 用户原图: [docs/nimotehost.png](../../../docs/ni
 The original is retained unchanged. / 原图保持不变。
 
 - `icon-master.png`: polished bitmap master, 1254 × 1254; white cat and N on charcoal.
-- `icon.png`: 1024 × 1024 application and in-app logo.
+- `icon.png`: 1024 × 1024 application and in-app logo with transparent rounded corners; a copy is in `docs/nimotehost-rounded.png`.
 - `icon-256.png`, `brand-128.png`, `tray-64.png`: pre-sized runtime images to avoid repeated large-image scaling.
 - `icon.icns`: macOS multi-resolution icon, 16–1024 pixels.
 - `icon.ico`: Windows multi-resolution icon, 16–256 pixels.

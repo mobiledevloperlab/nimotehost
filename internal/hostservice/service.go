@@ -177,7 +177,7 @@ func (s *Service) Stop(ctx context.Context) error {
 // Install writes and enables a per-user background service, then starts it.
 func (s *Service) Install(ctx context.Context) error {
 	if s.config.OS == "windows" {
-		return s.installWindows(ctx)
+		return s.installWindows(ctx, true)
 	}
 	if err := s.CheckAvailable(ctx); err != nil {
 		return err
@@ -213,6 +213,15 @@ func (s *Service) Install(ctx context.Context) error {
 		return s.managerError("start", err)
 	}
 	return nil
+}
+
+// InstallForDesktop registers Windows login startup without launching a console
+// task. The desktop manager starts Host independently without a window.
+func (s *Service) InstallForDesktop(ctx context.Context) error {
+	if s.config.OS == "windows" {
+		return s.installWindows(ctx, false)
+	}
+	return s.Install(ctx)
 }
 
 // Uninstall stops, disables, and removes only NimoteHost's own service file.
@@ -315,7 +324,9 @@ func (s *Service) run(ctx context.Context, name string, args ...string) error {
 func runCommand(ctx context.Context, name string, args ...string) error {
 	// Output captures a bounded stderr tail on ExitError while stdout is never
 	// included in diagnostics (show-environment may contain unrelated secrets).
-	_, err := exec.CommandContext(ctx, name, args...).Output()
+	cmd := exec.CommandContext(ctx, name, args...)
+	hideManagerWindow(cmd)
+	_, err := cmd.Output()
 	var exit *exec.ExitError
 	if errors.As(err, &exit) && len(exit.Stderr) > 0 {
 		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(exit.Stderr)))
