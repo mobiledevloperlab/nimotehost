@@ -90,6 +90,18 @@ func (a *structuredAgent) receiveCodex(f codexFrame) {
 	}
 	var id string
 	_ = json.Unmarshal(f.ID, &id)
+	if req, ok := a.steers[id]; ok {
+		delete(a.steers, id)
+		delete(a.pending, id)
+		if len(f.Error) > 0 && string(f.Error) != "null" {
+			a.emit("steer_rejected", map[string]any{"request_id": req.RequestID, "text": req.Text, "error": f.Error})
+		} else {
+			// A completion notification may precede this acknowledgement. Never
+			// revive busy state or replace the active turn on a steering reply.
+			a.emit("user_followup", map[string]string{"request_id": req.RequestID, "text": req.Text, "turn_id": req.TurnID})
+		}
+		return
+	}
 	if len(f.Error) > 0 && string(f.Error) != "null" {
 		if id == "host-models" {
 			a.loadingModels = false
@@ -198,6 +210,17 @@ func (a *structuredAgent) message(req AgentMessage) error {
 	a.next++
 	id := fmt.Sprintf("host-%d", a.next)
 	switch req.Action {
+	case "steer":
+		if !a.canSteer() || req.TurnID == "" || req.TurnID != a.turn {
+			return errors.New("the requested turn is no longer available for steering")
+		}
+		if len(bytes.TrimSpace([]byte(req.Text))) == 0 || len(req.Text) > 256<<10 {
+			return errors.New("prompt must contain 1 to 262144 bytes")
+		}
+		if len(a.steers) >= 16 {
+			return errors.New("too many messages awaiting agent confirmation")
+		}
+		frame = map[string]any{"id": id, "method": "turn/steer", "params": map[string]any{"threadId": a.thread, "expectedTurnId": req.TurnID, "input": []any{map[string]any{"type": "text", "text": req.Text}}}}
 	case "prompt":
 		if a.thread == "" {
 			return errors.New("agent is initializing")
@@ -263,6 +286,12 @@ func (a *structuredAgent) message(req AgentMessage) error {
 	}
 	a.seen[req.RequestID] = true
 	switch req.Action {
+	case "steer":
+		if a.steers == nil {
+			a.steers = map[string]AgentMessage{}
+		}
+		a.steers[id] = req
+		a.pending[id] = "steer"
 	case "discover":
 		a.loadingModels = true
 		a.modelPage = nil
