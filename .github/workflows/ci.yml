@@ -144,7 +144,9 @@ jobs:
           fi
       - name: Desktop unit checks
         working-directory: cmd/nimote-host-gui
-        run: go test -tags ci ./...
+        run: |
+          go test -mod=readonly -race -tags ci ./...
+          go vet ./...
       - name: Build CLI and native desktop bundle
         shell: bash
         run: go run ./tools/build -gui -version "$HOST_VERSION"

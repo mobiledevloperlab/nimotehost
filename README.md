@@ -95,12 +95,23 @@ GUI keeps Host and its sessions alive. Stop/restart explicitly ends Host tasks.
 Linux defaults to normal window close because trays are desktop-dependent; enable
 tray use in Settings only with a working tray. Windows/macOS close hides to tray.
 
+The four main pages are Overview, Sessions, Devices and Settings. Overview shows
+service status and one primary action; Sessions uses readable names, search and
+status filters, with saved conversations under Past conversations. Advanced
+settings and Help & diagnostics stay out of the everyday workflow. Command and
+file-change approvals still show their actual content before you decide.
+
+Choose English, 简体中文, Español, 日本語, 한국어 or Русский in Settings → Language.
+English is the default; language changes apply immediately and persist without
+restarting Host. Fyne uses installed system fonts; Linux needs suitable CJK fonts
+(such as `fonts-noto-cjk`) for Chinese, Japanese and Korean.
+
 Settings share `config.json` in the existing OS user configuration directory under
 `nimote-host`. Defaults remain port 47831 and log level info; changes require Host
 stopped. The port always binds 127.0.0.1, **not LAN IPs**. SSH remains externally
 managed. Runtime logs are owner-private and bounded at 64 KiB; diagnostic exports
 exclude logs, credentials, command arguments and session contents. GUI preferences
-(theme, Linux tray) are stored separately by Fyne.
+(language, theme, Linux tray) are stored separately by Fyne.
 
 Sessions and structured Agent approvals use live existing RPC data. Devices manages restricted read-only identities and revocation; unrestricted
 SSH accounts remain outside device isolation. SSH health is reported as externally managed rather than guessed.

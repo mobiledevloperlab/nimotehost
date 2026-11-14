@@ -5,84 +5,141 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
-	"github.com/mobiledevloperlab/nimote-host/internal/desktop"
-	"time"
 )
 
-func inspectAgent(w fyne.Window, m *desktop.Manager, id string) {
+type approvalDetails struct {
+	raw       json.RawMessage
+	ID        string `json:"id"`
+	Kind      string `json:"kind"`
+	Command   string `json:"command"`
+	Cwd       string `json:"cwd"`
+	GrantRoot string `json:"grant_root"`
+	Reason    string `json:"reason"`
+	Changes   []struct {
+		Path string `json:"path"`
+		Diff string `json:"diff"`
+	} `json:"changes"`
+}
+
+func inspectAgent(u *managerWindow, id string) {
 	if id == "" {
 		return
 	}
+	ctx := u.ctx
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		c, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
-		raw, err := m.AgentState(ctx, id)
+		raw, err := u.manager.AgentState(c, id)
 		fyne.Do(func() {
+			if ctx.Err() != nil {
+				return
+			}
 			if err != nil {
-				dialog.ShowError(err, w)
+				u.showFailure("approval.loadError", err)
 				return
 			}
 			var snapshot struct {
 				Status    string            `json:"status"`
 				Approvals []json.RawMessage `json:"approvals"`
 			}
-			if err = json.Unmarshal(raw, &snapshot); err != nil {
-				dialog.ShowError(err, w)
+			if err := json.Unmarshal(raw, &snapshot); err != nil {
+				u.showFailure("approval.loadError", err)
 				return
 			}
-			var data any
-			_ = json.Unmarshal(raw, &data)
-			pretty, _ := json.MarshalIndent(data, "", "  ")
-			content := container.NewVBox(widget.NewLabel("Session "+id), widget.NewLabel("Observed "+time.Now().Format(time.RFC3339)+" · "+snapshot.Status))
-			for _, approval := range snapshot.Approvals {
-				var detail struct {
-					ID      string `json:"id"`
-					Command string `json:"command"`
-					Kind    string `json:"kind"`
-				}
-				if json.Unmarshal(approval, &detail) != nil || detail.ID == "" {
+			content := container.NewVBox(wrappedLabel(u.t("approval.intro")))
+			if len(snapshot.Approvals) == 0 {
+				content.Add(wrappedLabel(u.t("approval.empty")))
+			}
+			for _, rawApproval := range snapshot.Approvals {
+				var approval approvalDetails
+				if json.Unmarshal(rawApproval, &approval) != nil || approval.ID == "" {
 					continue
 				}
-				content.Add(widget.NewLabel(fmt.Sprintf("Pending %s · %s", detail.Kind, detail.Command)))
-				choose := func(decision string) {
-					text := widget.NewMultiLineEntry()
-					text.SetText(string(approval))
-					text.Disable()
-					d := dialog.NewCustomConfirm("Confirm "+decision, "Send response", "Cancel", container.NewVScroll(text), func(ok bool) {
+				approval.raw = rawApproval
+				body := u.approvalContent(approval)
+				approve := widget.NewButton(u.t("approval.allow"), nil)
+				decline := widget.NewButton(u.t("approval.decline"), nil)
+				decide := func(decision string) {
+					title := u.t("approval.allow")
+					if decision == "decline" {
+						title = u.t("approval.decline")
+					}
+					confirmation := container.NewVBox(wrappedLabel(u.t("approval.confirm")), u.approvalContent(approval))
+					d := dialog.NewCustomConfirm(title, title, u.t("action.cancel"), container.NewVScroll(confirmation), func(ok bool) {
 						if !ok {
 							return
 						}
+						approve.Disable()
+						decline.Disable()
 						go func() {
-							ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+							c, cancel := context.WithTimeout(ctx, 10*time.Second)
 							defer cancel()
-							requestID, err := m.MutationRequestID(ctx)
+							requestID, err := u.manager.MutationRequestID(c)
 							if err == nil {
-								err = m.Decide(ctx, id, detail.ID, decision, requestID)
+								err = u.manager.Decide(c, id, approval.ID, decision, requestID)
 							}
 							fyne.Do(func() {
+								if ctx.Err() != nil {
+									return
+								}
 								if err != nil {
-									dialog.ShowError(fmt.Errorf("response %s: %w; inspect current state before any further response", requestID, err), w)
+									u.showFailure("approval.uncertain", fmt.Errorf("request %s: %w", requestID, err))
 								} else {
-									dialog.ShowInformation("Response queued", "Host accepted the response. Refresh Agent state to observe the provider outcome.", w)
+									u.notice(u.t("approval.sent"))
+									u.requestRefresh()
 								}
 							})
 						}()
-					}, w)
-					d.Resize(fyne.NewSize(650, 350))
+					}, u.window)
+					d.Resize(fyne.NewSize(700, 480))
 					d.Show()
 				}
-				content.Add(container.NewHBox(widget.NewButton("Approve once…", func() { choose("accept") }), widget.NewButton("Decline…", func() { choose("decline") })))
+				approve.OnTapped = func() { decide("accept") }
+				decline.OnTapped = func() { decide("decline") }
+				body.Add(container.NewHBox(approve, decline))
+				content.Add(widget.NewCard(u.t("approval.request"), "", body))
 			}
-			text := widget.NewMultiLineEntry()
-			text.SetText(string(pretty))
-			text.Disable()
-			d := dialog.NewCustom("Agent state and approvals", "Close", container.NewBorder(content, nil, nil, nil, text), w)
-			d.Resize(fyne.NewSize(720, 460))
+			pretty := json.RawMessage(raw)
+			encoded, _ := json.MarshalIndent(pretty, "", "  ")
+			content.Add(widget.NewAccordion(widget.NewAccordionItem(u.t("details.technical"), readOnlyText(string(encoded)))))
+			d := dialog.NewCustom(u.t("approval.title"), u.t("action.close"), container.NewVScroll(content), u.window)
+			d.Resize(fyne.NewSize(760, 560))
 			d.Show()
 		})
 	}()
+}
+
+func (u *managerWindow) approvalContent(a approvalDetails) *fyne.Container {
+	body := container.NewVBox()
+	if a.Command != "" {
+		body.Add(wrappedLabel(u.t("approval.command")))
+		body.Add(readOnlyText(a.Command))
+	}
+	if a.Cwd != "" {
+		body.Add(wrappedLabel(u.t("approval.workspace", map[string]any{"Path": a.Cwd})))
+	}
+	if a.GrantRoot != "" {
+		body.Add(wrappedLabel(u.t("approval.root", map[string]any{"Path": a.GrantRoot})))
+	}
+	if strings.TrimSpace(a.Reason) != "" {
+		body.Add(wrappedLabel(a.Reason))
+	}
+	for _, change := range a.Changes {
+		body.Add(widget.NewLabelWithStyle(change.Path, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}))
+		body.Add(readOnlyText(change.Diff))
+	}
+	// Unknown or newly added request fields remain inspectable before deciding.
+	if a.Command == "" && len(a.Changes) == 0 {
+		body.Add(wrappedLabel(u.t("approval.inspectHint")))
+	}
+	pretty, _ := json.MarshalIndent(a.raw, "", "  ")
+	body.Add(widget.NewAccordion(widget.NewAccordionItem(u.t("details.technical"), readOnlyText(string(pretty)))))
+	return body
 }

@@ -4,12 +4,16 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/widget"
 	"github.com/mobiledevloperlab/nimote-host/internal/desktop"
 	"github.com/mobiledevloperlab/nimote-host/internal/host"
 	"net"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"testing"
 	"time"
@@ -68,6 +72,41 @@ func TestWindowCloseReopenAndQuitPreserveHostTask(t *testing.T) {
 	defer a.Quit()
 	first, cleanup := newManagerWindow(a, m, false)
 	first.Show()
+	// Switching the display language must rebuild only the view, not restart
+	// Host or interrupt its active process.
+	var navigation *container.AppTabs
+	visitObjects(first.Content(), func(obj fyne.CanvasObject) {
+		if tabs, ok := obj.(*container.AppTabs); ok && len(tabs.Items) == 4 {
+			navigation = tabs
+		}
+	})
+	if navigation == nil {
+		t.Fatal("main navigation is missing")
+	}
+	navigation.SelectIndex(3)
+	var languageSelect *widget.Select
+	visitObjects(first.Content(), func(obj fyne.CanvasObject) {
+		if selectBox, ok := obj.(*widget.Select); ok && reflect.DeepEqual(selectBox.Options, languageNames) {
+			languageSelect = selectBox
+		}
+	})
+	if languageSelect == nil {
+		t.Fatal("language control is missing")
+	}
+	languageSelect.SetSelectedIndex(2)
+	if a.Preferences().String("language") != "es" {
+		t.Fatal("language preference did not persist")
+	}
+	afterLanguage, err := host.Call(ctx, dir, host.RPCRequest{Method: "GET", Path: "/v1/status"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var identity struct {
+		ID string `json:"host_id"`
+	}
+	if err := json.Unmarshal(afterLanguage, &identity); err != nil || identity.ID == "" {
+		t.Fatal("invalid Host identity", err)
+	}
 	first.Hide()
 	first.Show()
 	first.Close()
@@ -77,6 +116,16 @@ func TestWindowCloseReopenAndQuitPreserveHostTask(t *testing.T) {
 	second.Close()
 	cleanup()
 	a.Quit()
+	afterQuit, err := host.Call(ctx, dir, host.RPCRequest{Method: "GET", Path: "/v1/status"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sameIdentity struct {
+		ID string `json:"host_id"`
+	}
+	if json.Unmarshal(afterQuit, &sameIdentity) != nil || sameIdentity.ID != identity.ID {
+		t.Fatal("GUI lifecycle replaced the Host identity")
+	}
 	s, err := m.Status(ctx)
 	if err != nil || s.State != "Running" {
 		t.Fatalf("GUI lifetime killed Host: %v %v", s, err)
