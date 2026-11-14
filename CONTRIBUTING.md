@@ -74,3 +74,22 @@ removed on exit. Set `TMPDIR` to a disk with enough space if needed.
 Native Windows checks run separately in CI; this shell command requires a Unix
 environment. The minimum Go version is declared in go.mod; newer Go versions
 are supported subject to CI and the same clean-build checks.
+
+## Desktop UI and translations
+
+The GUI is a separate module. After UI changes, also run:
+
+```sh
+cd cmd/nimote-host-gui
+go test -mod=readonly -race -tags ci ./...
+go vet ./...
+```
+
+Maintain application text in `translations/{en,zh-Hans,es,ja,ko,ru}.json`. Update all
+six catalogs together, preserving message keys and go-i18n template variables.
+Do not translate protocol values, user content or paths. Reuse Fyne widgets and
+go-i18n instead of copying SDK internals.
+Use `NIMOTE_GUI_PREVIEW_DIR=/tmp/nimote-gui-preview go test -run TestDesktopLayoutsAcrossLanguages`
+to render six-language previews. This requires native desktop build dependencies;
+omitting `ci` enables system font scanning. Previews use fixtures, not real session
+contents. Headless tests do not replace native tray, accessibility or native-speaker review.

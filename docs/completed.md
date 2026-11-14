@@ -161,7 +161,7 @@ Go 客户端可调用 `host.NewRequestID()`；GUI 在后台协商能力后用于
 不能通过改用新键自动重试；应先核对会话。Host 启动及后续变更请求触发的每小时清理中，
 先持久化只增不减的过期边界，再删除过期回执；时钟回拨或重启不会重新允许这些键。
 旧格式回执继续保留，不通过淘汰旧键破坏原有防重放保证。
-`GET /v1/status` 的 `request_storage` 与 GUI Diagnostics 提供数量、空间、旧回执数量和 80% 容量告警。
+`GET /v1/status` 的 `request_storage` 与 GUI Help & diagnostics 提供数量、空间、旧回执数量和 80% 容量告警。
 New expiring IDs allow safe bounded-window cleanup; legacy receipts remain reserved indefinitely.
 Clients must negotiate the capability on each connection and must not submit expiring IDs to older Hosts.
 `accepted` 只表示 Host 接收/排队，`terminal_written` 只表示写入终端；不等于 Agent 确认或任务完成。
@@ -251,7 +251,7 @@ Audit findings and reuse boundaries:
 
 - `internal/desktop`: 认证 RPC facade、Host 状态、真实会话、Agent 快照/审批、
   跨进程启停锁、独立进程启动和脱敏诊断。它不导入 Fyne。
-- `cmd/nimote-host-gui`: 独立 Fyne module、原生紧凑选项卡、托盘、主题和管理界面。
+- `cmd/nimote-host-gui`: 独立 Fyne module、四入口侧边导航、托盘、主题、六语言与管理界面。
   系统托盘菜单与关闭拦截使用 [Fyne 原生接口](https://developer.fyne.io/explore/systray)。
 - `internal/host/config.go`, `log.go`: 私有共享配置、Host 锁下写入、64 KiB 有界日志。
   Token、Agent/终端输出不进入新运行日志；导出仅包括健康摘要，不包含运行日志。
@@ -263,6 +263,31 @@ Windows/macOS 关闭隐藏；Linux 托盘能力无法通过 Fyne desktop 接口�
 Enabling login startup installs/starts the existing user service; disabling removes it.
 Both require Host stopped to avoid implicit interruption. User login, not machine boot
 without a user session, is the native service guarantee.
+
+### 桌面交互与国际化 / Desktop interaction and localization
+
+Overview、Sessions、Devices、Settings 为四个一级入口。首屏只显示本地服务状态、主要操作、
+活动/待审批摘要和手机连接指南；不以 Host 正常运行证明 SSH 或手机已连接。
+Sessions 使用名称与工作区，支持搜索、运行/待审批/结束筛选，优先展示待审批；完整 ID 仅在详情内。
+原生历史位于 Past conversations，直接阅读对话正文和工具结果，保留分页和同对话恢复。
+停止/重启进入二级菜单并确认影响；端口/日志级别默认折叠；诊断和原始数据按需打开。
+All four pages use existing Fyne widgets; no web frontend or custom UI framework is introduced.
+
+六种语言与 NimoteCode 对齐：`en`、`zh-Hans`、`es`、`ja`、`ko`、`ru`。默认英语，
+Settings → Language 即时切换并保存 Fyne 偏好；重建窗口内容只取消旧视图查询，不停止 Host 或任务。
+`translations/*.json` 内嵌到 GUI，复用 Fyne 已依赖的 go-i18n 和 x/text；无新模块版本。
+未知语言回退英语。名称、命令、目录、用户/Agent 正文及技术 JSON 不翻译；文件选择器遵循系统/框架语言。
+Fyne 正式构建使用系统字体回退，Linux 应提供中日韩字体；`ci` 测试禁用系统字体扫描，
+不能用该模式的截图判定真实中日韩字体。macOS 非 `ci` 预览已检查中日韩字形。
+
+回归覆盖六份目录的键集合、模板变量一致性、字面键引用、语言偏好、会话筛选排序、
+未知状态、回收行状态文字尺寸、命名设备表单及六语言四页面窗口尺寸。
+可选预览命令见 CONTRIBUTING；真实 OS 托盘、辅助功能和母语审校仍需分别验收。
+
+交互依据 / References: [Docker Desktop navigation](https://docs.docker.com/desktop/use-desktop/)、
+[Tailscale preferences](https://tailscale.com/docs/features/client/manage-preferences)、
+[Apple disclosure controls](https://developer.apple.com/design/human-interface-guidelines/disclosure-controls)。
+采用这些入口分层原则，不复制其他产品的界面资产或引入其网络/账号体系。
 
 ### 桌面构建与安装 / Desktop build and installation
 
@@ -298,8 +323,8 @@ Fyne 窗口测试使用无显示器测试驱动；不能替代真实系统托盘
 根模块 `go vet ./...`、桌面模块 `go test -tags ci ./...` 与 `go vet -tags ci ./...`、
 两模块 `go mod verify`、5 项 Python 检查均通过。CLI 六目标构建成功，
 macOS arm64 GUI 原生编译、联合打包和真实图形启动通过，GUI 退出不发送 Host 停止请求；
-归档清单逐文件校验通过。真实图形启动出现 Fyne zh-Hans 内建选择器缺译的非致命日志，
-不影响启动；三平台托盘、签名、服务/系统重启和手机矩阵仍列在 pending。
+归档清单逐文件校验通过。Fyne 2.8 选择器的缺译占位键通过公开翻译资源 API 补齐；
+不修改 SDK 或进程环境来切换语言。三平台托盘、签名、服务/系统重启和手机矩阵仍列在 pending。
 
 ## 只读设备授权、历史与更新入口 / Observer devices, history and updates
 
@@ -324,7 +349,7 @@ Unix 管理员为每台设备准备独立 SSH 公钥，把 GUI 显示的 `restri
 配置正确强制命令；GUI 不输出未经原生验证的 Windows 授权行。
 撤销 Host 权限后，还应移除相应受限 SSH key 来禁止后续 SSH 登录；Host 撤销无需等待该操作。
 
-GUI History 从当前 Host 的原生 provider API 读取历史列表（支持列表分页）与 transcript，
+Sessions → Past conversations 从当前 Host 的原生 provider API 读取历史列表（支持列表分页）与 transcript，
 Codex transcript 可用 Next transcript page 继续读取，保持原生游标。
 每条历史投影按编码后的 JSON 限制为 24 KiB，缩短内容明确标记 `truncated`，
 最多 50 条的 Codex 页保持在 RPC 的 2 MiB 限额内。ACP 没有可续读的 transcript 游标，

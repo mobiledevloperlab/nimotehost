@@ -103,11 +103,14 @@ GUI、完整许可证、GUI-MODULES.json 和校验清单；原 CLI 发行包继�
 Linux `nimote-host-gui`。Linux desktop 文件需 GUI 在 PATH，或把 Exec 改为绝对路径。
 也可从 `dist/gui-<系统>-<架构>` 直接运行；启用登录启动后不要移动此目录。
 
-首屏管理 Host 启停、重启；Sessions 展示真实会话及结构化 Agent 状态/待审批；
-Settings 提供登录启动、端口、日志级别和 System/Light/Dark；Diagnostics 提供
-健康信息、64 KiB 有界运行日志、诊断复制及导出。配置复用 OS 用户配置目录下
-`nimote-host/config.json`，默认 `127.0.0.1:47831`，修改前需停止 Host。
-GUI 主题与 Linux 托盘偏好由 Fyne 单独持久化。
+界面保留 Overview、Sessions、Devices、Settings 四个主要入口。首屏显示服务状态和主要操作；
+会话按名称、工作区和可读状态展示，支持搜索、筛选，历史对话位于 Sessions → Past conversations。
+端口、日志级别等放入 Advanced settings，诊断放入 Help & diagnostics；审批仍展示实际命令与文件修改。
+Settings → Language 支持英语、简体中文、西班牙语、日语、韩语和俄语，默认英语；
+切换语言立即生效并持久保存，不重启 Host。Fyne 使用系统字体，Linux 的中日韩显示需安装
+相应字体，例如 `fonts-noto-cjk`。
+配置复用 OS 用户配置目录下的 `nimote-host/config.json`，默认 `127.0.0.1:47831`，
+修改端口和日志级别前需停止 Host。GUI 语言、主题与 Linux 托盘偏好由 Fyne 单独持久化。
 
 Windows/macOS 关闭窗口隐藏到托盘；Linux 默认关闭窗口仅退出 GUI，确认有托盘支持
 后可在设置启用。退出 GUI 不停止 Host、SSH 或后台任务；明确 Stop/Restart 才结束
@@ -125,4 +128,4 @@ GUI Devices 和 `nimote-host devices add <name>` 可注册独立只读设备，
 完整 SSH/任务执行权限仍属于系统账号，不受只读设备撤销隔离。
 Observer identities use restricted SSH keys, not unrestricted same-user shell access.
 设备注册及绑定方法、安全边界见 [设备授权说明](docs/completed.md#只读设备授权历史与更新入口--observer-devices-history-and-updates)。
-GUI History 已接入原生历史查询/恢复；Settings 可查询最新官方版本并打开下载入口。
+Sessions → Past conversations 已接入原生历史查询/恢复；Settings 可查询最新官方版本并打开下载入口。

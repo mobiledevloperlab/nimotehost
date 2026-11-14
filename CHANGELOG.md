@@ -4,6 +4,10 @@
 
 ## Unreleased — 1.0.0-dev
 
+- Simplify the desktop to four main pages, readable session/device names, search and filters, conversation text, and on-demand technical details.
+- Match NimoteCode's six languages (English, Simplified Chinese, Spanish, Japanese, Korean, Russian), reusing go-i18n with immediate switching and persistent preferences.
+- Add catalog, template, layout, session-state and GUI lifecycle checks; run race and vet in desktop CI.
+
 - Preserve executable modes in GUI bundles, isolate damaged session output, and require resync for future event cursors.
 - Bound encoded history projections, disclose truncation, and page Codex transcripts in the GUI.
 - Add expiring mutation IDs with a durable monotonic retirement watermark and safe receipt cleanup; retain legacy replay protection and expose storage diagnostics.

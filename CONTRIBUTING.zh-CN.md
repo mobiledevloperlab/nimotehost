@@ -55,3 +55,20 @@ Go 1.26.5+ 和 C 编译器（race 测试需要）后，在源码目录运行
 可将 `TMPDIR` 指向空间充足的磁盘。
 Windows 原生检查由 CI 单独运行，此 shell 命令需要 Unix 环境。最低 Go 版本声明在
 go.mod；更新的 Go 版本需通过 CI 和相同的干净构建检查。
+
+## 桌面界面与翻译
+
+GUI 是独立模块，修改后还需运行：
+
+```sh
+cd cmd/nimote-host-gui
+go test -mod=readonly -race -tags ci ./...
+go vet ./...
+```
+
+界面文案维护在 `translations/{en,zh-Hans,es,ja,ko,ru}.json`；六份资源须同时更新，
+保留相同键与 go-i18n 模板变量。协议值、用户内容和路径不翻译。用标准 Fyne 控件与
+go-i18n 维护交互和国际化，不复制 SDK 内部实现。
+可执行 `NIMOTE_GUI_PREVIEW_DIR=/tmp/nimote-gui-preview go test -run TestDesktopLayoutsAcrossLanguages`
+生成六语言预览。该命令需原生桌面构建依赖；不加 `ci` 才会扫描系统字体。
+截图只使用测试样本，不读取真实会话。无头测试不替代原生托盘、辅助功能或母语审校。
