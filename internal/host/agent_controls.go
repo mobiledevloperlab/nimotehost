@@ -23,6 +23,7 @@ type agentCommand struct {
 	Description string `json:"description"`
 }
 type agentControls struct {
+	Steer    bool           `json:"steer,omitempty"`
 	Codex    bool           `json:"codex,omitempty"`
 	Commands []agentCommand `json:"commands"`
 	Options  []agentOption  `json:"options"`
@@ -38,6 +39,7 @@ type codexModel struct {
 }
 
 func (a *structuredAgent) publishControls() {
+	a.controls.Steer = a.acp == nil
 	a.publishExecutionPolicy()
 	a.emit("controls", a.controls)
 }

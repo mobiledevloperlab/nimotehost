@@ -58,7 +58,7 @@ func (a *structuredAgent) notification(method string, raw json.RawMessage) {
 	}
 	switch method {
 	case "turn/started":
-		a.emit("turn_started", map[string]any{"id": p.Turn.ID})
+		a.emit("turn_started", map[string]any{"id": p.Turn.ID, "can_steer": a.canSteer()})
 	case "turn/completed":
 		a.emit("turn_completed", map[string]any{"id": p.Turn.ID, "status": p.Turn.Status, "error": p.Turn.Error})
 	case "item/agentMessage/delta":

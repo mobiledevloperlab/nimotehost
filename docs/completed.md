@@ -109,7 +109,7 @@ Use encoded argv, not shell interpolation. Closing the RPC bridge only detaches 
 | POST /v1/sessions/{id}/resize | rows/cols，1..1000 / terminal dimensions |
 | GET /v1/sessions/{id}/output?offset=0 | data/start_offset/next_offset，wait_ms=0..1000 |
 | GET /v1/sessions/{id}/agent-state | cursor/ready/busy/status/approvals/controls |
-| POST /v1/sessions/{id}/agent-message | prompt/interrupt/approval/discover/configure/compact，按 provider 能力 / provider-gated actions |
+| POST /v1/sessions/{id}/agent-message | prompt/steer/interrupt/approval/discover/configure/compact，按 provider 能力 / provider-gated actions |
 | GET /v1/sessions/{id}/activity?after=sequence | events/cursor/resync_required |
 | GET /v1/events?after=revision | 最新 1024 条进程元数据事件 / process-state events |
 | GET /v1/agent-history?agent=...&directory=...&cursor=... | 原生对话列表 / native history |
@@ -129,6 +129,14 @@ Use encoded argv, not shell interpolation. Closing the RPC bridge only detaches 
 - resume.conversation_id 指向原生对话，不是 Host Session ID；不可恢复时不改为新对话。
 - `agent-message` 要求最多 128 字节的 request_id。prompt 提供 text；approval 提供
   approval_id 和 decision=accept|decline。普通文本、终端字节和审批是不同操作。
+- Codex controls.steer=true 表示支持执行中追加消息。agent-state 返回 turn_id 和
+  can_steer；turn_started.data 同时返回 id 和 can_steer。发送 action=steer、text、
+  turn_id 和唯一 request_id，Host 通过 turn/steer 的 expectedTurnId 校验当前轮次。
+  启动中、压缩中、过期轮次和 ACP 会话拒绝此操作，不自动启动新轮次或排队。
+  HTTP 回执只确认 Host 接收；provider 确认后输出 user_followup（text/turn_id/request_id），
+  拒绝或进程停止时输出 steer_rejected（text/request_id/error），不改变当前轮次状态。
+  每会话最多保留 16 个待确认追加消息；重试必须使用相同 request_id 和请求内容。
+  Codex steering is bound to the expected active turn; late replies never revive or stop a turn.
 - 结构化输出沿用 UTF-8 JSONL：ready/user/text_delta/message_completed/tool/turn_started/
   turn_completed/approval/approval_resolved/turn_rejected/error，附 type/data。
   在 output 字节游标与 agent-state.cursor 完全一致时应用快照，避免回放竞态。

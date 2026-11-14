@@ -18,6 +18,7 @@ type AgentMessage struct {
 	Action     string `json:"action"`
 	RequestID  string `json:"request_id,omitempty"`
 	Text       string `json:"text,omitempty"`
+	TurnID     string `json:"turn_id,omitempty"`
 	ApprovalID string `json:"approval_id,omitempty"`
 	Decision   string `json:"decision,omitempty"`
 	OptionID   string `json:"option_id,omitempty"`
@@ -62,6 +63,7 @@ type structuredAgent struct {
 	next               int
 	seen               map[string]bool
 	pending            map[string]string
+	steers             map[string]AgentMessage
 	approvals          map[string]json.RawMessage
 }
 
@@ -95,6 +97,10 @@ func (a *structuredAgent) closeLocked() {
 		return
 	}
 	a.closed = true
+	for id, req := range a.steers {
+		a.emit("steer_rejected", map[string]any{"request_id": req.RequestID, "text": req.Text, "error": "agent stopped before confirming the message"})
+		delete(a.steers, id)
+	}
 	a.completeStartup(errors.New("agent stopped before initialization completed"))
 	for id := range a.approvals {
 		a.emit("approval_resolved", id)
@@ -215,7 +221,12 @@ func (m *Manager) AgentSnapshot(id string) (map[string]any, error) {
 	for i := range controls.Options {
 		controls.Options[i].Values = slices.Clone(controls.Options[i].Values)
 	}
-	return map[string]any{"cursor": cursor, "status": a.statusLocked(), "ready": !a.closed && a.thread != "", "busy": a.busy || a.configuring, "approvals": pending, "controls": controls}, nil
+	return map[string]any{"cursor": cursor, "status": a.statusLocked(), "ready": !a.closed && a.thread != "", "busy": a.busy || a.configuring, "turn_id": a.turn, "can_steer": a.canSteer(), "approvals": pending, "controls": controls}, nil
+}
+
+// Caller holds a.mu. Compaction and turn startup cannot receive steering.
+func (a *structuredAgent) canSteer() bool {
+	return a.acp == nil && !a.closed && a.busy && !a.configuring && !a.compacting && a.thread != "" && a.turn != ""
 }
 
 // Only structured protocol state is evidence of Agent activity. A live PTY

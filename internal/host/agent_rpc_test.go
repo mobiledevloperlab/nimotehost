@@ -49,10 +49,20 @@ func TestAgentRPCTransportSDKPermissionAndNotificationOrdering(t *testing.T) {
 					return map[string]any{"thread": map[string]string{"id": "session"}}, nil
 				case "initialized":
 					return nil, nil
+				case "turn/steer":
+					var p struct {
+						ThreadID       string `json:"threadId"`
+						ExpectedTurnID string `json:"expectedTurnId"`
+					}
+					if json.Unmarshal(params, &p) != nil || p.ThreadID != "session" || p.ExpectedTurnID != "turn" {
+						return nil, acp.NewInvalidParams(nil)
+					}
+					return map[string]string{"turnId": "turn"}, nil
 				case "session/prompt", "turn/start":
 					notification := "session/update"
 					update := map[string]any{"sessionId": "session", "update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "before completion"}}}
 					if provider == "codex" {
+						_ = peer.SendNotification(ctx, "turn/started", map[string]any{"turn": map[string]string{"id": "turn"}})
 						notification = "item/agentMessage/delta"
 						update = map[string]any{"itemId": "reply", "delta": "before completion"}
 					}
@@ -118,6 +128,26 @@ func TestAgentRPCTransportSDKPermissionAndNotificationOrdering(t *testing.T) {
 			if approval == "" {
 				t.Fatal("SDK permission request was not published")
 			}
+			if provider == "codex" {
+				if err := a.message(AgentMessage{Action: "steer", RequestID: "followup", Text: "Also check B", TurnID: "turn"}); err != nil {
+					t.Fatal(err)
+				}
+				for {
+					a.mu.Lock()
+					confirmed, busy := len(a.steers) == 0, a.busy
+					a.mu.Unlock()
+					if !busy {
+						t.Fatal("steering stopped the active prompt")
+					}
+					if confirmed {
+						break
+					}
+					if time.Now().After(deadline) {
+						t.Fatal("steering blocked behind the active prompt")
+					}
+					time.Sleep(time.Millisecond)
+				}
+			}
 			if err := a.message(AgentMessage{Action: "approval", RequestID: "approve", ApprovalID: approval, Decision: "accept"}); err != nil {
 				t.Fatal(err)
 			}
@@ -156,6 +186,9 @@ func TestAgentRPCTransportSDKPermissionAndNotificationOrdering(t *testing.T) {
 				t.Fatal(err)
 			}
 			events := string(data)
+			if provider == "codex" && !strings.Contains(events, `"type":"user_followup"`) {
+				t.Fatal("steering acknowledgement missing:", events)
+			}
 			textAt, completeAt := strings.Index(events, "before completion"), strings.Index(events, "turn_completed")
 			if textAt < 0 || completeAt <= textAt {
 				t.Fatal("notification did not precede completion:", events)
