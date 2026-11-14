@@ -17,7 +17,7 @@ English / 简体中文 · 2026-11-14 · 实际执行记录，不作绝对无 Bug
   临时官方 Go SDK 下载按官方 SHA256 清单校验。
 - go.mod/go.sum 与生产依赖没有变更；最低 Go 1.26.5 未单独运行。
 
-## Commands and results / 命令与实际结果
+## Baseline commands and results / 前次提交基线结果
 
 | Command / 执行项 | Actual result / 实际结果 |
 | --- | --- |
@@ -38,13 +38,13 @@ English / 简体中文 · 2026-11-14 · 实际执行记录，不作绝对无 Bug
 | `sh scripts/check-clean-build.sh` | PASS；全新 module/build 缓存、readonly race、vet 和原生分发构建均 exit 0 |
 | `./scripts/export-source.sh`、Python 文档/源码导出测试、`git diff --check`、gofmt | PASS；源码包排除环境/凭据和本地任务文件；5 个 Python 检查、文档 Go 检查及格式检查通过 |
 
-上述原生 Linux/Windows 检查运行的是本轮源码；不把上一提交或交叉编译的结果冒充最终原生结果。
+上表记录前次提交 4fb0c6e 的基线验收；本轮增量代码的重新执行结果单列于下方，不将基线或交叉编译冒充最终原生结果。
 
 ## Live model acceptance / 真实 Agent 与模型
 
 `TestLiveAgentApprovalDeclineAndConversationResume` 只在显式设置
 NIMOTE_TEST_LIVE_AGENT 并提供独立 CLI/model 配置时执行；默认 CI 不装账号或调用模型。
-真实模型验收在 macOS owner 会话中执行；隔离 UID 下的 Agent 配置另列待验收。所有模型调用仅用临时工作区、随机无敏感 marker、env.md 提供的 deepseek-flash。
+本节基线真实模型验收在 macOS owner 会话中执行；Linux 隔离 UID 下 Codex 的后续结果另列于下方。所有模型调用仅用临时工作区、随机无敏感 marker、env.md 提供的 deepseek-flash。
 密钥只进入子进程环境；日志脱敏，未提交配置、凭据、模型历史或 env.md。
 
 | Provider / 实际版本 | Result / 结果 |
@@ -84,8 +84,7 @@ v2 的异步完成与 subject 参考 [migration](https://agentclientprotocol.com
 | 既有 history、SDK、请求账本、输出/events、服务/安装与 desktop facade 回归 | 取消、超时、恢复、回执轮换/保留、界面层与 CLI daemon 生命周期；生产 UI 未改动 |
 
 磁盘故障通过注入验证，不填满开发机磁盘；Linux aggregate cgroup 测试只创建/删除
-专用子树，不改变系统全局控制器、账户或服务。CPU 控制器未向此测试层级委派，
-没有运行 Linux CPU 限速负载试验。Linux 内存测试核对实际内核设置，未声称已运行
+专用子树，不改变系统全局控制器、账户或服务。原 RobotOS 测试层级未委派 CPU；下方 Ubuntu 后续验收使用既有委派补齐实际节流验证。Linux 内存测试核对实际内核设置，未声称已运行
 完整 OOM 压力矩阵；Windows 内存验收是真实 committed allocation 拒绝。
 
 ## Failures diagnosed and fixed / 失败根因及修复
@@ -124,10 +123,69 @@ POSIX executable bits；两个 POSIX smart-command/ripgrep recognizer；POSIX �
 这些 skips 保留现有平台条件，没有新增 skip 来避开失败。
 
 尚未验收：独立 Linux OS 的运维生命周期、三平台登录/注销与系统重启、长时间饱和、
-真实 sshd forced-command/SFTP/转发拒绝、所有 Agent 版本与模型、图形桌面/手机真机。
-Linux 隔离 UID 下的真实 Agent/凭据配置及受限 syscall 兼容尚未验收；三提供方模型结果
-来自 macOS owner 会话，不与 Linux terminal 的身份/资源隔离结果混淆。
+macOS/Windows 真实 sshd forced-command/SFTP/转发拒绝、所有 Agent 版本与模型、图形桌面/手机真机。
+Linux 隔离 UID 下 Codex 已由下方后续验收验证；Claude/OpenCode 的 Linux 隔离配置尚未验收。
+原三提供方完整矩阵来自 macOS owner 会话，不推广为全部平台的隔离兼容结果。
 没有 macOS 硬配额或 macOS/Windows 独立执行身份后端；无工作区磁盘硬配额。
 默认 Unix 进程组无法覆盖主动逃逸后代；Linux cgroup 后端已覆盖该撤权用例。
 不保证外部杀死 guardian、内核失败或断电后的事务完整；无独立安全审计结论。
 详见 [剩余风险](pending.md) 和 [权限/部署/回滚](host-hardening.md)。
+
+## Follow-up run / 本轮继续关闭风险
+
+2026-11-14：遵循用户新确认的批准边界，全程没有机器重启、登录/注销、服务注册、
+生产 SSH 配置/authorized_keys 修改、权限授予、挂载或系统级安装。
+
+| 实际执行项 | 结果 |
+| --- | --- |
+| Ubuntu WSL 现有 OpenSSH + 真实 nimotehost CLI/HTTP + 临时受限公钥 | PASS，1.94s；强制命令、Session 范围、shell/SFTP/TCP forwarding/PTY 拒绝、持久撤权与 owner 仍可访问 |
+| 独立 UID + session_controller + Codex 0.169.0 + deepseek-flash | PASS，17.96s；两个不同 UID，真实批准/拒绝/重试去重、新 Host Session 恢复原 conversation，并验证随机 marker |
+| Linux socket 内核回归 | PASS；匿名 stream 对能传递数据，但不能连接可达的命名 broker、AF_UNSPEC 断连再复用、shutdown/close 后重连或监听；DGRAM/SEQPACKET、命名 socket、vsock 和 io_uring 拒绝；含 WSL interop 负向探针 |
+| CPU 原生负载 | PASS，0.11s；核对 cpu.max 并实际观察 nr_throttled 增长，未修改父级控制器 |
+| macOS 真实 Codex owner 流程重跑 | PASS，13.00s；验证共用验收函数重构未破坏原有模式 |
+| Linux Ubuntu WSL `go test -json ./...` | PASS；382 个测试/子测试通过，11 个明确平台/环境门控 skips，零失败；新增 root/真实模型/SSH opt-in 另行显式执行 |
+| Linux `go test -race ./...`、`go vet ./...`、`go mod verify`、原生 CLI build | PASS，全部 exit 0；未报告 race |
+| Linux root 边界/CPU/内存/SSH，原生 `go test -race -c` 二进制 | PASS；身份边界 4.59s、CPU 1.12s、内存 3.32s、SSH 3.92s；实际触碰 128 MiB 内存，512 MiB 配额成功、64 MiB 配额被内核 kill |
+| Linux 隔离 Codex，同一 race 二进制 | PASS，19.12s；批准 2 次、拒绝 1 次、重复审批仅一次原生答复、跨 UID 恢复；未报告 race |
+| Windows 当前代码 Host 包默认原生回归 `host.test.exe -test.v` | PASS，exit 0；本轮并未重跑 Windows 全模块 race/vet/build，相关旧结果仅见上方基线；默认 SSH opt-in skip 不覆盖下方显式失败 |
+| macOS 当前代码 `go test ./...`、`make check`、`go run ./tools/build` | PASS；readonly 全量 race、vet、模块校验、5 个 Python 检查通过 |
+| 当前代码六目标 `CGO_ENABLED=0 go test -mod=readonly -c -o <temp> ./...` | PASS；darwin/linux/windows × amd64/arm64，36 个测试二进制；额外平台只验证编译 |
+| Windows 临时管理员 sshd | **未通过，待条件/批准**；私有 daemon 认证握手失败，未通过任何 skip/断言放宽掩盖；现有 sshd 服务未改 |
+
+Windows 账户的只读权限检查报告 SeTcbPrivilege 存在、SeAssignPrimaryTokenPrivilege
+未报告；失败现场包括握手超时/daemon 初始调试输出。该运行上下文与标准 SYSTEM
+服务不等价，根因尚需服务上下文复核；不把上游类似问题引用当作当前问题已修复。
+下一步需批准专用临时服务或提供适当隔离主机，详见 pending。临时测试当前的显式
+Windows SSH opt-in 仍不通过，默认回归中的环境 skip 不代表此项目已通过。
+
+Linux 使用 Windows 主机内现有 Ubuntu WSL 的原生 ELF Codex；仅复制可执行文件到
+root 保护的专用测试目录，没有复制既有账号配置。模型凭据通过加密 SSH stdin
+送入 Linux，写在 root 私有模板与指定 UID 的 0600 profile 中，不写入 Windows
+共享盘、命令参数、源码或日志；结果采集脱敏。共享盘只存代码、非敏感路径与日志。
+使用私有 TMPDIR 修复 Codex credential-home 与 temp 根重叠的配置问题。
+
+失败定位与修复：Tokio 使用匿名 UnixStream pair 实现信号唤醒，旧策略导致进程 panic；
+现在只允许已连接匿名 SOCK_STREAM 对，同时加上命名 broker 可达性、不可重连、
+其他 socket families/interop 的负向内核测试。SSH fixture 首次因 StrictModes 拒绝
+/tmp 路径而失败，改用 root 保护的专用临时路径；首次转发断言被 client LogLevel=ERROR
+隐藏了拒绝原因，现只提高受测 -W/-tt 客户端日志级别，保留明确的禁止断言。
+这些调整没有禁用 StrictModes、扩大转发权限、放宽角色权限或删除失败断言。
+
+本轮额外 opt-in 命令（均使用专用临时目录；外部运行条件不足时不得视为通过）：
+
+```sh
+# Linux：既有 root/cgroup 委派、现有非 root 测试登录、已构建 CLI
+NIMOTE_TEST_ROOT_ISOLATION=1 NIMOTE_TEST_ROOT_CPU=1 \
+NIMOTE_TEST_SSH_LOGIN=<existing-login> NIMOTE_TEST_SSH_HOST_BINARY=<private-cli> \
+<race-host-test> -test.v -test.run='^Test(RootIsolatedExecutionBoundary|RootLinuxCPUQuotaEnforcesThrottling|RootLinuxMemoryQuotaKillsExcessAllocation|NativeRestrictedSSHAndRevocation)$'
+# 独立的私有 Agent profile，凭据不写入参数
+NIMOTE_TEST_ROOT_LIVE_AGENT=codex NIMOTE_TEST_ROOT_AGENT_PROFILE=<private-profile> \
+<race-host-test> -test.v -test.run='^TestRootLiveAgentControllerApprovalAndResume$'
+```
+
+所有机器重启仍等待用户单独明确批准。Windows SSH 显式失败与尚未实现的后端不随本次提交关闭，
+后续条件、影响范围及批准要求见 [pending](pending.md)。
+
+收尾：Linux 专用 scratch（含私有模型 profile）与 Windows 专用 scratch 均已删除，
+清理命令 exit 0；删除前确认没有正在执行该 Linux scratch 内的程序。只清理本轮自建目录，
+保留原环境、现有服务及本地 env.md。脱敏测试日志留在仓库外；文档检查与 git diff --check 通过。

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 
 	"golang.org/x/sys/unix"
 )
@@ -27,7 +29,7 @@ func TestIdentityProbeChild(t *testing.T) {
 			args = os.Args[i+1:]
 		}
 	}
-	if len(args) != 3 {
+	if len(args) != 4 {
 		return
 	}
 	uid, _ := strconv.Atoi(args[0])
@@ -57,6 +59,66 @@ func TestIdentityProbeChild(t *testing.T) {
 	if err == nil {
 		unix.Close(fd)
 		fail()
+	}
+	pair, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM|unix.SOCK_CLOEXEC|unix.SOCK_NONBLOCK, 0)
+	if err != nil {
+		fail()
+	}
+	if _, err := unix.Write(pair[0], []byte("x")); err != nil {
+		fail()
+	}
+	b := make([]byte, 1)
+	if n, err := unix.Read(pair[1], b); err != nil || n != 1 || b[0] != 'x' {
+		fail()
+	}
+	broker := &unix.SockaddrUnix{Name: args[3]}
+	if err := unix.Connect(pair[0], broker); err != unix.EISCONN {
+		fail()
+	}
+	if err := unix.Listen(pair[0], 1); err == nil {
+		fail()
+	}
+	unspecified := unix.RawSockaddr{Family: unix.AF_UNSPEC}
+	if _, _, errno := unix.Syscall(unix.SYS_CONNECT, uintptr(pair[0]), uintptr(unsafe.Pointer(&unspecified)), 2); errno == 0 {
+		fail()
+	}
+	_ = unix.Shutdown(pair[0], unix.SHUT_RDWR)
+	_ = unix.Close(pair[1])
+	if err := unix.Listen(pair[0], 1); err == nil {
+		fail()
+	}
+	if err := unix.Connect(pair[0], broker); err == nil {
+		fail()
+	}
+	_ = unix.Close(pair[0])
+	for _, kind := range []int{unix.SOCK_DGRAM, unix.SOCK_SEQPACKET} {
+		pair, err := unix.Socketpair(unix.AF_UNIX, kind, 0)
+		if err != unix.EPERM {
+			if err == nil {
+				unix.Close(pair[0])
+				unix.Close(pair[1])
+			}
+			fail()
+		}
+	}
+	if fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0); err != unix.EPERM {
+		if err == nil {
+			unix.Close(fd)
+		}
+		fail()
+	}
+	// WSL interop is a privileged cross-OS broker, not part of Linux UID/cgroup
+	// ownership. A harmless Windows exit-code probe must not execute successfully.
+	if _, err := os.Stat("/mnt/c/Windows/System32/cmd.exe"); err == nil {
+		probeCtx, stop := context.WithTimeout(context.Background(), 2*time.Second)
+		cmd := exec.CommandContext(probeCtx, "/mnt/c/Windows/System32/cmd.exe", "/d", "/c", "exit", "73")
+		runErr := cmd.Run()
+		stop()
+		if err := runErr; err == nil {
+			fail()
+		} else if status, ok := err.(*exec.ExitError); ok && status.ExitCode() == 73 {
+			fail()
+		}
 	}
 	fd, err = unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
 	if err != nil {
@@ -101,43 +163,10 @@ func TestRootIsolatedExecutionBoundary(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Fatal("root-only acceptance was requested without root")
 	}
-	if os.Getenv("NIMOTE_TEST_ROOT_STAGE") != "1" {
-		base, err := os.MkdirTemp("/tmp", "nimotehost-root-helper-")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.RemoveAll(base)
-		if err := os.Chmod(base, 0755); err != nil {
-			t.Fatal(err)
-		}
-		source, err := os.Executable()
-		if err != nil {
-			t.Fatal(err)
-		}
-		in, err := os.Open(source)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer in.Close()
-		target := filepath.Join(base, "host-test-helper")
-		out, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0755)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = io.Copy(out, in)
-		closeErr := out.Close()
-		if err != nil || closeErr != nil {
-			t.Fatal(err, closeErr)
-		}
-		cmd := exec.Command(target, "-test.run=^TestRootIsolatedExecutionBoundary$", "-test.v", "-test.timeout=3m")
-		cmd.Env = append(os.Environ(), "NIMOTE_TEST_ROOT_STAGE=1")
-		data, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("root boundary acceptance: %v\n%s", err, data)
-		}
-		t.Log("dedicated UID, no-new-privileges, broker isolation, cgroup revocation and cross-session denial passed")
+	if runRootAcceptanceHelper(t, "TestRootIsolatedExecutionBoundary") {
 		return
 	}
+
 	delegation := rootScopeFixture(t)
 	base, err := os.MkdirTemp("/tmp", "nimotehost-root-scope-")
 	if err != nil {
@@ -157,6 +186,15 @@ func TestRootIsolatedExecutionBoundary(t *testing.T) {
 	}
 	secret := filepath.Join(dir, "token")
 	if err := os.WriteFile(secret, []byte(owner), 0600); err != nil {
+		t.Fatal(err)
+	}
+	brokerPath := filepath.Join(base, "broker.sock")
+	listener, err := net.Listen("unix", brokerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	if err := os.Chmod(brokerPath, 0666); err != nil {
 		t.Fatal(err)
 	}
 	limits := DefaultResourceLimits()
@@ -241,7 +279,7 @@ func TestRootIsolatedExecutionBoundary(t *testing.T) {
 		return string(raw)
 	}
 	executable, _ = os.Executable()
-	command := executable + " -test.run=^TestIdentityProbeChild$ -- --identity-probe " + strconv.FormatUint(uint64(uid), 10) + " " + strconv.Itoa(os.Getpid()) + " " + secret + " && printf ok > boundary-ok\n"
+	command := executable + " -test.run=^TestIdentityProbeChild$ -- --identity-probe " + strconv.FormatUint(uint64(uid), 10) + " " + strconv.Itoa(os.Getpid()) + " " + secret + " " + brokerPath + " && printf ok > boundary-ok\n"
 	path := "/v1/sessions/" + first.ID + "/input"
 	if w := deviceRequest(api, token, "POST", path, body(command, "probe")); w.Code != 200 {
 		t.Fatal("controller could not use isolated terminal", w.Code, w.Body.String())
@@ -298,4 +336,46 @@ func TestRootIsolatedExecutionBoundary(t *testing.T) {
 	if _, err := CreateControllerDevice(dir, "reuse", []string{first.ID}); err == nil {
 		t.Fatal("controller UID reassigned after revocation")
 	}
+}
+
+func runRootAcceptanceHelper(t *testing.T, name string) bool {
+	t.Helper()
+	if os.Getenv("NIMOTE_TEST_ROOT_STAGE") == "1" {
+		return false
+	}
+	base, err := os.MkdirTemp("/tmp", "nimotehost-root-helper-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(base)
+	if err := os.Chmod(base, 0755); err != nil {
+		t.Fatal(err)
+	}
+	source, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := os.Open(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer in.Close()
+	target := filepath.Join(base, "host-test-helper")
+	out, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = io.Copy(out, in)
+	closeErr := out.Close()
+	if err != nil || closeErr != nil {
+		t.Fatal(err, closeErr)
+	}
+	cmd := exec.Command(target, "-test.run=^"+name+"$", "-test.v", "-test.timeout=8m")
+	cmd.Env = append(os.Environ(), "NIMOTE_TEST_ROOT_STAGE=1")
+	data, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("root boundary acceptance: %v\n%s", err, data)
+	}
+	t.Logf("%s native subprocess passed: %s", name, data)
+	return true
 }
