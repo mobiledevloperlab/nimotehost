@@ -12,6 +12,26 @@ NimoteHost 是通过既有认证 SSH 使用的独立 Go 服务，可托管持久
 功能状态见[已完成功能](docs/completed.md)和[未完成功能](docs/pending.md)；
 加固决策与验证见[加固审计](docs/host-hardening.md)和[测试记录](docs/host-hardening-tests.md)。
 
+## Agent 上游监测
+
+[兼容性监测工作流](.github/workflows/agent-compatibility.yml)每 6 小时运行一次
+（UTC 00:23、06:23、12:23、18:23）。首次运行或上游版本变化时，临时安装指定版本的
+Codex、OpenCode、Claude ACP 适配器和 Claude Code，检查真实结构化会话初始化、
+运行 Host 现有 Agent/协议/审批回归测试，并导出 Codex JSON Schema；不发送 prompt、不调用模型。
+同时监测 Claude Agent SDK、ACP SDK 和 ACP Go SDK 的最新发布，但不会自动升级项目依赖。
+
+推送到 GitHub 私有库的默认分支后，开启 Actions 和 Issues，在 Actions 中手动运行
+`Agent compatibility monitor` 建立基线，然后订阅自动创建的 Issue。
+后续版本变化和检查结果会以评论通知；邮件由 GitHub 通知设置决定。
+失败的同一组版本自动重试一次，之后可手动勾选 `force` 重跑。普通无变化轮询不安装 CLI 或运行测试。
+工作流无需额外 secret，使用内置 `GITHUB_TOKEN`；仅报告任务有 Issues 写权限。
+
+检查通过只代表 Linux 上的初始化和现有模拟协议回归通过，完整审批、流式响应及恢复仍需真实模型验收。
+检查失败也可能来自网络、安装或认证，需查看日志；SDK 最新版仅作为变更信号，实际检查使用
+适配器解析出的依赖及仓库锁定的 Go SDK。Schema 保存为 artifact，尚未自动判断语义差异。
+日志和 Schema 保留 7 天。定时运行可能延迟；免费额度由账户共享，需在 GitHub Billing 中
+配置 Actions 预算及超额停止，工作流本身无法保证零费用。删除 Issue 的隐藏状态会中断基线读取。
+
 ## CPU 架构
 
 | 系统 | CLI | GUI |

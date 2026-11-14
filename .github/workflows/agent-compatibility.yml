@@ -1,0 +1,105 @@
+name: Agent compatibility monitor
+
+on:
+  schedule:
+    # UTC 00:23, 06:23, 12:23, 18:23; avoid the busy top of the hour.
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Run checks even when upstream versions have not changed
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-compatibility-monitor
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      changed: ${{ steps.detect.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check published versions and previous result
+        id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MONITOR_FORCE: ${{ inputs.force || false }}
+        run: python3 scripts/agent_compatibility.py detect
+      - uses: actions/upload-artifact@v4
+        if: steps.detect.outputs.changed == 'true'
+        with:
+          name: agent-monitor-snapshot
+          path: dist/agent-monitor/snapshot.json
+          retention-days: 7
+
+  check:
+    needs: detect
+    if: needs.detect.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: agent-monitor-snapshot
+          path: dist/agent-monitor
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Run isolated CLI checks without model calls
+        run: python3 scripts/agent_compatibility.py check
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-monitor-checks
+          path: |
+            dist/agent-monitor/*.json
+            dist/agent-monitor/*.log
+            dist/agent-monitor/codex-schema
+          retention-days: 7
+
+  report:
+    needs: [detect, check]
+    if: always() && !cancelled() && needs.detect.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: agent-monitor-snapshot
+          path: dist/agent-monitor
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: agent-monitor-checks
+          path: dist/agent-monitor/checks
+      - name: Update the monitor issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MONITOR_CHECK_RESULT: ${{ needs.check.result }}
+        run: python3 scripts/agent_compatibility.py report
