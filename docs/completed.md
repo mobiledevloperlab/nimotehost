@@ -354,7 +354,7 @@ macOS arm64 GUI 原生编译、联合打包和真实图形启动通过，GUI 退
 原有 `devices add` 默认创建 observer：允许状态、能力、会话元数据、会话输出、activity 和 Agent
 状态读取；禁止任务创建/输入/审批/停机/原生历史 helper 等所有写入或进程启动入口。
 observer 可看到该账号的会话输出，授权前应确认该可见范围；新增 Session 范围身份可限制读取；原有 observer 仍为账号范围读取。
-Devices are read-only because unrestricted same-user command execution would expose owner
+Default observer devices are read-only because unrestricted same-user command execution would expose owner
 credentials and defeat revocation. Existing full SSH accounts are not retroactively isolated.
 
 Unix 管理员为每台设备准备独立 SSH 公钥，把 GUI 显示的 `restrict,command="..."`
@@ -384,33 +384,39 @@ Settings 可显式查询官方 GitHub 最新发行版，并在用户确认后打
 设备功能本轮验证 / Device verification: 全量 Go race、两模块 vet、Fyne 生命周期、
 真实 CLI device-bridge 集成、旧 RPC stream 后续请求撤销、持久撤销、其他设备和 owner
 隔离、越权写入拒绝均通过。权限边界模糊测试约 51 万次未失败。该结论不包含真实 SSH
-服务器 key 配置、物理手机、Windows/Linux 图形环境或完整控制设备的安全验收。
+服务器 key 配置、物理手机、Windows/Linux 图形环境或跨平台完整控制设备的发布验收；Linux opt-in 验收见下方加固记录。
 
 
-## Host 加固增量 / Host hardening increment
+## Host 加固增量 / Host hardening increments
 
-2026-11-14：保持 Protocol 1、SSH/RPC/MCP 和 Session 存储格式，未修改 UI/客户端。
+2026-11-14：保持 Protocol 1、SSH/RPC/MCP、现有 Session JSON 和请求账本格式；未修改 UI/客户端。
 
-- 新增 Session 范围的 session_observer / session_operator 身份与
-  `devices add-scoped`；列表、事件和单项读取均检查范围。operator 仅可取消、
-  打断与拒绝审批，不能启动命令、输入终端、批准或修改策略。旧 observer 保持原语义。
-- 审批在同一锁内校验活动上下文并发布；轮次结束清除原生等待句柄，丢弃未发送的旧批准；
-  手动批准遵循 provider 提供的单次决策。新设备写请求使用独立主体的持久回执键空间。
-- 独立私有 resources.json 支持收紧会话上限、运行时限和磁盘下限；进程输出失败、
-  运行超时和低磁盘空间走现有进程终止/失败保存路径。CPU/RSS 硬配额明确不支持。
-  Agent auto 初始化因资源/输出失败时保留失败会话，不再启动终端后备进程。
-- HTTP 读/写分别限并发，历史 helper 限四个；流式 RPC 拒绝同时重复 ID，
-  取消时释放可关闭的阻塞输出；输出新增 resync_required，保留旧 offset 行为。
-- Unix 根进程结束时回收同进程组后代；不按持久 PID 猜测并杀进程，不承诺 Unix
-  Host 崩溃或主动脱离进程组后的回收。Windows 继续使用原有 Job Objects。
-- 共享 Agent Adapter 启动/协议描述；capabilities 新增安装信息；本地
-  `nimotehost agents` 显式执行有界版本探测。status 新增资源信息和 daemon instance_id，
-  错误新增 code 分类，现有 error 字段保留。
+- Session 范围的 session_observer / session_operator 与 `devices add-scoped`；
+  operator 只可取消、打断、拒绝，列表、事件和逐项访问均检查授权，逐请求检查撤销。
+- Linux 高级独立执行身份：owner 在创建 Session 时显式指定专用 numeric UID/GID，
+  root 管理员配置私有有限额 cgroup v2 委派与保护的可执行文件后，
+  `devices add-controller <name> <session-id>...` 可授权该 Session 输入、审批等完整控制。
+  UID 每会话独占且永久保留；清除 owner 环境、禁止提权及 Unix socket broker。
+  Darwin/Windows 与不满足条件的 Linux 明确拒绝，不能把同用户 shell 当作隔离。
+- 审批校验活动 thread/turn、原生可选决策、轮次结束失效；重复请求绑定完整消息哈希与主体。
+- 私有 resources.json 配置并发、保留、运行时限、磁盘下限；Windows Job Object
+  支持 CPU、总 committed memory、活动进程数；Linux 配置已委派的 cgroup v2 后支持
+  对应控制器下的 CPU、memory 和 tasks 限制。macOS 硬配额明确不支持。
+- HTTP 连接上限 128；设备分别最多 8 读/2 写并发，owner 有独立保留容量；
+  读写准入分离、历史 helper 最多四个，不新增隐式任务重试队列。
+- Unix 独立 supervisor 通过 Host lifetime pipe 处理 Host SIGKILL、取消及根进程退出；
+  子进程 PID 保留到组清理完成再 reap，避免旧 PID 误杀。Linux 配置 cgroup 时也清理 setsid 后代；
+  默认 Unix 进程组不保证清理主动逃逸后代。历史 helper 复用进程所有权和取消路径。
+- 本地 `repair inspect` / `repair apply <plan-id>`：只在 Host 停止时执行，
+  验证审查计划未变、先保存备份、隔离损坏元数据及重建事件，保留回执/凭据/输出，
+  持久递增重置水位通知旧 cursor 重同步；未知或不安全状态拒绝修复。
+- 共享 Agent Adapter 描述、结构化进程启动与历史 helper 生命周期；显式版本探测、
+  配置感知的 HostCapabilities、资源状态与稳定错误分类。Windows 原生验收发现的
+  目录迁移锁共享、日志截断与默认工作目录问题已修复并纳入回归。
 
-Implemented: scoped read/safe-stop identities, approval lifecycle guards, resource
-admission/supervision, bounded HTTP/stream behavior, Unix same-group cleanup and
-shared adapter descriptors/explicit probes. These are not full execution isolation,
-hard CPU/RSS quotas or release certification.
+Implemented: scoped authority, Linux opt-in execution identities, native containment,
+fair admission, explicit backed-up recovery and shared Agent process lifecycle.
+Platform support and verification are bounded by the actual backend; no release certification is implied.
 
-权限、配置、资源语义、兼容与回滚见 [Host 加固审计](host-hardening.md)；
-实际测试和平台边界见 [加固测试记录](host-hardening-tests.md)。
+权限模型、部署前提、资源语义及回滚见 [Host 加固审计](host-hardening.md)；
+实际测试、未验证项与剩余风险见 [加固测试记录](host-hardening-tests.md) 和 [待办](pending.md)。

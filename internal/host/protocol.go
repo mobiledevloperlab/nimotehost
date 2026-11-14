@@ -20,6 +20,7 @@ var Version = "1.0.0-dev"
 const maxOutput = 16 << 20
 
 type Capabilities struct {
+	Enforcement *ResourceEnforcement         `json:"enforcement,omitempty"`
 	Version     string                       `json:"version"`
 	Protocol    int                          `json:"protocol"`
 	MinProtocol int                          `json:"min_protocol"`
@@ -40,13 +41,14 @@ func capabilities(hostID string) Capabilities {
 	}
 	_, claudeAdapter := tools["claude-agent-acp"]
 	return Capabilities{Version: Version, Protocol: Protocol, MinProtocol: Protocol, Platform: runtime.GOOS, Arch: runtime.GOARCH, HostID: hostID,
-		Features: map[string]bool{"output_resync_v1": true, "device_session_acl_v1": true, "device_safe_control_v1": true, "resource_limits_v1": true, "hard_cpu_limit": false, "hard_memory_limit": false, "session_activity_v1": true, "session_task_v1": true, "mutation_idempotency_v1": true, "mutation_expiry_v1": true, "agent_status_v1": true, "session_disconnect_survival": true, "session_restart_survival": false, "rpc_stream": true, "rolling_output": true, "idle_shutdown": true, "tasks": true, "output_replay": true, "events": true, "environment": true, "terminal": terminalSupported, "agent_terminal": terminalSupported, "agent_structured_approval": false, "public_transport": false, "codex_structured": structuredAgentSupported, "codex_structured_auto": structuredAgentSupported, "agent_events_v1": true, "agent_controls_v1": true, "agent_execution_policy_v1": true, "agent_cold_start_wait": true, "agent_history_v1": structuredAgentSupported && (tools["codex"] != "" || tools["opencode"] != "" || claudeAdapter), "codex_history_v1": structuredAgentSupported && tools["codex"] != "", "opencode_history_v1": structuredAgentSupported && tools["opencode"] != "", "claude_history_v1": structuredAgentSupported && claudeAdapter, "opencode_structured": structuredAgentSupported, "opencode_structured_auto": structuredAgentSupported, "claude_structured": structuredAgentSupported && claudeAdapter, "claude_structured_auto": structuredAgentSupported && claudeAdapter}, Tools: tools, Agents: installedAgents()}
+		Features: map[string]bool{"output_resync_v1": true, "device_session_acl_v1": true, "device_safe_control_v1": true, "hard_process_limit": nativeQuotasSupported, "state_recovery_v1": true, "resource_limits_v1": true, "hard_cpu_limit": nativeQuotasSupported, "hard_memory_limit": nativeQuotasSupported, "session_activity_v1": true, "session_task_v1": true, "mutation_idempotency_v1": true, "mutation_expiry_v1": true, "agent_status_v1": true, "session_disconnect_survival": true, "session_restart_survival": false, "rpc_stream": true, "rolling_output": true, "idle_shutdown": true, "tasks": true, "output_replay": true, "events": true, "environment": true, "terminal": terminalSupported, "agent_terminal": terminalSupported, "agent_structured_approval": false, "public_transport": false, "codex_structured": structuredAgentSupported, "codex_structured_auto": structuredAgentSupported, "agent_events_v1": true, "agent_controls_v1": true, "agent_execution_policy_v1": true, "agent_cold_start_wait": true, "agent_history_v1": structuredAgentSupported && (tools["codex"] != "" || tools["opencode"] != "" || claudeAdapter), "codex_history_v1": structuredAgentSupported && tools["codex"] != "", "opencode_history_v1": structuredAgentSupported && tools["opencode"] != "", "claude_history_v1": structuredAgentSupported && claudeAdapter, "opencode_structured": structuredAgentSupported, "opencode_structured_auto": structuredAgentSupported, "claude_structured": structuredAgentSupported && claudeAdapter, "claude_structured_auto": structuredAgentSupported && claudeAdapter}, Tools: tools, Agents: installedAgents()}
 }
 
 type StartRequest struct {
-	ExecutionPolicy string         `json:"execution_policy,omitempty"`
-	Task            *TaskReference `json:"task,omitempty"`
-	RequestID       string         `json:"request_id,omitempty"`
+	Identity        *ExecutionIdentity `json:"execution_identity,omitempty"`
+	ExecutionPolicy string             `json:"execution_policy,omitempty"`
+	Task            *TaskReference     `json:"task,omitempty"`
+	RequestID       string             `json:"request_id,omitempty"`
 	fallbackReason  string
 	Interaction     string       `json:"interaction,omitempty"` // terminal (default), structured, or auto
 	Kind            string       `json:"kind"`                  // task, terminal, agent

@@ -21,7 +21,11 @@ func TestResourcePolicyDefaultsValidationAndSafeUnsupported(t *testing.T) {
 	if err != nil || defaults != DefaultResourceLimits() {
 		t.Fatal(defaults, err)
 	}
-	for _, raw := range []string{`{"max_active_sessions":0}`, `{"max_active_sessions":33}`, `{"max_retained_sessions":1}`, `{"max_runtime_seconds":-1}`, `{"cpu_percent":10}`, `{"memory_bytes":4096}`, `{"unknown":1}`, `null`} {
+	invalid := []string{`{"max_active_sessions":0}`, `{"max_active_sessions":33}`, `{"max_retained_sessions":1}`, `{"max_runtime_seconds":-1}`, `{"cpu_percent":101}`, `{"memory_bytes":4096}`, `{"max_processes":4097}`, `{"unknown":1}`, `null`}
+	if !nativeQuotasSupported {
+		invalid = append(invalid, `{"cpu_percent":10}`, `{"memory_bytes":16777216}`, `{"max_processes":2}`)
+	}
+	for _, raw := range invalid {
 		p := filepath.Join(dir, "resources.json")
 		if err := os.WriteFile(p, []byte(raw), 0600); err != nil {
 			t.Fatal(err)

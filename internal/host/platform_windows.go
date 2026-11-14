@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -22,17 +23,20 @@ import (
 // Windows 10 1809+ provides ConPTY. The runtime probe fails closed on older OSes.
 var terminalSupported = windows.NewLazySystemDLL("kernel32.dll").NewProc("CreatePseudoConsole").Find() == nil
 
-func secureDirectory(path string, _ os.FileInfo) error {
-	token := windows.GetCurrentProcessToken()
-	user, err := token.GetTokenUser()
+func currentOwnerDACL() (*windows.ACL, error) {
+	user, err := windows.GetCurrentProcessToken().GetTokenUser()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	sd, err := windows.SecurityDescriptorFromString("D:P(A;OICI;FA;;;" + user.User.Sid.String() + ")")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	dacl, _, err := sd.DACL()
+	return dacl, err
+}
+func secureDirectory(path string, _ os.FileInfo) error {
+	dacl, err := currentOwnerDACL()
 	if err != nil {
 		return err
 	}
@@ -134,10 +138,14 @@ func (p *windowsProcess) Close() error {
 // See docs/completed.md for the Microsoft ConPTY and Job Object contracts.
 type windowsProtocolIO struct{ input, stderr *os.File }
 
-func startProcess(cmd *exec.Cmd, interactive bool, output io.Writer) (processHandle, io.ReadWriteCloser, error) {
-	return startWindowsProcess(cmd, interactive, output, nil)
+func startProcess(cmd *exec.Cmd, interactive bool, output io.Writer, options ...ResourceLimits) (processHandle, io.ReadWriteCloser, error) {
+	return startWindowsProcess(cmd, interactive, output, nil, options...)
 }
-func startWindowsProcess(cmd *exec.Cmd, interactive bool, output io.Writer, protocol *windowsProtocolIO) (processHandle, io.ReadWriteCloser, error) {
+func startWindowsProcess(cmd *exec.Cmd, interactive bool, output io.Writer, protocol *windowsProtocolIO, options ...ResourceLimits) (processHandle, io.ReadWriteCloser, error) {
+	quota := nativeQuotaOptions(options)
+	if err := validateNativeQuotas(quota); err != nil {
+		return nil, nil, err
+	}
 	if cmd.Err != nil {
 		return nil, nil, cmd.Err
 	}
@@ -153,9 +161,12 @@ func startWindowsProcess(cmd *exec.Cmd, interactive bool, output io.Writer, prot
 	if err != nil {
 		return nil, nil, err
 	}
-	directory, err := windows.UTF16PtrFromString(cmd.Dir)
-	if err != nil {
-		return nil, nil, err
+	var directory *uint16
+	if cmd.Dir != "" {
+		directory, err = windows.UTF16PtrFromString(cmd.Dir)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
@@ -169,8 +180,23 @@ func startWindowsProcess(cmd *exec.Cmd, interactive bool, output io.Writer, prot
 	}()
 	limits := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{}
 	limits.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+	if quota.MemoryBytes > 0 {
+		limits.BasicLimitInformation.LimitFlags |= windows.JOB_OBJECT_LIMIT_JOB_MEMORY
+		limits.JobMemoryLimit = uintptr(quota.MemoryBytes)
+	}
+	if quota.MaxProcesses > 0 {
+		limits.BasicLimitInformation.LimitFlags |= windows.JOB_OBJECT_LIMIT_ACTIVE_PROCESS
+		limits.BasicLimitInformation.ActiveProcessLimit = uint32(quota.MaxProcesses)
+	}
 	if _, err := windows.SetInformationJobObject(job, windows.JobObjectExtendedLimitInformation, uintptr(unsafe.Pointer(&limits)), uint32(unsafe.Sizeof(limits))); err != nil {
 		return nil, nil, err
+	}
+	if quota.CPUPercent > 0 {
+		// Win32 JOB_OBJECT_CPU_RATE_CONTROL_ENABLE | HARD_CAP; units 1/100 percent.
+		rate := struct{ Flags, Rate uint32 }{0x1 | 0x4, uint32(quota.CPUPercent * 100)}
+		if _, err := windows.SetInformationJobObject(job, windows.JobObjectCpuRateControlInformation, uintptr(unsafe.Pointer(&rate)), uint32(unsafe.Sizeof(rate))); err != nil {
+			return nil, nil, err
+		}
 	}
 	attrs, err := windows.NewProcThreadAttributeList(2)
 	if err != nil {
@@ -265,7 +291,7 @@ func startWindowsProcess(cmd *exec.Cmd, interactive bool, output io.Writer, prot
 	var environment *uint16
 	// Win32 environment blocks have two final NULs. Embedded NULs are rejected.
 	var block []uint16
-	for _, entry := range cmd.Env {
+	for _, entry := range cmd.Environ() {
 		if strings.ContainsRune(entry, 0) {
 			return nil, nil, errors.New("invalid environment")
 		}
@@ -327,4 +353,118 @@ func windowsCommand(cmd *exec.Cmd) (string, string, error) {
 		}
 	}
 	return cmd.Path, windows.ComposeCommandLine(cmd.Args), nil
+}
+
+// Windows refuses directory rename while a descendant file handle is open,
+// even with FILE_SHARE_DELETE. Keep this management-only lock beside state.
+// Normalize the legacy name so migration and rollback retain the same lock.
+func openManagementLockFile(path string) (*os.File, error) {
+	state := filepath.Dir(path)
+	base := filepath.Base(state)
+	if strings.EqualFold(base, "nimote-host") {
+		base = "nimotehost"
+	}
+	path = filepath.Join(filepath.Dir(state), "."+base+".control.lock")
+	if info, err := os.Lstat(path); err == nil {
+		if !info.Mode().IsRegular() {
+			return nil, errors.New("management lock must be a regular file")
+		}
+		if err := secureFile(path, info); err != nil {
+			return nil, err
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return nil, err
+	}
+	info, err := f.Stat()
+	if err == nil {
+		err = secureFile(path, info)
+	}
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	return f, nil
+}
+
+// Readers pin a complete snapshot without blocking atomic permission revocation.
+func openPrivateReader(path string) (*os.File, error) {
+	name, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return nil, err
+	}
+	h, err := windows.CreateFile(name, windows.GENERIC_READ|windows.WRITE_DAC, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
+	if err != nil {
+		return nil, err
+	}
+	dacl, err := currentOwnerDACL()
+	if err == nil {
+		err = windows.SetSecurityInfo(h, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION, nil, nil, dacl, nil)
+	}
+	if err != nil {
+		windows.CloseHandle(h)
+		return nil, err
+	}
+	return os.NewFile(uintptr(h), path), nil
+}
+
+// openPrivateReader protects the pinned object using a share-delete handle.
+func secureReadFile(_ string, _ os.FileInfo) error { return nil }
+
+// Transient sharing/ACL or antivirus handles may briefly veto a Win32 atomic
+// replacement. Retry only that same metadata commit, never its user operation.
+func replacePrivateFile(from, to string) error {
+	deadline := time.Now().Add(time.Second)
+	for {
+		err := renamePrivateSnapshot(from, to)
+		if err == nil || time.Now().After(deadline) || !(errors.Is(err, windows.ERROR_ACCESS_DENIED) || errors.Is(err, windows.ERROR_SHARING_VIOLATION) || errors.Is(err, windows.ERROR_LOCK_VIOLATION)) {
+			return err
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// FileRenameInfoEx POSIX replacement keeps share-delete readers on the old
+// snapshot while publishing the new path atomically. Legacy kernels use the
+// bounded MoveFileEx fallback and report a persistent sharing conflict honestly.
+func renamePrivateSnapshot(from, to string) error {
+	source, err := windows.UTF16PtrFromString(from)
+	if err != nil {
+		return err
+	}
+	h, err := windows.CreateFile(source, windows.DELETE, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if h != 0 {
+			windows.CloseHandle(h)
+		}
+	}()
+	name, err := windows.UTF16FromString(to)
+	if err != nil {
+		return err
+	}
+	type renameInfo struct {
+		Flags  uint32
+		Root   windows.Handle
+		Length uint32
+		Name   [1]uint16
+	}
+	offset := int(unsafe.Offsetof(renameInfo{}.Name))
+	buffer := make([]byte, offset+len(name)*2)
+	header := (*renameInfo)(unsafe.Pointer(&buffer[0]))
+	header.Flags = 3
+	header.Length = uint32((len(name) - 1) * 2)
+	copy(unsafe.Slice((*uint16)(unsafe.Pointer(&buffer[offset])), len(name)), name)
+	err = windows.SetFileInformationByHandle(h, windows.FileRenameInfoEx, &buffer[0], uint32(len(buffer)))
+	if errors.Is(err, windows.ERROR_INVALID_PARAMETER) || errors.Is(err, windows.ERROR_NOT_SUPPORTED) || errors.Is(err, windows.ERROR_INVALID_FUNCTION) {
+		windows.CloseHandle(h)
+		h = 0
+		return os.Rename(from, to)
+	}
+	return err
 }

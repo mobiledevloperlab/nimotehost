@@ -21,7 +21,7 @@ func (a *structuredAgent) initializeACP() error {
 	adapter, _ := lookupAgentAdapter(a.provider)
 	version := adapter.ProtocolVersion()
 	a.acp.version = version
-	return a.send(map[string]any{"id": "host-init", "method": "initialize", "params": map[string]any{"protocolVersion": version, "clientCapabilities": map[string]any{}, "clientInfo": map[string]string{"name": "nimotehost", "version": Version}}})
+	return a.send(map[string]any{"id": "host-init", "method": "initialize", "params": acpInitializeParams(version, "nimotehost")})
 }
 
 // receiveACPResult projects SDK results into Host session state. IDs here are
@@ -73,7 +73,19 @@ func (a *structuredAgent) receiveACPResult(id string, payload, rpcError json.Raw
 		var result struct {
 			SessionID string `json:"sessionId"`
 		}
-		if json.Unmarshal(payload, &result) != nil || result.SessionID == "" {
+		if json.Unmarshal(payload, &result) != nil || !bytes.HasPrefix(bytes.TrimSpace(payload), []byte("{")) {
+			a.completeStartup(errors.New("invalid ACP session acknowledgement"))
+			return
+		}
+		// ACP load/resume returns an empty object, retaining the requested ID.
+		if a.resumeConversation != "" {
+			if result.SessionID != "" && result.SessionID != a.resumeConversation {
+				a.completeStartup(errors.New("ACP resumed a different conversation"))
+				return
+			}
+			result.SessionID = a.resumeConversation
+		}
+		if result.SessionID == "" {
 			a.completeStartup(errors.New("ACP did not return a session ID"))
 			return
 		}
@@ -100,6 +112,12 @@ func (a *structuredAgent) receiveACPResult(id string, payload, rpcError json.Raw
 		if a.pending[id] == "prompt" {
 			var result struct {
 				StopReason string `json:"stopReason"`
+				MessageID  string `json:"messageId"`
+			}
+			if a.acp.version == 2 && json.Unmarshal(payload, &result) == nil && result.MessageID != "" {
+				// v2 acknowledges insertion; only a state_update ends foreground work.
+				delete(a.pending, id)
+				return
 			}
 			if json.Unmarshal(payload, &result) != nil || result.StopReason == "" {
 				a.finishACP("failed")
@@ -256,4 +274,12 @@ func (a *structuredAgent) messageACP(req AgentMessage) error {
 		a.emit("approval_resolved", req.ApprovalID)
 	}
 	return nil
+}
+
+func acpInitializeParams(version int, name string) map[string]any {
+	info := map[string]string{"name": name, "version": Version}
+	if version == 2 {
+		return map[string]any{"protocolVersion": version, "capabilities": map[string]any{}, "info": info}
+	}
+	return map[string]any{"protocolVersion": version, "clientCapabilities": map[string]any{}, "clientInfo": info}
 }

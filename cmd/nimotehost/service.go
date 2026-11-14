@@ -25,6 +25,10 @@ Advanced setup (binary already at a fixed installation path):
   nimotehost status        Check the running Host (JSON)
   nimotehost capabilities  Show available features and installed Agent CLIs (JSON)
   nimotehost agents        Probe installed Agent versions (bounded local diagnostic)
+  nimotehost repair inspect
+                           Inspect stopped Host state without changing it
+  nimotehost repair apply <plan-id>
+                           Apply the reviewed plan with durable private backups
 
 Devices (restricted SSH keys; scoped operators may cancel/decline only):
   nimotehost devices list

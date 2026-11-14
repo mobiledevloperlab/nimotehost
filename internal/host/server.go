@@ -47,6 +47,7 @@ type Server struct {
 	requests   chan struct{}
 	controls   chan struct{}
 	helpers    chan struct{}
+	admission  *requestAdmission
 }
 
 // Serve reserves the loopback listener before reading or recovering session
@@ -67,10 +68,11 @@ func Serve(ctx context.Context, dir string, ready io.Writer) error {
 	if err != nil {
 		return err
 	}
-	listener, err := net.Listen("tcp4", config.Address())
+	rawListener, err := net.Listen("tcp4", config.Address())
 	if err != nil {
 		return fmt.Errorf("listen on Host loopback address: %w", err)
 	}
+	listener := newBoundedListener(rawListener, 128)
 	defer listener.Close()
 	token, err := loadSecret(dir, "token")
 	if err != nil {
@@ -95,7 +97,7 @@ func Serve(ctx context.Context, dir string, ready io.Writer) error {
 	if err != nil {
 		return err
 	}
-	api := &Server{dir: dir, manager: manager, token: token, hostID: hostID, instanceID: instanceID, shutdown: cancel, requests: make(chan struct{}, 64), controls: make(chan struct{}, 16), helpers: make(chan struct{}, 4)}
+	api := &Server{dir: dir, manager: manager, token: token, hostID: hostID, instanceID: instanceID, shutdown: cancel, requests: make(chan struct{}, 64), controls: make(chan struct{}, 16), helpers: make(chan struct{}, 4), admission: newRequestAdmission()}
 	server := &http.Server{Handler: api, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
 	stopped := make(chan struct{})
 	go func() {
@@ -157,10 +159,22 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fail(w, 426, "incompatible Host protocol")
 		return
 	}
+	if s.admission != nil {
+		release, ok := s.admission.acquire(device.ID, owner, r.Method != http.MethodGet)
+		if !ok {
+			w.Header().Set("Retry-After", "1")
+			fail(w, 429, "principal request capacity reached")
+			return
+		}
+		defer release()
+	}
 	slots := s.requests
 	if r.Method != http.MethodGet && s.controls != nil {
 		slots = s.controls
 	}
+	if owner && s.admission != nil {
+		slots = nil
+	} // Owner capacity is reserved independently.
 	if slots != nil {
 		select {
 		case slots <- struct{}{}:
@@ -172,6 +186,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	scoped := !owner && device.Role != "observer"
+	if device.Role == "session_controller" && strings.HasPrefix(r.URL.Path, "/v1/sessions/") {
+		id := strings.Split(strings.TrimPrefix(r.URL.Path, "/v1/sessions/"), "/")[0]
+		if !s.manager.controllerSessionAllowed(device, id) {
+			fail(w, 403, "execution identity boundary is unavailable")
+			return
+		}
+	}
+
 	operation := func(name string) string {
 		if !owner {
 			return "device/" + device.ID + "/" + name
@@ -179,7 +201,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return name
 	}
 	if r.Method == http.MethodGet && r.URL.Path == "/v1/capabilities" {
-		respond(w, 200, capabilities(s.hostID))
+		respond(w, 200, s.hostCapabilities())
 		return
 	}
 	if r.Method == http.MethodGet && r.URL.Path == "/v1/status" {
@@ -248,7 +270,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if scoped {
 					filtered := make([]Event, 0)
 					for _, e := range page.Events {
-						if device.allowsSession(e.SessionID) {
+						if device.allowsSession(e.SessionID) && (device.Role != "session_controller" || s.manager.controllerSessionAllowed(device, e.SessionID)) {
 							filtered = append(filtered, e)
 						}
 					}
@@ -260,7 +282,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if scoped {
 					filtered := make([]Session, 0)
 					for _, session := range list {
-						if device.allowsSession(session.ID) {
+						if device.allowsSession(session.ID) && (device.Role != "session_controller" || s.manager.controllerSessionAllowed(device, session.ID)) {
 							filtered = append(filtered, session)
 						}
 					}
@@ -368,7 +390,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !readJSON(w, r, &req) {
 			return
 		}
-		if scoped && (req.Action != "interrupt" && !(req.Action == "approval" && req.Decision == "decline")) {
+		if device.Role == "session_operator" && (req.Action != "interrupt" && !(req.Action == "approval" && req.Decision == "decline")) {
 			fail(w, 403, "session operators can only interrupt or decline approvals")
 			return
 		}
@@ -394,7 +416,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var receipt mutationReceipt
-		receipt, err = runOnce(s.manager, req.RequestID, "session.input/"+id, req, func() (mutationReceipt, error) {
+		receipt, err = runOnce(s.manager, req.RequestID, operation("session.input/"+id), req, func() (mutationReceipt, error) {
 			err := s.manager.Input(id, req.Data)
 			return mutationReceipt{OK: err == nil, RequestID: req.RequestID, Stage: "terminal_written"}, err
 		})

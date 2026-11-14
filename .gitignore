@@ -16,3 +16,4 @@ coverage.out
 # Local Python checks
 __pycache__/
 *.pyc
+env.md

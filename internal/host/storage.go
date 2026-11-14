@@ -87,8 +87,8 @@ func atomicWrite(path string, data []byte) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(f.Name(), path); err != nil {
-		return err
+	if err := replacePrivateFile(f.Name(), path); err != nil {
+		return fmt.Errorf("publish private snapshot %s: %w", path, err)
 	}
 	return syncDirectory(filepath.Dir(path))
 }

@@ -130,6 +130,14 @@ func (a *structuredAgent) handleAgentRPC(ctx context.Context, method string, par
 		a.mu.Unlock()
 		return nil, acp.NewMethodNotFound(method)
 	}
+	if a.acp != nil && a.acp.version == 2 {
+		var err error
+		params, err = normalizeV2Permission(params)
+		if err != nil {
+			a.mu.Unlock()
+			return nil, acp.NewInvalidParams(map[string]string{"error": err.Error()})
+		}
+	}
 	if !a.validPermissionContext(params) {
 		a.mu.Unlock()
 		return nil, acp.NewInvalidParams(map[string]string{"error": "permission does not belong to the active session/turn"})

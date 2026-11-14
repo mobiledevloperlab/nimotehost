@@ -32,7 +32,7 @@ func OpenRunLog(dir string) (*RunLog, error) {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
-	f, err := os.OpenFile(p, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0600)
+	f, err := os.OpenFile(p, os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -53,6 +53,10 @@ func (l *RunLog) Write(b []byte) (int, error) {
 	original := len(b)
 	if len(b) > logLimit {
 		b = b[len(b)-logLimit:]
+	}
+	// Seek under the writer lock: Windows append-only handles cannot truncate.
+	if _, err = l.file.Seek(0, io.SeekEnd); err != nil {
+		return 0, err
 	}
 	_, err = l.file.Write(b)
 	if err != nil {

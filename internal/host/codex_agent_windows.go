@@ -14,44 +14,29 @@ import (
 // atomic Job Object assignment shared with tasks and interactive terminals.
 const structuredAgentSupported = true
 
-func startStructuredAgent(cmd *exec.Cmd, a *structuredAgent) (processHandle, error) {
-	if err := configureStructuredCommand(cmd, a); err != nil {
-		return nil, err
-	}
+func startProtocolProcess(cmd *exec.Cmd, output, diagnostics io.Writer, options ...ResourceLimits) (processHandle, io.WriteCloser, error) {
 	inputR, inputW, err := os.Pipe()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer inputR.Close()
 	stderrR, stderrW, err := os.Pipe()
 	if err != nil {
 		inputW.Close()
-		return nil, err
+		return nil, nil, err
 	}
 	defer stderrW.Close()
-	a.prepareRPCTransport()
-	process, _, err := startWindowsProcess(cmd, false, &agentLines{writer: a.rpc.writer, onError: a.fail, ready: a.rpc.ready}, &windowsProtocolIO{input: inputR, stderr: stderrW})
+	process, _, err := startWindowsProcess(cmd, false, output, &windowsProtocolIO{input: inputR, stderr: stderrW}, options...)
 	if err != nil {
 		inputW.Close()
 		stderrR.Close()
-		a.close()
-		return nil, err
+		return nil, nil, err
 	}
 	_ = inputR.Close()
 	_ = stderrW.Close()
 	handle := &windowsStructuredProcess{process: process, input: inputW, stderr: stderrR, stderrDone: make(chan struct{})}
-	a.input = inputW
-	a.stopProcess = process.Kill
-	go func() { _, _ = io.Copy(&a.diagnostics, stderrR); close(handle.stderrDone) }()
-	a.startProtocolIO()
-	if err = a.initialize(); err != nil {
-		_ = process.Kill()
-		_, _ = handle.Wait()
-		a.close()
-		_ = handle.Close()
-		return nil, err
-	}
-	return handle, nil
+	go func() { _, _ = io.Copy(diagnostics, stderrR); close(handle.stderrDone) }()
+	return handle, inputW, nil
 }
 
 type windowsStructuredProcess struct {

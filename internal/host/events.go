@@ -78,7 +78,7 @@ func (m *Manager) Events(after uint64) EventPage {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	page := EventPage{Events: make([]Event, 0), Cursor: m.revision}
-	page.ResyncRequired = after > page.Cursor
+	page.ResyncRequired = after > page.Cursor || after < m.eventReset
 	if len(m.events) > 0 && after > 0 && after < m.events[0].Revision {
 		page.ResyncRequired = true
 	}

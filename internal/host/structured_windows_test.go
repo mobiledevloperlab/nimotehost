@@ -96,11 +96,16 @@ func TestWindowsStructuredPipesAndJobLifecycle(t *testing.T) {
 			}
 			deadline := time.Now().Add(10 * time.Second)
 			found := false
+			var accumulated strings.Builder
+			var offset int64
 			for time.Now().Before(deadline) {
-				output, _, err := m.Output(session.ID, 0)
+				page, next, err := m.Output(session.ID, offset)
 				if err != nil {
 					t.Fatal(err)
 				}
+				accumulated.Write(page)
+				offset = next
+				output := accumulated.String()
 				if strings.Contains(string(output), `"type":"turn_completed"`) {
 					if strings.Contains(string(output), "WINDOWS_STDERR_DIAGNOSTIC") || strings.Contains(string(output), "Invalid") {
 						t.Fatalf("stderr leaked into protocol: %s", output)

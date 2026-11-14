@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -19,12 +20,13 @@ import (
 // Devices are deliberately read-only. Giving a same-user client command execution
 // would let it read the owner's credential and bypass device revocation.
 type Device struct {
-	ID       string     `json:"id"`
-	Name     string     `json:"name"`
-	Role     string     `json:"role"`
-	Created  time.Time  `json:"created"`
-	Revoked  *time.Time `json:"revoked,omitempty"`
-	Sessions []string   `json:"sessions,omitempty"`
+	ID             string            `json:"id"`
+	Name           string            `json:"name"`
+	Role           string            `json:"role"`
+	Created        time.Time         `json:"created"`
+	Revoked        *time.Time        `json:"revoked,omitempty"`
+	Sessions       []string          `json:"sessions,omitempty"`
+	IdentityScopes map[string]uint32 `json:"identity_scopes,omitempty"`
 }
 type deviceRecord struct {
 	Device
@@ -54,13 +56,13 @@ func readPrivateLimit(path string, limit int64) ([]byte, error) {
 	if !info.Mode().IsRegular() {
 		return nil, errors.New("expected private regular file")
 	}
-	if err = secureFile(path, info); err != nil {
+	if err = secureReadFile(path, info); err != nil {
 		return nil, err
 	}
 	if info.Size() > limit {
 		return nil, errors.New("private file too large")
 	}
-	f, err := os.Open(path)
+	f, err := openPrivateReader(path)
 	if err != nil {
 		return nil, err
 	}
@@ -94,6 +96,22 @@ func readDevice(dir, id string) (deviceRecord, error) {
 	if r.ID != id || validateDeviceAccess(r.Role, r.Sessions) != nil || len(r.Hash) != 64 {
 		return r, errors.New("invalid device record")
 	}
+	if r.Role == "session_controller" {
+		if len(r.Sessions) > 64 || len(r.IdentityScopes) != len(r.Sessions) {
+			return r, errors.New("invalid controller scopes")
+		}
+		seen := map[uint32]bool{}
+		for _, session := range r.Sessions {
+			uid := r.IdentityScopes[session]
+			if uid < 1000000 || uid > 2147483646 || seen[uid] {
+				return r, errors.New("invalid controller identity")
+			}
+			seen[uid] = true
+		}
+	} else if len(r.IdentityScopes) != 0 {
+		return r, errors.New("unexpected identity scopes")
+	}
+
 	return r, nil
 }
 func CreateDevice(dir, name string) (Device, error) {
@@ -113,7 +131,7 @@ func validateDeviceAccess(role string, sessions []string) error {
 	if role == "observer" && len(sessions) == 0 {
 		return nil
 	}
-	if (role != "session_observer" && role != "session_operator") || len(sessions) == 0 || len(sessions) > 256 {
+	if (role != "session_observer" && role != "session_operator" && role != "session_controller") || len(sessions) == 0 || len(sessions) > 256 {
 		return errors.New("invalid device session scope")
 	}
 	seen := make(map[string]bool, len(sessions))
@@ -143,6 +161,14 @@ func createDevice(dir, name, role string, sessions []string) (Device, error) {
 	if err != nil {
 		return Device{}, err
 	}
+	var identities map[string]uint32
+	if role == "session_controller" {
+		identities, err = validateControllerScopes(dir, sessions)
+		if err != nil {
+			return Device{}, err
+		}
+	}
+
 	id, err := randomID()
 	if err != nil {
 		return Device{}, err
@@ -153,13 +179,20 @@ func createDevice(dir, name, role string, sessions []string) (Device, error) {
 	}
 	credential := "device." + id + "." + secret
 	digest := sha256.Sum256([]byte(credential))
-	d := Device{ID: id, Name: name, Role: role, Sessions: slices.Clone(sessions), Created: time.Now().UTC()}
+	d := Device{ID: id, Name: name, Role: role, Sessions: slices.Clone(sessions), Created: time.Now().UTC(), IdentityScopes: identities}
 	if err = atomicWrite(filepath.Join(p, id+".credential"), []byte(credential)); err != nil {
 		return Device{}, err
 	}
 	if err = saveJSON(filepath.Join(p, id+".json"), deviceRecord{d, hex.EncodeToString(digest[:])}); err != nil {
 		_ = os.Remove(filepath.Join(p, id+".credential"))
 		return Device{}, err
+	}
+	if role == "session_controller" {
+		for _, uid := range identities {
+			if err := atomicWrite(filepath.Join(dir, "controllers", strconv.FormatUint(uint64(uid), 10)), []byte(id)); err != nil {
+				return Device{}, err
+			}
+		}
 	}
 	return d, nil
 }
@@ -245,6 +278,16 @@ func (d Device) allows(method, path string) bool {
 			return d.allowsSession(strings.Split(strings.TrimPrefix(path, "/v1/sessions/"), "/")[0])
 		}
 		return true // Collection results are filtered before serialization.
+	}
+	if d.Role == "session_controller" {
+		parts := strings.Split(strings.TrimPrefix(path, "/v1/sessions/"), "/")
+		if !strings.HasPrefix(path, "/v1/sessions/") || len(parts) > 2 || !validID(parts[0]) || !d.allowsSession(parts[0]) {
+			return false
+		}
+		if len(parts) == 1 {
+			return method == "DELETE"
+		}
+		return method == "POST" && oneOf(parts[1], "cancel", "agent-message", "input", "resize")
 	}
 	if d.Role != "session_operator" || method != "POST" {
 		return false

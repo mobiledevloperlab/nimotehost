@@ -29,46 +29,27 @@ func secureFile(_ string, info os.FileInfo) error {
 	return nil
 }
 func prepareTask(cmd *exec.Cmd) { cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true} }
-func killProcess(cmd *exec.Cmd) error {
-	err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	if errors.Is(err, syscall.ESRCH) {
-		return nil
-	}
-	return err
-}
-func startTerminal(cmd *exec.Cmd) (io.ReadWriteCloser, error) { return pty.Start(cmd) }
 func resizeTerminal(terminal io.ReadWriteCloser, rows, cols uint16) error {
 	return pty.Setsize(terminal.(*os.File), &pty.Winsize{Rows: rows, Cols: cols})
 }
 
-type unixProcess struct{ cmd *exec.Cmd }
-
-func (p *unixProcess) Wait() (int, error) {
-	err := p.cmd.Wait()
-	// Root completion ends ownership of its process group. Do not leave
-	// descendants running after the session reports completion.
-	err = errors.Join(err, killProcess(p.cmd))
-	if p.cmd.ProcessState == nil {
-		return -1, err
-	}
-	return p.cmd.ProcessState.ExitCode(), err
-}
-func (p *unixProcess) Kill() error  { return killProcess(p.cmd) }
-func (p *unixProcess) Close() error { return nil }
-func startProcess(cmd *exec.Cmd, interactive bool, output io.Writer) (processHandle, io.ReadWriteCloser, error) {
-	var terminal io.ReadWriteCloser
-	var err error
-	if interactive {
-		terminal, err = startTerminal(cmd)
-	} else {
-		prepareTask(cmd)
-		cmd.Stdout = output
-		cmd.Stderr = output
-		err = cmd.Start()
-	}
-	if err != nil {
+func startProcess(cmd *exec.Cmd, interactive bool, output io.Writer, options ...ResourceLimits) (processHandle, io.ReadWriteCloser, error) {
+	if err := validateNativeQuotas(nativeQuotaOptions(options)); err != nil {
 		return nil, nil, err
 	}
-	return &unixProcess{cmd}, terminal, nil
+	if !interactive {
+		cmd.Stdout, cmd.Stderr = output, output
+	}
+	return startSupervisedProcess(cmd, interactive, options...)
 }
 func lockState(file *os.File) error { return unix.Flock(int(file.Fd()), unix.LOCK_EX|unix.LOCK_NB) }
+
+func openManagementLockFile(path string) (*os.File, error) {
+	return os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
+}
+
+func openPrivateReader(path string) (*os.File, error) { return os.Open(path) }
+
+func secureReadFile(path string, info os.FileInfo) error { return secureFile(path, info) }
+
+func replacePrivateFile(from, to string) error { return os.Rename(from, to) }

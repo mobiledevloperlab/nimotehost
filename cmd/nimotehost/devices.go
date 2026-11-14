@@ -25,13 +25,15 @@ func devicesCommand(args []string, out io.Writer) error {
 		result, err = host.ListDevices(dir)
 	case len(args) == 2 && args[0] == "add":
 		result, err = host.CreateDevice(dir, args[1])
+	case len(args) >= 3 && args[0] == "add-controller":
+		result, err = host.CreateControllerDevice(dir, args[1], args[2:])
 	case len(args) >= 4 && args[0] == "add-scoped":
 		result, err = host.CreateScopedDevice(dir, args[1], args[2], args[3:])
 	case len(args) == 2 && args[0] == "revoke":
 		err = host.RevokeDevice(dir, args[1])
 		result = map[string]bool{"revoked": err == nil}
 	default:
-		return errors.New("usage: nimotehost devices list | add <name> | add-scoped <name> <session_observer|session_operator> <session-id>... | revoke <id>")
+		return errors.New("usage: nimotehost devices list | add <name> | add-scoped <name> <session_observer|session_operator> <session-id>... | add-controller <name> <session-id>... | revoke <id>")
 	}
 	if err != nil {
 		return err
@@ -40,7 +42,7 @@ func devicesCommand(args []string, out io.Writer) error {
 }
 func deviceBridge(ctx context.Context, id string, in io.Reader, out io.Writer) error {
 	// No shell evaluation: only these RPC bridges are accepted, regardless of the
-	// command originally requested by the SSH peer. Read-only ACL is enforced by Host.
+	// command originally requested by the SSH peer. Device ACL is enforced by Host.
 	original := os.Getenv("SSH_ORIGINAL_COMMAND")
 	fields := strings.Fields(original)
 	if len(fields) < 1 || strings.ContainsAny(original, "\x00\r\n") {

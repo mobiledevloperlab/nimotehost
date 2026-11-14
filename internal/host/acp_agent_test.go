@@ -141,3 +141,97 @@ func TestACPToolPartialUpdatesPreserveDescription(t *testing.T) {
 		t.Fatal(last)
 	}
 }
+
+func TestACPResumeAcknowledgementPreservesConversation(t *testing.T) {
+	for _, c := range []struct {
+		name, payload string
+		resume, ok    bool
+	}{
+		{"load-empty", `{}`, true, true}, {"resume-options", `{"modes":{}}`, true, true},
+		{"same-id", `{"sessionId":"original"}`, true, true},
+		{"changed-id", `{"sessionId":"another"}`, true, false}, {"null", `null`, true, false},
+		{"missing-new-id", `{}`, false, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			a, _ := testACP()
+			if c.resume {
+				a.resumeConversation = "original"
+			}
+			a.receiveACPResult("host-session", json.RawMessage(c.payload), nil)
+			err := <-a.startup
+			if (err == nil) != c.ok {
+				t.Fatal("unexpected startup result", err)
+			}
+			if c.ok && a.thread != "original" {
+				t.Fatal("conversation identity replaced", a.thread)
+			}
+		})
+	}
+}
+
+func TestACPInitializeUsesNegotiatedMajorShape(t *testing.T) {
+	for _, version := range []int{1, 2} {
+		params := acpInitializeParams(version, "test")
+		infoKey, capKey := "clientInfo", "clientCapabilities"
+		if version == 2 {
+			infoKey, capKey = "info", "capabilities"
+		}
+		if params["protocolVersion"] != version || params[infoKey].(map[string]string)["name"] != "test" || params[capKey] == nil {
+			t.Fatal("wrong protocol major shape", params)
+		}
+	}
+}
+
+func TestACP2PromptAcknowledgementWaitsForForegroundCompletion(t *testing.T) {
+	a, out := testACP()
+	readyACP(t, a)
+	a.acp.version = 2
+	if err := a.message(AgentMessage{Action: "prompt", RequestID: "v2-prompt", Text: "hello"}); err != nil {
+		t.Fatal(err)
+	}
+	frame := queuedFrame(t, a)
+	a.receiveACPResult(frame["id"].(string), json.RawMessage(`{"messageId":"inserted"}`), nil)
+	if !a.busy {
+		t.Fatal("insertion acknowledgement ended foreground work")
+	}
+	a.updateACP(json.RawMessage(`{"sessionId":"foreign","update":{"sessionUpdate":"state_update","state":"idle","stopReason":"end_turn"}}`))
+	if !a.busy {
+		t.Fatal("foreign state ended work")
+	}
+	a.updateACP(json.RawMessage(`{"sessionId":"acp-session","update":{"sessionUpdate":"state_update","state":"future_state"}}`))
+	if !a.busy {
+		t.Fatal("unknown state presented as idle")
+	}
+	a.updateACP(json.RawMessage(`{"sessionId":"acp-session","update":{"sessionUpdate":"state_update","state":"idle","stopReason":"end_turn"}}`))
+	if a.busy || a.lastTurnStatus != "end_turn" {
+		t.Fatal("foreground completion not applied")
+	}
+	before := out.Len()
+	a.updateACP(json.RawMessage(`{"sessionId":"acp-session","update":{"sessionUpdate":"state_update","state":"idle","stopReason":"end_turn"}}`))
+	if out.Len() != before {
+		t.Fatal("repeated idle snapshot emitted duplicate completion")
+	}
+}
+func TestACP2PermissionProjectionRejectsUnsupportedSubjects(t *testing.T) {
+	for _, raw := range []string{
+		`{"subject":{"type":"future"}}`,
+		`{"subject":{"type":"tool_call","toolCall":{}}}`,
+		`{"subject":{"type":"tool_call","toolCall":{"toolCallId":"a"}},"toolCall":{"toolCallId":"b"}}`,
+	} {
+		if _, err := normalizeV2Permission(json.RawMessage(raw)); err == nil {
+			t.Fatal("ambiguous permission accepted", raw)
+		}
+	}
+	projected, err := normalizeV2Permission(json.RawMessage(`{"sessionId":"session","title":"Edit file","subject":{"type":"tool_call","toolCall":{"toolCallId":"tool"}},"options":[{"optionId":"once","kind":"allow_once"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var value struct {
+		SessionID string              `json:"sessionId"`
+		Tool      acpTool             `json:"toolCall"`
+		Options   []map[string]string `json:"options"`
+	}
+	if json.Unmarshal(projected, &value) != nil || value.SessionID != "session" || value.Tool.ID != "tool" || value.Tool.Title == nil || *value.Tool.Title != "Edit file" || value.Options[0]["kind"] != "allow_once" {
+		t.Fatal("permission authority changed", string(projected))
+	}
+}

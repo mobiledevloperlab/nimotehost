@@ -79,7 +79,7 @@ func ControlLock(dir string) (*os.File, error) {
 	if err := privateDir(dir); err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(filepath.Join(dir, "control.lock"), os.O_CREATE|os.O_RDWR, 0600)
+	f, err := openManagementLockFile(filepath.Join(dir, "control.lock"))
 	if err != nil {
 		return nil, err
 	}

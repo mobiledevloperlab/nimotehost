@@ -3,6 +3,7 @@ package host
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -101,10 +102,34 @@ func (a *structuredAgent) updateACP(raw json.RawMessage) {
 		a.emit("error", "Invalid ACP session update")
 		return
 	}
-	if a.thread == "" && update.Type != "available_commands_update" && update.Type != "config_option_update" {
+	if a.thread == "" && update.Type != "available_commands_update" && update.Type != "config_option_update" && !(a.acp.version == 2 && update.Type == "state_update" && p.SessionID == a.resumeConversation) {
 		return
 	}
 	switch update.Type {
+	case "state_update":
+		if a.acp.version != 2 {
+			return
+		}
+		var state struct {
+			State      string `json:"state"`
+			StopReason string `json:"stopReason"`
+		}
+		if json.Unmarshal(p.Update, &state) != nil {
+			a.emit("error", "Invalid ACP state update")
+			return
+		}
+		if state.State == "idle" {
+			if a.busy {
+				if state.StopReason == "" {
+					state.StopReason = "unknown"
+				}
+				a.finishACP(state.StopReason)
+			}
+		} else {
+			// Unknown future states must remain busy, never imply successful completion.
+			a.busy = true
+		}
+
 	case "available_commands_update":
 		var commands struct {
 			Commands []agentCommand `json:"availableCommands"`
@@ -172,4 +197,38 @@ func (a *structuredAgent) permissionACP(id json.RawMessage, raw json.RawMessage)
 	a.approvalDetails[key] = detail
 	a.emit("approval", detail)
 	return nil
+}
+
+// v2 moves the permission tool under subject. Project only tool-call subjects
+// into the established approval path; unknown subjects never gain authority.
+func normalizeV2Permission(raw json.RawMessage) (json.RawMessage, error) {
+	var value map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil, err
+	}
+	if _, legacy := value["toolCall"]; legacy && value["subject"] == nil {
+		return raw, nil
+	}
+	var subject struct {
+		Type string  `json:"type"`
+		Tool acpTool `json:"toolCall"`
+	}
+	if json.Unmarshal(value["subject"], &subject) != nil || subject.Type != "tool_call" || subject.Tool.ID == "" {
+		return nil, errors.New("unsupported ACP permission subject")
+	}
+	if legacy, exists := value["toolCall"]; exists {
+		var tool acpTool
+		if json.Unmarshal(legacy, &tool) != nil || tool.ID != subject.Tool.ID {
+			return nil, errors.New("conflicting ACP permission subjects")
+		}
+	}
+	if subject.Tool.Title == nil {
+		_ = json.Unmarshal(value["title"], &subject.Tool.Title)
+	}
+	tool, err := json.Marshal(subject.Tool)
+	if err != nil {
+		return nil, err
+	}
+	value["toolCall"] = tool
+	return json.Marshal(value)
 }

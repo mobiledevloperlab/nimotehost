@@ -69,3 +69,32 @@ func TestBoundedRunLog(t *testing.T) {
 		t.Fatalf("unbounded log %d %v", len(s), err)
 	}
 }
+
+func TestManagementLockSurvivesStateNameMigration(t *testing.T) {
+	root := t.TempDir()
+	old, next := filepath.Join(root, "nimote-host"), filepath.Join(root, "nimotehost")
+	if err := privateDir(old); err != nil {
+		t.Fatal(err)
+	}
+	lock, err := ControlLock(old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+	if err := os.Rename(old, next); err != nil {
+		t.Fatal("state rename with management lock", err)
+	}
+	if competing, err := ControlLock(next); err == nil {
+		competing.Close()
+		t.Fatal("management lock lost across rename")
+	}
+	if err := os.Rename(next, old); err != nil {
+		t.Fatal("rollback with management lock", err)
+	}
+	lock.Close()
+	again, err := ControlLock(old)
+	if err != nil {
+		t.Fatal("management lock not released", err)
+	}
+	again.Close()
+}

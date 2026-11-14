@@ -49,7 +49,7 @@ func (m *Manager) startAuto(req StartRequest, timeout time.Duration) (Session, e
 	}
 	req.Interaction = "structured"
 	record, err := m.start(req)
-	if errors.Is(err, errResourceLimit) {
+	if errors.Is(err, errResourceLimit) || (err != nil && (m.nativeConstraints() || req.Identity != nil)) {
 		return Session{}, err
 	}
 	if err == nil {
@@ -90,12 +90,12 @@ func (m *Manager) startAuto(req StartRequest, timeout time.Duration) (Session, e
 		}
 		// Resource enforcement is not evidence of protocol incompatibility.
 		// Never launch a fallback process after an enforced timeout/disk failure.
-		if resourceErr != nil || item.output.failure() != nil {
+		if resourceErr != nil || item.output.failure() != nil || m.nativeConstraints() || req.Identity != nil {
 			// Preserve a failed outcome. cancel() would incorrectly relabel this
 			// as a user/probe cancellation while the wait worker is still settling.
 			m.mu.Lock()
 			if resourceErr == nil {
-				resourceErr = fmt.Errorf("agent startup output failed: %w", item.output.failure())
+				resourceErr = fmt.Errorf("agent initialization failed under execution constraints: %w", err)
 			}
 			if item.process != nil {
 				item.resourceError = resourceErr
