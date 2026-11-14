@@ -49,6 +49,9 @@ func (m *Manager) startAuto(req StartRequest, timeout time.Duration) (Session, e
 	}
 	req.Interaction = "structured"
 	record, err := m.start(req)
+	if errors.Is(err, errResourceLimit) {
+		return Session{}, err
+	}
 	if err == nil {
 		m.mu.Lock()
 		item := m.sessions[record.ID]
@@ -77,12 +80,33 @@ func (m *Manager) startAuto(req StartRequest, timeout time.Duration) (Session, e
 		m.mu.Lock()
 		canceled := item.userCanceled
 		closed := m.closed
+		resourceErr := item.resourceError
 		m.mu.Unlock()
 		if canceled {
 			return m.Get(record.ID)
 		}
 		if closed {
 			return Session{}, errors.New("Host stopped during agent initialization")
+		}
+		// Resource enforcement is not evidence of protocol incompatibility.
+		// Never launch a fallback process after an enforced timeout/disk failure.
+		if resourceErr != nil || item.output.failure() != nil {
+			// Preserve a failed outcome. cancel() would incorrectly relabel this
+			// as a user/probe cancellation while the wait worker is still settling.
+			m.mu.Lock()
+			if resourceErr == nil {
+				resourceErr = fmt.Errorf("agent startup output failed: %w", item.output.failure())
+			}
+			if item.process != nil {
+				item.resourceError = resourceErr
+				if stopErr := item.process.Kill(); stopErr != nil {
+					m.mu.Unlock()
+					return Session{}, stopErr
+				}
+			}
+			m.mu.Unlock()
+			<-item.done
+			return Session{}, resourceErr
 		}
 		// Wait for complete process/pipe shutdown before starting the terminal.
 		if stopErr := m.cancel(record.ID, false); stopErr != nil {
@@ -113,19 +137,9 @@ func (m *Manager) startAuto(req StartRequest, timeout time.Duration) (Session, e
 // Resolve maintained adapters at session creation, never with npx/latest or
 // automatic installation. Upgrades are checked by the live ACP handshake.
 func configureStructuredCommand(cmd *exec.Cmd, a *structuredAgent) error {
-	switch a.provider {
-	case "claude":
-		path, err := exec.LookPath("claude-agent-acp")
-		if err != nil {
-			return fmt.Errorf("Claude ACP adapter is not installed: %w", err)
-		}
-		cmd.Path = path
-		cmd.Err = nil
-		cmd.Args = []string{path}
-	case "opencode":
-		cmd.Args = []string{cmd.Path, "acp"}
-	default:
-		cmd.Args = []string{cmd.Path, "app-server"}
+	adapter, ok := lookupAgentAdapter(a.provider)
+	if !ok {
+		return errors.New("unknown Agent adapter")
 	}
-	return nil
+	return adapter.ConfigureCommand(cmd)
 }

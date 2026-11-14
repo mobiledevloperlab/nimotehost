@@ -20,14 +20,15 @@ var Version = "1.0.0-dev"
 const maxOutput = 16 << 20
 
 type Capabilities struct {
-	Version     string            `json:"version"`
-	Protocol    int               `json:"protocol"`
-	MinProtocol int               `json:"min_protocol"`
-	Platform    string            `json:"platform"`
-	Arch        string            `json:"arch"`
-	HostID      string            `json:"host_id"`
-	Features    map[string]bool   `json:"features"`
-	Tools       map[string]string `json:"tools"`
+	Version     string                       `json:"version"`
+	Protocol    int                          `json:"protocol"`
+	MinProtocol int                          `json:"min_protocol"`
+	Platform    string                       `json:"platform"`
+	Arch        string                       `json:"arch"`
+	HostID      string                       `json:"host_id"`
+	Features    map[string]bool              `json:"features"`
+	Tools       map[string]string            `json:"tools"`
+	Agents      map[string]AgentInstallation `json:"agents,omitempty"`
 }
 
 func capabilities(hostID string) Capabilities {
@@ -39,7 +40,7 @@ func capabilities(hostID string) Capabilities {
 	}
 	_, claudeAdapter := tools["claude-agent-acp"]
 	return Capabilities{Version: Version, Protocol: Protocol, MinProtocol: Protocol, Platform: runtime.GOOS, Arch: runtime.GOARCH, HostID: hostID,
-		Features: map[string]bool{"session_activity_v1": true, "session_task_v1": true, "mutation_idempotency_v1": true, "mutation_expiry_v1": true, "agent_status_v1": true, "session_disconnect_survival": true, "session_restart_survival": false, "rpc_stream": true, "rolling_output": true, "idle_shutdown": true, "tasks": true, "output_replay": true, "events": true, "environment": true, "terminal": terminalSupported, "agent_terminal": terminalSupported, "agent_structured_approval": false, "public_transport": false, "codex_structured": structuredAgentSupported, "codex_structured_auto": structuredAgentSupported, "agent_events_v1": true, "agent_controls_v1": true, "agent_execution_policy_v1": true, "agent_cold_start_wait": true, "agent_history_v1": structuredAgentSupported && (tools["codex"] != "" || tools["opencode"] != "" || claudeAdapter), "codex_history_v1": structuredAgentSupported && tools["codex"] != "", "opencode_history_v1": structuredAgentSupported && tools["opencode"] != "", "claude_history_v1": structuredAgentSupported && claudeAdapter, "opencode_structured": structuredAgentSupported, "opencode_structured_auto": structuredAgentSupported, "claude_structured": structuredAgentSupported && claudeAdapter, "claude_structured_auto": structuredAgentSupported && claudeAdapter}, Tools: tools}
+		Features: map[string]bool{"output_resync_v1": true, "device_session_acl_v1": true, "device_safe_control_v1": true, "resource_limits_v1": true, "hard_cpu_limit": false, "hard_memory_limit": false, "session_activity_v1": true, "session_task_v1": true, "mutation_idempotency_v1": true, "mutation_expiry_v1": true, "agent_status_v1": true, "session_disconnect_survival": true, "session_restart_survival": false, "rpc_stream": true, "rolling_output": true, "idle_shutdown": true, "tasks": true, "output_replay": true, "events": true, "environment": true, "terminal": terminalSupported, "agent_terminal": terminalSupported, "agent_structured_approval": false, "public_transport": false, "codex_structured": structuredAgentSupported, "codex_structured_auto": structuredAgentSupported, "agent_events_v1": true, "agent_controls_v1": true, "agent_execution_policy_v1": true, "agent_cold_start_wait": true, "agent_history_v1": structuredAgentSupported && (tools["codex"] != "" || tools["opencode"] != "" || claudeAdapter), "codex_history_v1": structuredAgentSupported && tools["codex"] != "", "opencode_history_v1": structuredAgentSupported && tools["opencode"] != "", "claude_history_v1": structuredAgentSupported && claudeAdapter, "opencode_structured": structuredAgentSupported, "opencode_structured_auto": structuredAgentSupported, "claude_structured": structuredAgentSupported && claudeAdapter, "claude_structured_auto": structuredAgentSupported && claudeAdapter}, Tools: tools, Agents: installedAgents()}
 }
 
 type StartRequest struct {

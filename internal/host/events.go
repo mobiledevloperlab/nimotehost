@@ -6,6 +6,8 @@ package host
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -27,17 +29,33 @@ type EventPage struct {
 }
 
 func (m *Manager) loadEvents() error {
-	data, err := os.ReadFile(filepath.Join(m.dir, "events"))
+	f, err := os.Open(filepath.Join(m.dir, "events"))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, (256<<10)+1))
+	if err != nil {
+		return err
+	}
+	if len(data) > 256<<10 {
+		return errors.New("Host events exceed retention budget")
+	}
 	if err := json.Unmarshal(data, &m.events); err != nil {
 		return err
 	}
+	if len(m.events) > 1024 {
+		return errors.New("too many retained Host events")
+	}
+	var previous uint64
 	for _, event := range m.events {
+		if !validID(event.SessionID) || event.Revision <= previous || event.Revision == ^uint64(0) {
+			return fmt.Errorf("invalid Host event sequence at revision %d", event.Revision)
+		}
+		previous = event.Revision
 		if event.Revision >= m.revision {
 			m.revision = event.Revision + 1
 		}

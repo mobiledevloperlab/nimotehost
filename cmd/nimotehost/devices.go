@@ -25,11 +25,13 @@ func devicesCommand(args []string, out io.Writer) error {
 		result, err = host.ListDevices(dir)
 	case len(args) == 2 && args[0] == "add":
 		result, err = host.CreateDevice(dir, args[1])
+	case len(args) >= 4 && args[0] == "add-scoped":
+		result, err = host.CreateScopedDevice(dir, args[1], args[2], args[3:])
 	case len(args) == 2 && args[0] == "revoke":
 		err = host.RevokeDevice(dir, args[1])
 		result = map[string]bool{"revoked": err == nil}
 	default:
-		return errors.New("usage: nimotehost devices list | add <name> | revoke <id>")
+		return errors.New("usage: nimotehost devices list | add <name> | add-scoped <name> <session_observer|session_operator> <session-id>... | revoke <id>")
 	}
 	if err != nil {
 		return err

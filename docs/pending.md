@@ -1,6 +1,6 @@
 # 未完成功能 / Pending functionality
 
-English / 简体中文 · `1.0.0-dev` · 更新 / Updated: 2026-11-13
+English / 简体中文 · `1.0.0-dev` · 更新 / Updated: 2026-11-14
 
 当前源码已实现的功能、使用方式和协议只维护在[已完成功能](completed.md)。
 本页只列未完成的功能与验收，不重复历史过程，不把已有代码再次列为缺失。
@@ -11,10 +11,10 @@ Implemented behavior lives in [completed functionality](completed.md). Items bel
 - [ ] 统一 AI Session Dashboard：在现有 AI 模式按主机/工作区聚合会话、搜索与状态筛选；
   保存带观察时间的离线摘要，不将缓存伪装成实时状态。
   Unified AI-mode dashboard and timestamped cross-host offline summaries.
-- [ ] 完整控制设备隔离及会话 ACL：已实现独立只读设备身份和逐请求撤销；
+- [ ] 完整控制设备隔离及执行 ACL：已实现独立设备逐请求撤销、Session 范围读取及安全取消/拒绝权限；
   拥有同一 OS 用户任意命令执行权的客户端不在该隔离范围内。完整控制需独立系统身份或沙箱，
-  当前仍无每设备可执行任务或每会话写权限策略。Authenticated observer revocation is implemented;
-  execution-capable device isolation and per-session ACL remain open.
+  当前仍无设备任意执行、输入、批准等完整写权限隔离策略。Authenticated observer revocation is implemented;
+  scoped observation/safe-stop ACL is implemented; execution-capable isolation remains open.
 - [ ] 旧格式请求键迁移及容量运维：七天有效期的新格式请求键已支持安全在线轮换和容量告警；
   旧格式回执仍不可安全淘汰，达到保留数量/空间限额时继续拒绝新操作。
   不通过删除旧回执允许延迟重放；需配套客户端迁移和明确的旧协议退役方案。
@@ -70,3 +70,23 @@ Deleted historical reports are available in Git history and do not establish cur
   真实 provider 恢复验收和安装包签名。
 - [ ] NimoteCode 手机连接实测：共享配置默认端口及自定义端口、原 SSH RPC 行为、
   Host 未安装/已停止/运行三种状态；本仓库测试不代替移动端真机验收。
+
+
+## Host 加固剩余门槛 / Remaining hardening gates
+
+- [ ] 完整可执行控制设备：独立 OS 身份或经验证沙箱、凭证隔离、每会话完整写权限；
+  当前 session_operator 只支持安全取消/打断/拒绝，不能描述为完整控制。
+- [ ] Linux/macOS/Windows CPU、RSS、进程数和工作区写入硬配额；当前仅有应用层
+  会话/并发/输出/磁盘下限和运行时限，非零 CPU/内存配额配置明确拒绝。
+- [ ] Unix Host SIGKILL/系统崩溃、脱离进程组后代、历史 helper 后代的 OS 级回收与
+  所有权证明；不使用旧 PID 杀进程，不承诺断电后输出环的事务一致性。
+- [ ] 错误事件/Session 元数据的人工可审查修复流程；损坏事件日志当前保留原文件并
+  拒绝启动，不自动删文件恢复；旧幂等回执仍不可无条件清理。
+- [ ] 三平台原生执行新增 ACL/资源探测/进程回收测试，真实 SSH forced-command、
+  Agent 审批/对话恢复与长时间负载/OS 重启验收。交叉编译仅说明编译兼容。
+- [ ] 逐设备公平限流和连接级准入；当前 HTTP handler/历史 helper 限流与读写容量分离，
+  不等价于恶意同用户进程的资源隔离。非可关闭 io.Writer 的阻塞无法被通用接口强制取消。
+
+Implemented contract and rollback: [hardening audit](host-hardening.md).
+Actual verification and limitations: [hardening tests](host-hardening-tests.md).
+These remaining items prevent claiming that all P0/P1 release goals are complete.

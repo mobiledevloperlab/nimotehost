@@ -18,3 +18,28 @@ func TestDeviceBridgeRejectsNonRPCCommands(t *testing.T) {
 		})
 	}
 }
+
+func TestScopedDeviceCLI(t *testing.T) {
+	dir := t.TempDir()
+	for _, key := range []string{"HOME", "XDG_CONFIG_HOME", "APPDATA", "USERPROFILE"} {
+		t.Setenv(key, dir)
+	}
+	var out strings.Builder
+	id := strings.Repeat("a", 64)
+	if err := devicesCommand([]string{"add-scoped", "phone", "session_operator", id}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), `"role":"session_operator"`) || !strings.Contains(out.String(), id) {
+		t.Fatal(out.String())
+	}
+	out.Reset()
+	if err := devicesCommand([]string{"list"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), "credential") || !strings.Contains(out.String(), `"sessions"`) {
+		t.Fatal(out.String())
+	}
+	if err := devicesCommand([]string{"add-scoped", "bad", "owner", id}, io.Discard); err == nil {
+		t.Fatal("privileged CLI role accepted")
+	}
+}

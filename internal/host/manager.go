@@ -24,31 +24,44 @@ type processHandle interface {
 }
 
 type managed struct {
-	activity     *activityJournal
-	userCanceled bool
-	session      Session
-	process      processHandle
-	terminal     io.ReadWriteCloser
-	output       *outputWriter
-	done         chan struct{}
-	agent        *structuredAgent
+	resourceError error
+	activity      *activityJournal
+	userCanceled  bool
+	session       Session
+	process       processHandle
+	terminal      io.ReadWriteCloser
+	output        *outputWriter
+	done          chan struct{}
+	agent         *structuredAgent
 }
 
 type Manager struct {
-	requests *requestLedger
-	mu       sync.Mutex
-	dir      string
-	sessions map[string]*managed
-	revision uint64
-	closed   bool
-	events   []Event
+	limits       ResourceLimits
+	monitorStop  chan struct{}
+	monitorDone  chan struct{}
+	monitorOnce  sync.Once
+	monitorStart sync.Once
+	requests     *requestLedger
+	mu           sync.Mutex
+	dir          string
+	sessions     map[string]*managed
+	revision     uint64
+	closed       bool
+	events       []Event
 }
 
 func NewManager(dir string) (*Manager, error) {
+	return NewManagerWithLimits(dir, DefaultResourceLimits())
+}
+
+func NewManagerWithLimits(dir string, limits ResourceLimits) (*Manager, error) {
+	if err := limits.Validate(); err != nil {
+		return nil, err
+	}
 	if err := privateDir(dir); err != nil {
 		return nil, err
 	}
-	m := &Manager{dir: dir, sessions: make(map[string]*managed), revision: uint64(time.Now().UnixNano())}
+	m := &Manager{dir: dir, limits: limits, sessions: make(map[string]*managed), revision: uint64(time.Now().UnixNano()), monitorStop: make(chan struct{}), monitorDone: make(chan struct{})}
 	requests, err := newRequestLedger(filepath.Join(dir, "requests"))
 	if err != nil {
 		return nil, err
@@ -226,8 +239,8 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 	if m.closed {
 		return Session{}, errors.New("Host is shutting down")
 	}
-	if len(m.sessions) >= 256 {
-		return Session{}, errors.New("session retention limit reached; delete completed sessions")
+	if len(m.sessions) >= m.limits.MaxRetainedSessions {
+		return Session{}, fmt.Errorf("%w: session retention limit reached; delete completed sessions", errResourceLimit)
 	}
 	active := 0
 	for _, s := range m.sessions {
@@ -235,8 +248,11 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 			active++
 		}
 	}
-	if active >= 32 {
-		return Session{}, errors.New("active session limit reached")
+	if active >= m.limits.MaxActiveSessions {
+		return Session{}, fmt.Errorf("%w: active session limit reached", errResourceLimit)
+	}
+	if err := m.checkDisk(); err != nil {
+		return Session{}, err
 	}
 	id, err := randomID()
 	if err != nil {
@@ -293,6 +309,7 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 		return Session{}, fmt.Errorf("start %s: %w", req.Kind, err)
 	}
 	m.sessions[id] = item
+	m.monitorStart.Do(func() { go m.monitorResources() })
 	m.emit(record)
 	slog.Info("Host session started", "id", id, "kind", req.Kind)
 	go m.wait(item)
@@ -371,6 +388,7 @@ func (m *Manager) wait(item *managed) {
 	outputErr := errors.Join(processErr, item.output.Close())
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	err = errors.Join(err, item.resourceError)
 	now := time.Now().UTC()
 	item.session.OutputBytes, item.session.OutputTruncated = item.output.stats()
 	item.session.Finished = &now
@@ -547,6 +565,36 @@ func (m *Manager) outputSignal(id string) <-chan struct{} {
 	}
 	return item.output.signal()
 }
+
+// Read the actual log boundary, not persisted Session.OutputBytes, which older
+// prefix-log records may not contain. No Agent state lock is needed for output.
+func (m *Manager) outputResync(id string, offset, start int64) bool {
+	if start > offset {
+		return true
+	}
+	m.mu.Lock()
+	item := m.sessions[id]
+	m.mu.Unlock()
+	if item == nil {
+		return false
+	}
+	if item.output != nil {
+		total, _ := item.output.stats()
+		return offset > total
+	}
+	f, err := os.Open(filepath.Join(m.dir, id+".ring"))
+	if err == nil {
+		defer f.Close()
+		total, err := ringTotal(f)
+		return err == nil && offset > total
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	info, err := os.Stat(filepath.Join(m.dir, id+".log"))
+	return err == nil && offset > info.Size()
+}
+
 func (m *Manager) OutputPage(id string, offset int64) ([]byte, int64, int64, error) {
 	if offset < 0 {
 		return nil, offset, offset, errors.New("negative output offset")
@@ -628,6 +676,12 @@ func (m *Manager) PrepareIdleShutdown() error {
 func (m *Manager) Close() {
 	m.mu.Lock()
 	m.closed = true
+	if m.monitorStop != nil {
+		// Starting and closing the monitor are serialized with session admission.
+		// A Manager used only to read recovered state needs no background worker.
+		m.monitorStart.Do(func() { close(m.monitorDone) })
+		m.monitorOnce.Do(func() { close(m.monitorStop) })
+	}
 	var done []chan struct{}
 	for _, item := range m.sessions {
 		if item.process != nil {
@@ -639,6 +693,9 @@ func (m *Manager) Close() {
 		}
 	}
 	m.mu.Unlock()
+	if m.monitorDone != nil {
+		<-m.monitorDone
+	}
 	for _, ch := range done {
 		<-ch
 	}

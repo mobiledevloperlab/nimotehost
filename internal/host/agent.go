@@ -62,6 +62,7 @@ type structuredAgent struct {
 	busy, closed       bool
 	next               int
 	seen               map[string]bool
+	messageHashes      map[string][32]byte
 	pending            map[string]string
 	steers             map[string]AgentMessage
 	approvals          map[string]json.RawMessage
@@ -97,6 +98,7 @@ func (a *structuredAgent) closeLocked() {
 		return
 	}
 	a.closed = true
+	a.rejectPendingPermissions()
 	for id, req := range a.steers {
 		a.emit("steer_rejected", map[string]any{"request_id": req.RequestID, "text": req.Text, "error": "agent stopped before confirming the message"})
 		delete(a.steers, id)
@@ -314,11 +316,12 @@ func newStructuredAgent(provider string, output io.Writer, cwd string, resume ..
 	if len(resume) > 0 {
 		a.resumeConversation = resume[0]
 	}
-	if provider == "opencode" || provider == "claude" {
+	if adapter, ok := lookupAgentAdapter(provider); ok && adapter.Protocol() == "acp" {
 		a.acp = &acpState{tools: map[string]map[string]any{}, options: map[string]map[string]string{}}
 	}
 	return a
 }
 func supportsStructuredAgent(provider string) bool {
-	return provider == "codex" || provider == "opencode" || provider == "claude"
+	_, ok := lookupAgentAdapter(provider)
+	return ok
 }

@@ -4,6 +4,7 @@ package desktop
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"github.com/mobiledevloperlab/nimotehost/internal/host"
 	"net"
 	"os"
@@ -130,7 +131,17 @@ func TestIndependentHostLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	after, _ := host.Call(ctx, dir, host.RPCRequest{Method: "GET", Path: "/v1/status"})
-	if string(before) != string(after) {
+	var beforeStatus, afterStatus map[string]json.RawMessage
+	if json.Unmarshal(before, &beforeStatus) != nil || json.Unmarshal(after, &afterStatus) != nil || len(beforeStatus["instance_id"]) <= 2 {
+		t.Fatal("missing daemon instance identity")
+	}
+	// Free disk space changes independently of Host identity. All stable fields,
+	// including a random per-daemon instance ID, must remain identical.
+	delete(beforeStatus, "resources")
+	delete(afterStatus, "resources")
+	beforeStable, _ := json.Marshal(beforeStatus)
+	afterStable, _ := json.Marshal(afterStatus)
+	if string(beforeStable) != string(afterStable) {
 		t.Fatal("start replaced running Host")
 	}
 	if _, err = other.Sessions(ctx); err != nil {
@@ -149,6 +160,14 @@ func TestIndependentHostLifecycle(t *testing.T) {
 	}
 	if err = other.Change(ctx, "restart"); err != nil {
 		t.Fatal(err)
+	}
+	restarted, err := host.Call(ctx, dir, host.RPCRequest{Method: "GET", Path: "/v1/status"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restartedStatus map[string]json.RawMessage
+	if json.Unmarshal(restarted, &restartedStatus) != nil || string(restartedStatus["instance_id"]) == string(beforeStatus["instance_id"]) {
+		t.Fatal("restart did not create a new daemon instance")
 	}
 	if err = other.Change(ctx, "stop"); err != nil {
 		t.Fatal(err)

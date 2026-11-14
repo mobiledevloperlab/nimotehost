@@ -24,10 +24,12 @@ Advanced setup (binary already at a fixed installation path):
   nimotehost install       Install and start the background service; wait until ready
   nimotehost status        Check the running Host (JSON)
   nimotehost capabilities  Show available features and installed Agent CLIs (JSON)
+  nimotehost agents        Probe installed Agent versions (bounded local diagnostic)
 
-Devices (restricted read-only SSH keys):
+Devices (restricted SSH keys; scoped operators may cancel/decline only):
   nimotehost devices list
   nimotehost devices add <name>
+  nimotehost devices add-scoped <name> <session_observer|session_operator> <session-id>...
   nimotehost devices revoke <id>
 
 Manage:

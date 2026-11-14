@@ -8,8 +8,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -17,11 +19,12 @@ import (
 // Devices are deliberately read-only. Giving a same-user client command execution
 // would let it read the owner's credential and bypass device revocation.
 type Device struct {
-	ID      string     `json:"id"`
-	Name    string     `json:"name"`
-	Role    string     `json:"role"`
-	Created time.Time  `json:"created"`
-	Revoked *time.Time `json:"revoked,omitempty"`
+	ID       string     `json:"id"`
+	Name     string     `json:"name"`
+	Role     string     `json:"role"`
+	Created  time.Time  `json:"created"`
+	Revoked  *time.Time `json:"revoked,omitempty"`
+	Sessions []string   `json:"sessions,omitempty"`
 }
 type deviceRecord struct {
 	Device
@@ -40,6 +43,10 @@ func deviceDir(dir string) (string, error) {
 	return p, privateDir(p)
 }
 func readPrivate(path string) ([]byte, error) {
+	return readPrivateLimit(path, 16<<10)
+}
+
+func readPrivateLimit(path string, limit int64) ([]byte, error) {
 	info, err := os.Lstat(path)
 	if err != nil {
 		return nil, err
@@ -50,10 +57,22 @@ func readPrivate(path string) ([]byte, error) {
 	if err = secureFile(path, info); err != nil {
 		return nil, err
 	}
-	if info.Size() > 16384 {
-		return nil, errors.New("device record too large")
+	if info.Size() > limit {
+		return nil, errors.New("private file too large")
 	}
-	return os.ReadFile(path)
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, errors.New("private file too large")
+	}
+	return data, nil
 }
 func readDevice(dir, id string) (deviceRecord, error) {
 	var r deviceRecord
@@ -64,19 +83,53 @@ func readDevice(dir, id string) (deviceRecord, error) {
 	if err != nil {
 		return r, err
 	}
-	b, err := readPrivate(filepath.Join(p, id+".json"))
+	// 256 session IDs need more than the credential/config 16 KiB budget.
+	b, err := readPrivateLimit(filepath.Join(p, id+".json"), 32<<10)
 	if err != nil {
 		return r, err
 	}
 	if err = decodeJSON(b, &r); err != nil {
 		return r, err
 	}
-	if r.ID != id || r.Role != "observer" || len(r.Hash) != 64 {
+	if r.ID != id || validateDeviceAccess(r.Role, r.Sessions) != nil || len(r.Hash) != 64 {
 		return r, errors.New("invalid device record")
 	}
 	return r, nil
 }
 func CreateDevice(dir, name string) (Device, error) {
+	return createDevice(dir, name, "observer", nil)
+}
+
+// CreateScopedDevice grants observation, or cancellation/decline only, to an
+// explicit set of existing session IDs. It never grants OS-user execution.
+func CreateScopedDevice(dir, name, role string, sessions []string) (Device, error) {
+	if role != "session_observer" && role != "session_operator" {
+		return Device{}, errors.New("scoped role must be session_observer or session_operator")
+	}
+	return createDevice(dir, name, role, sessions)
+}
+
+func validateDeviceAccess(role string, sessions []string) error {
+	if role == "observer" && len(sessions) == 0 {
+		return nil
+	}
+	if (role != "session_observer" && role != "session_operator") || len(sessions) == 0 || len(sessions) > 256 {
+		return errors.New("invalid device session scope")
+	}
+	seen := make(map[string]bool, len(sessions))
+	for _, id := range sessions {
+		if !validID(id) || seen[id] {
+			return errors.New("invalid or duplicate scoped session ID")
+		}
+		seen[id] = true
+	}
+	return nil
+}
+
+func createDevice(dir, name, role string, sessions []string) (Device, error) {
+	if err := validateDeviceAccess(role, sessions); err != nil {
+		return Device{}, err
+	}
 	name = strings.TrimSpace(name)
 	if name == "" || len(name) > 128 || strings.ContainsAny(name, "\x00\r\n") {
 		return Device{}, errors.New("device name must be 1–128 bytes without control lines")
@@ -100,7 +153,7 @@ func CreateDevice(dir, name string) (Device, error) {
 	}
 	credential := "device." + id + "." + secret
 	digest := sha256.Sum256([]byte(credential))
-	d := Device{ID: id, Name: name, Role: "observer", Created: time.Now().UTC()}
+	d := Device{ID: id, Name: name, Role: role, Sessions: slices.Clone(sessions), Created: time.Now().UTC()}
 	if err = atomicWrite(filepath.Join(p, id+".credential"), []byte(credential)); err != nil {
 		return Device{}, err
 	}
@@ -164,17 +217,40 @@ func deviceCredential(ctx context.Context, dir string) (string, bool, error) {
 	return string(b), true, err
 }
 func authenticateDevice(dir, credential string) bool {
+	_, ok := authenticatedDevice(dir, credential)
+	return ok
+}
+
+func authenticatedDevice(dir, credential string) (Device, bool) {
 	parts := strings.Split(credential, ".")
 	if len(parts) != 3 || parts[0] != "device" || !validID(parts[1]) || !validID(parts[2]) {
-		return false
+		return Device{}, false
 	}
 	r, err := readDevice(dir, parts[1])
 	if err != nil || r.Revoked != nil {
-		return false
+		return Device{}, false
 	}
 	digest := sha256.Sum256([]byte(credential))
 	hash, err := hex.DecodeString(r.Hash)
-	return err == nil && subtle.ConstantTimeCompare(digest[:], hash) == 1
+	return r.Device, err == nil && subtle.ConstantTimeCompare(digest[:], hash) == 1
+}
+
+func (d Device) allowsSession(id string) bool {
+	return d.Role == "observer" || slices.Contains(d.Sessions, id)
+}
+
+func (d Device) allows(method, path string) bool {
+	if observerAllowed(method, path) {
+		if strings.HasPrefix(path, "/v1/sessions/") {
+			return d.allowsSession(strings.Split(strings.TrimPrefix(path, "/v1/sessions/"), "/")[0])
+		}
+		return true // Collection results are filtered before serialization.
+	}
+	if d.Role != "session_operator" || method != "POST" {
+		return false
+	}
+	parts := strings.Split(strings.TrimPrefix(path, "/v1/sessions/"), "/")
+	return strings.HasPrefix(path, "/v1/sessions/") && len(parts) == 2 && validID(parts[0]) && d.allowsSession(parts[0]) && (parts[1] == "cancel" || parts[1] == "agent-message")
 }
 func observerAllowed(method, path string) bool {
 	if method != "GET" {

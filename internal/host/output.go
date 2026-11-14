@@ -136,12 +136,24 @@ func (w *outputWriter) read(offset int64) ([]byte, int64, int64, error) {
 func (w *outputWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if w.closed {
+		return w.err
+	}
 	w.closed = true
 	if w.changed != nil {
 		close(w.changed)
 		w.changed = nil
 	}
 	return errors.Join(w.err, w.file.Sync(), w.file.Close())
+}
+
+func (w *outputWriter) failure() error {
+	if w == nil {
+		return nil
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.err
 }
 func (w *outputWriter) stats() (int64, bool) {
 	w.mu.Lock()

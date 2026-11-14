@@ -38,11 +38,15 @@ func decodeJSON(data []byte, target any) error {
 }
 
 type Server struct {
-	dir      string
-	manager  *Manager
-	token    string
-	hostID   string
-	shutdown func()
+	dir        string
+	manager    *Manager
+	token      string
+	hostID     string
+	instanceID string
+	shutdown   func()
+	requests   chan struct{}
+	controls   chan struct{}
+	helpers    chan struct{}
 }
 
 // Serve reserves the loopback listener before reading or recovering session
@@ -76,14 +80,22 @@ func Serve(ctx context.Context, dir string, ready io.Writer) error {
 	if err != nil {
 		return err
 	}
-	manager, err := NewManager(filepath.Join(dir, "sessions"))
+	limits, err := ReadResourceLimits(dir)
+	if err != nil {
+		return fmt.Errorf("read resource policy: %w", err)
+	}
+	manager, err := NewManagerWithLimits(filepath.Join(dir, "sessions"), limits)
 	if err != nil {
 		return err
 	}
 	defer manager.Close()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	api := &Server{dir: dir, manager: manager, token: token, hostID: hostID, shutdown: cancel}
+	instanceID, err := randomID()
+	if err != nil {
+		return err
+	}
+	api := &Server{dir: dir, manager: manager, token: token, hostID: hostID, instanceID: instanceID, shutdown: cancel, requests: make(chan struct{}, 64), controls: make(chan struct{}, 16), helpers: make(chan struct{}, 4)}
 	server := &http.Server{Handler: api, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
 	stopped := make(chan struct{})
 	go func() {
@@ -116,7 +128,8 @@ func respond(w http.ResponseWriter, status int, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 func fail(w http.ResponseWriter, status int, message string) {
-	respond(w, status, map[string]string{"error": message})
+	code := map[int]string{400: "invalid_request", 401: "unauthenticated", 403: "permission_denied", 404: "not_found", 405: "method_not_allowed", 409: "conflict", 413: "request_too_large", 415: "unsupported_media_type", 426: "incompatible_protocol", 429: "resource_exhausted", 500: "internal", 503: "unavailable"}[status]
+	respond(w, status, map[string]string{"error": message, "code": code})
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -127,27 +140,70 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	provided, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	owner := bearer && s.token != "" && len(provided) == len(s.token) && subtle.ConstantTimeCompare([]byte(provided), []byte(s.token)) == 1
-	if !owner && (!bearer || s.dir == "" || !authenticateDevice(s.dir, provided)) {
+	var device Device
+	var authorized bool
+	if !owner && bearer && s.dir != "" {
+		device, authorized = authenticatedDevice(s.dir, provided)
+	}
+	if !owner && !authorized {
 		fail(w, 401, "authentication required")
 		return
 	}
-	if !owner && !observerAllowed(r.Method, r.URL.Path) {
-		fail(w, 403, "observer devices cannot execute commands, approve tasks or manage Host")
+	if !owner && !device.allows(r.Method, r.URL.Path) {
+		fail(w, 403, "device permission denied")
 		return
 	}
 	if r.Header.Get("Nimote-Host-Protocol") != strconv.Itoa(Protocol) {
 		fail(w, 426, "incompatible Host protocol")
 		return
 	}
+	slots := s.requests
+	if r.Method != http.MethodGet && s.controls != nil {
+		slots = s.controls
+	}
+	if slots != nil {
+		select {
+		case slots <- struct{}{}:
+			defer func() { <-slots }()
+		default:
+			w.Header().Set("Retry-After", "1")
+			fail(w, 503, "Host request capacity reached")
+			return
+		}
+	}
+	scoped := !owner && device.Role != "observer"
+	operation := func(name string) string {
+		if !owner {
+			return "device/" + device.ID + "/" + name
+		}
+		return name
+	}
 	if r.Method == http.MethodGet && r.URL.Path == "/v1/capabilities" {
 		respond(w, 200, capabilities(s.hostID))
 		return
 	}
 	if r.Method == http.MethodGet && r.URL.Path == "/v1/status" {
-		respond(w, 200, map[string]any{"running": true, "version": Version, "host_id": s.hostID, "request_storage": s.manager.RequestStorage()})
+		status := map[string]any{"running": true, "version": Version, "host_id": s.hostID, "instance_id": s.instanceID}
+		if !scoped {
+			status["request_storage"] = s.manager.RequestStorage()
+			if s.manager != nil {
+				status["resources"] = s.manager.Resources()
+			}
+		}
+		respond(w, 200, status)
 		return
 	}
 	if r.URL.Path == "/v1/agent-history" || strings.HasPrefix(r.URL.Path, "/v1/agent-history/") {
+		if s.helpers != nil {
+			select {
+			case s.helpers <- struct{}{}:
+				defer func() { <-s.helpers }()
+			default:
+				w.Header().Set("Retry-After", "1")
+				fail(w, 503, "Host history capacity reached")
+				return
+			}
+		}
 		// History queries may legitimately outlive the normal RPC write deadline.
 		err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(agentHistoryResponseTimeout))
 		if err != nil && !errors.Is(err, http.ErrNotSupported) {
@@ -188,9 +244,29 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			if r.URL.Path == "/v1/events" {
-				respond(w, 200, s.manager.Events(after))
+				page := s.manager.Events(after)
+				if scoped {
+					filtered := make([]Event, 0)
+					for _, e := range page.Events {
+						if device.allowsSession(e.SessionID) {
+							filtered = append(filtered, e)
+						}
+					}
+					page.Events = filtered
+				}
+				respond(w, 200, page)
 			} else {
-				respond(w, 200, s.manager.List(after))
+				list := s.manager.List(after)
+				if scoped {
+					filtered := make([]Session, 0)
+					for _, session := range list {
+						if device.allowsSession(session.ID) {
+							filtered = append(filtered, session)
+						}
+					}
+					list = filtered
+				}
+				respond(w, 200, list)
 			}
 			return
 		case http.MethodPost:
@@ -243,7 +319,24 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case action == "" && r.Method == http.MethodDelete:
 		err = s.manager.Delete(id)
 	case action == "cancel" && r.Method == http.MethodPost:
-		err = s.manager.Cancel(id)
+		if scoped {
+			var req struct {
+				RequestID string `json:"request_id"`
+			}
+			if !readJSON(w, r, &req) {
+				return
+			}
+			if req.RequestID == "" {
+				fail(w, 400, "request_id is required")
+				return
+			}
+			_, err = runOnce(s.manager, req.RequestID, operation("session.cancel/"+id), req, func() (mutationReceipt, error) {
+				err := s.manager.Cancel(id)
+				return mutationReceipt{OK: err == nil, RequestID: req.RequestID, Stage: "accepted"}, err
+			})
+		} else {
+			err = s.manager.Cancel(id)
+		}
 	case action == "activity" && r.Method == http.MethodGet:
 		var after uint64
 		if value := r.URL.Query().Get("after"); value != "" {
@@ -275,8 +368,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !readJSON(w, r, &req) {
 			return
 		}
+		if scoped && (req.Action != "interrupt" && !(req.Action == "approval" && req.Decision == "decline")) {
+			fail(w, 403, "session operators can only interrupt or decline approvals")
+			return
+		}
+		if req.RequestID == "" {
+			fail(w, 400, "request_id is required")
+			return
+		}
 		var receipt mutationReceipt
-		receipt, err = runOnce(s.manager, req.RequestID, "session.agent-message/"+id, req, func() (mutationReceipt, error) {
+		receipt, err = runOnce(s.manager, req.RequestID, operation("session.agent-message/"+id), req, func() (mutationReceipt, error) {
 			err := s.manager.AgentMessage(id, req)
 			return mutationReceipt{OK: err == nil, RequestID: req.RequestID, Stage: "accepted"}, err
 		})
@@ -321,6 +422,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		var data []byte
 		var start, next int64
+		resync := false
 		wait := 0
 		if value := r.URL.Query().Get("wait_ms"); value != "" {
 			wait, err = strconv.Atoi(value)
@@ -335,7 +437,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// between an empty read and subscribing for the next byte.
 			changed := s.manager.outputSignal(id)
 			data, start, next, err = s.manager.OutputPage(id, offset)
-			if err != nil || len(data) > 0 || changed == nil || !time.Now().Before(deadline) {
+			if err == nil {
+				resync = s.manager.outputResync(id, offset, start)
+			}
+			if err != nil || resync || len(data) > 0 || changed == nil || !time.Now().Before(deadline) {
 				break
 			}
 			timer := time.NewTimer(time.Until(deadline))
@@ -349,7 +454,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err == nil {
-			respond(w, 200, map[string]any{"data": data, "start_offset": start, "next_offset": next, "retention_bytes": maxOutput})
+			respond(w, 200, map[string]any{"data": data, "start_offset": start, "next_offset": next, "retention_bytes": maxOutput, "resync_required": resync})
 			return
 		}
 	default:
@@ -378,7 +483,11 @@ func mutationFailure(w http.ResponseWriter, err error) {
 	if errors.Is(err, errRequestConflict) {
 		status = http.StatusConflict
 	} else if errors.Is(err, errRequestUncertain) {
-		status = http.StatusServiceUnavailable
+		respond(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error(), "code": "request_uncertain"})
+		return
+	} else if errors.Is(err, errResourceLimit) {
+		status = http.StatusTooManyRequests
+		w.Header().Set("Retry-After", "1")
 	}
 	fail(w, status, err.Error())
 }

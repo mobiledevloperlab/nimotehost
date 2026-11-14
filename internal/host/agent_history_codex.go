@@ -50,11 +50,11 @@ func decodeCodexCursor(cursor string) (string, error) {
 // shell), negotiates the stable JSONL protocol, performs one bounded request,
 // then stops the short-lived query process.
 func codexRPC(ctx context.Context, cwd, method string, params any) (json.RawMessage, error) {
-	path, err := exec.LookPath("codex")
-	if err != nil {
+	adapter, _ := lookupAgentAdapter("codex")
+	cmd := exec.CommandContext(ctx, adapter.Executable())
+	if err := adapter.ConfigureCommand(cmd); err != nil {
 		return nil, errors.New("Codex is not installed")
 	}
-	cmd := exec.CommandContext(ctx, path, "app-server")
 	cmd.Dir = cwd
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 	stdin, err := cmd.StdinPipe()

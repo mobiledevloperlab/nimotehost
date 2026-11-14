@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"sync"
 )
@@ -21,6 +22,12 @@ func ServeRPCStream(ctx context.Context, dir string, input io.Reader, output io.
 func serveRPCStream(ctx context.Context, input io.Reader, output io.Writer, call func(context.Context, RPCRequest) ([]byte, error)) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	// SSH stdout can fill if the reader disappears without closing stdin.
+	// Closeable writers (including os.Stdout) must release blocked encoders.
+	if closer, ok := output.(io.Closer); ok {
+		stop := context.AfterFunc(ctx, func() { _ = closer.Close() })
+		defer stop()
+	}
 	// A cancelled SSH bridge must stop even if the peer keeps stdin open.
 	// Closing the reader unblocks Scanner.Scan on the CLI's os.Stdin.
 	if closer, ok := input.(io.Closer); ok {
@@ -48,6 +55,8 @@ func serveRPCStream(ctx context.Context, input io.Reader, output io.Writer, call
 	scanner := bufio.NewScanner(input)
 	scanner.Buffer(make([]byte, 4096), maxRequest+1024)
 	slots := make(chan struct{}, 8)
+	var idsMu sync.Mutex
+	inflight := make(map[uint64]bool)
 	var workers sync.WaitGroup
 	// On malformed input or cancellation, stop calls before joining them.
 	// A clean EOF still drains accepted calls below.
@@ -60,6 +69,15 @@ func serveRPCStream(ctx context.Context, input io.Reader, output io.Writer, call
 		if err := decodeJSON(scanner.Bytes(), &frame); err != nil || frame.ID == 0 {
 			return io.ErrUnexpectedEOF
 		}
+		idsMu.Lock()
+		duplicate := inflight[frame.ID]
+		if !duplicate {
+			inflight[frame.ID] = true
+		}
+		idsMu.Unlock()
+		if duplicate {
+			return errors.New("duplicate in-flight RPC stream id")
+		}
 		select {
 		case slots <- struct{}{}:
 		case <-ctx.Done():
@@ -68,6 +86,7 @@ func serveRPCStream(ctx context.Context, input io.Reader, output io.Writer, call
 		workers.Add(1)
 		go func(id uint64, request RPCRequest) {
 			defer workers.Done()
+			defer func() { idsMu.Lock(); delete(inflight, id); idsMu.Unlock() }()
 			defer func() { <-slots }()
 			result, err := call(ctx, request)
 			if err != nil {

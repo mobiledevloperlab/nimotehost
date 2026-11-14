@@ -46,7 +46,7 @@ func (a *structuredAgent) configureExecutionPolicy(req AgentMessage) error {
 		}
 	}
 	a.executionPolicy = req.Value
-	a.seen[req.RequestID] = true
+	a.rememberMessage(req)
 	a.publishControls()
 	return nil
 }
@@ -55,7 +55,7 @@ func (a *structuredAgent) configureExecutionPolicy(req AgentMessage) error {
 // one-time native responses: no global grants, shell keystrokes or UI dependency.
 func (a *structuredAgent) automaticApproval(method string, raw json.RawMessage) (any, bool) {
 	policy := a.effectiveExecutionPolicy()
-	if policy == "confirm" || a.closed || !a.busy || a.thread == "" {
+	if policy == "confirm" || !a.validPermissionContext(raw) {
 		return nil, false
 	}
 	var request map[string]json.RawMessage
