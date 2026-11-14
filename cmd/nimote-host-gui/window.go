@@ -19,27 +19,32 @@ import (
 // A window owns presentation and refresh lifetime, never the Host process.
 // All widget mutations, navigation and action state run on Fyne's app goroutine.
 type managerWindow struct {
-	app      fyne.App
-	window   fyne.Window
-	manager  *desktop.Manager
-	messages *messages
-	ctx      context.Context
-	cancel   context.CancelFunc
-	poll     bool
-	refresh  chan struct{}
-	busy     bool
-	snapshot desktop.Snapshot
-	tabs     *container.AppTabs
-	overview *overviewPanel
-	sessions *sessionsPanel
-	settings *settingsPanel
-	feedback *widget.Label
-	tray     fynedesktop.App
+	app                        fyne.App
+	window                     fyne.Window
+	manager                    *desktop.Manager
+	messages                   *messages
+	ctx                        context.Context
+	cancel                     context.CancelFunc
+	poll                       bool
+	refresh                    chan struct{}
+	busy                       bool
+	snapshot                   desktop.Snapshot
+	pages                      []fyne.CanvasObject
+	content                    *fyne.Container
+	navigation                 *widget.List
+	currentPage                int
+	sidebarName, sidebarStatus *widget.Label
+	overview                   *overviewPanel
+	sessions                   *sessionsPanel
+	settings                   *settingsPanel
+	feedbackArea               *fyne.Container
+	feedback                   *widget.Label
+	tray                       fynedesktop.App
 }
 
 func newManagerWindow(a fyne.App, m *desktop.Manager, poll bool) (fyne.Window, context.CancelFunc) {
 	w := a.NewWindow("Nimote Host")
-	w.Resize(fyne.NewSize(1000, 700))
+	w.Resize(fyne.NewSize(1100, 760))
 	a.SetIcon(theme.ComputerIcon())
 	ui := &managerWindow{app: a, window: w, manager: m, poll: poll}
 	trayEnabled := runtime.GOOS != "linux" || a.Preferences().Bool("linux-tray")
@@ -70,24 +75,23 @@ func (u *managerWindow) build(code string, tab int) {
 		return
 	}
 	u.messages = messages
+	applyAppearance(u.app, u.app.Preferences().StringWithFallback("theme", "System"))
 	u.ctx, u.cancel = context.WithCancel(context.Background())
 	u.refresh = make(chan struct{}, 1)
 	u.feedback = wrappedLabel("")
 	u.feedback.Hide()
+	u.feedbackArea = inset(u.feedback, 8)
+	u.feedbackArea.Hide()
 	u.overview = newOverviewPanel(u)
 	u.sessions = newSessionsPanel(u)
 	u.settings = newSettingsPanel(u)
-	u.tabs = container.NewAppTabs(
-		container.NewTabItemWithIcon(u.t("nav.overview"), theme.HomeIcon(), u.overview.root),
-		container.NewTabItemWithIcon(u.t("nav.sessions"), theme.ListIcon(), u.sessions.root),
-		container.NewTabItemWithIcon(u.t("nav.devices"), theme.ComputerIcon(), devicePanel(u)),
-		container.NewTabItemWithIcon(u.t("nav.settings"), theme.SettingsIcon(), u.settings.root),
-	)
-	u.tabs.SetTabLocation(container.TabLocationLeading)
-	if tab >= 0 && tab < len(u.tabs.Items) {
-		u.tabs.SelectIndex(tab)
-	}
-	u.window.SetContent(container.NewBorder(nil, container.NewPadded(u.feedback), nil, nil, u.tabs))
+	u.pages = []fyne.CanvasObject{u.overview.root, u.sessions.root, devicePanel(u), u.settings.root}
+	u.content = container.NewStack(u.pages...)
+	sidebar := u.newSidebar()
+	u.currentPage = -1
+	u.navigate(tab)
+	u.window.SetContent(desktopBounds(container.NewBorder(nil, u.feedbackArea, sidebar, nil, u.content)))
+
 	quit := fyne.NewMenuItem(u.t("app.quit"), u.app.Quit)
 	quit.IsQuit = true
 	u.window.SetMainMenu(fyne.NewMainMenu(fyne.NewMenu("Nimote Host", fyne.NewMenuItem(u.t("help.title"), u.showHelp), fyne.NewMenuItemSeparator(), quit)))
@@ -102,7 +106,7 @@ func (u *managerWindow) changeLanguage(code string) {
 		return
 	}
 	u.app.Preferences().SetString("language", code)
-	u.build(code, u.tabs.SelectedIndex())
+	u.build(code, u.currentPage)
 }
 
 func (u *managerWindow) requestRefresh() {
@@ -144,6 +148,7 @@ func (u *managerWindow) readSnapshot(ctx context.Context) {
 		u.sessions.update(sessions, err, sessionErr, snapshot.State)
 		u.settings.update(snapshot, err, u.busy)
 		u.updateTray()
+		u.updateSidebar(snapshot, err)
 	})
 }
 
@@ -165,7 +170,7 @@ func (u *managerWindow) updateTray() {
 	u.tray.SetSystemTrayMenu(fyne.NewMenu("Nimote Host · "+state,
 		fyne.NewMenuItem(u.t("app.open"), func() { u.window.Show(); u.window.RequestFocus() }),
 		start, stop,
-		fyne.NewMenuItem(u.t("nav.settings"), func() { u.tabs.SelectIndex(3); u.window.Show(); u.window.RequestFocus() }),
+		fyne.NewMenuItem(u.t("nav.settings"), func() { u.navigate(3); u.window.Show(); u.window.RequestFocus() }),
 		fyne.NewMenuItemSeparator(), fyne.NewMenuItem(u.t("app.quit"), u.app.Quit)))
 }
 
@@ -208,7 +213,11 @@ func (u *managerWindow) runAction(action string) {
 	}()
 }
 
-func (u *managerWindow) notice(text string) { u.feedback.SetText(text); u.feedback.Show() }
+func (u *managerWindow) notice(text string) {
+	u.feedback.SetText(text)
+	u.feedback.Show()
+	u.feedbackArea.Show()
+}
 func (u *managerWindow) showFailure(key string, err error) {
 	content := container.NewVBox(wrappedLabel(u.t(key)), widget.NewAccordion(widget.NewAccordionItem(u.t("details.technical"), readOnlyText(err.Error()))))
 	d := dialog.NewCustom(u.t("error.title"), u.t("action.close"), content, u.window)
@@ -229,7 +238,7 @@ func readOnlyText(text string) *widget.Entry {
 	return e
 }
 func pageHeading(title, subtitle string) fyne.CanvasObject {
-	return container.NewVBox(widget.NewRichText(&widget.TextSegment{Text: title, Style: widget.RichTextStyleHeading}), wrappedLabel(subtitle))
+	return inset(container.NewVBox(widget.NewRichText(&widget.TextSegment{Text: title, Style: widget.RichTextStyleHeading}), mutedLabel(subtitle)), 0)
 }
 func confirmDialog(w fyne.Window, title, message, confirm, cancel string, accepted func()) {
 	dialog.NewCustomConfirm(title, confirm, cancel, wrappedLabel(message), func(ok bool) {

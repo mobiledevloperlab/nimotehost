@@ -4,7 +4,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"image/color"
 	"net/url"
 	"runtime"
 	"strconv"
@@ -18,15 +17,6 @@ import (
 	"github.com/mobiledevloperlab/nimote-host/internal/desktop"
 	"github.com/mobiledevloperlab/nimote-host/internal/host"
 )
-
-type selectedTheme struct {
-	fyne.Theme
-	variant fyne.ThemeVariant
-}
-
-func (t selectedTheme) Color(n fyne.ThemeColorName, _ fyne.ThemeVariant) color.Color {
-	return t.Theme.Color(n, t.variant)
-}
 
 type settingsPanel struct {
 	root                      fyne.CanvasObject
@@ -63,17 +53,9 @@ func newSettingsPanel(u *managerWindow) *settingsPanel {
 		}
 	}
 	applyTheme := func(index int) {
-		switch index {
-		case 1:
-			u.app.Settings().SetTheme(selectedTheme{theme.DefaultTheme(), theme.VariantLight})
-		case 2:
-			u.app.Settings().SetTheme(selectedTheme{theme.DefaultTheme(), theme.VariantDark})
-		default:
-			u.app.Settings().SetTheme(theme.DefaultTheme())
-		}
+		u.app.Settings().SetTheme(desktopTheme{Theme: theme.DefaultTheme(), appearance: index})
 	}
 	fitSelect(appearance)
-	applyTheme(appearance.SelectedIndex())
 	appearance.OnChanged = func(string) {
 		i := appearance.SelectedIndex()
 		if i >= 0 {
@@ -149,7 +131,7 @@ func newSettingsPanel(u *managerWindow) *settingsPanel {
 	advanced.Add(widget.NewSeparator())
 	advanced.Add(maintenance)
 	about := container.NewVBox(widget.NewLabel("Nimote Host "+host.Version), container.NewHBox(widget.NewButton(u.t("updates.check"), u.checkUpdates), widget.NewButtonWithIcon(u.t("help.title"), theme.HelpIcon(), u.showHelp)))
-	p.root = container.NewPadded(container.NewVScroll(container.NewVBox(pageHeading(u.t("nav.settings"), u.t("settings.intro")), widget.NewCard(u.t("settings.general"), "", container.NewPadded(general)), widget.NewAccordion(widget.NewAccordionItem(u.t("settings.advanced"), advanced)), widget.NewCard(u.t("settings.about"), "", container.NewPadded(about)))))
+	p.root = inset(container.NewVScroll(container.NewVBox(pageHeading(u.t("nav.settings"), u.t("settings.intro")), surface(container.NewVBox(sectionTitle(u.t("settings.general")), general)), widget.NewAccordion(widget.NewAccordionItem(u.t("settings.advanced"), advanced)), surface(container.NewVBox(sectionTitle(u.t("settings.about")), about)))), 24)
 	return p
 }
 

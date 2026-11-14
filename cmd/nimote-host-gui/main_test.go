@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/mobiledevloperlab/nimote-host/internal/desktop"
@@ -74,16 +73,16 @@ func TestWindowCloseReopenAndQuitPreserveHostTask(t *testing.T) {
 	first.Show()
 	// Switching the display language must rebuild only the view, not restart
 	// Host or interrupt its active process.
-	var navigation *container.AppTabs
+	var navigation *widget.List
 	visitObjects(first.Content(), func(obj fyne.CanvasObject) {
-		if tabs, ok := obj.(*container.AppTabs); ok && len(tabs.Items) == 4 {
+		if tabs, ok := obj.(*widget.List); ok && tabs.Length() == len(navigationKeys) {
 			navigation = tabs
 		}
 	})
 	if navigation == nil {
 		t.Fatal("main navigation is missing")
 	}
-	navigation.SelectIndex(3)
+	navigation.Select(3)
 	var languageSelect *widget.Select
 	visitObjects(first.Content(), func(obj fyne.CanvasObject) {
 		if selectBox, ok := obj.(*widget.Select); ok && reflect.DeepEqual(selectBox.Options, languageNames) {

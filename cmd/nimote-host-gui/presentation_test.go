@@ -79,7 +79,7 @@ func TestOverviewDistinguishesStoppedFromUnavailableAndKeepsSafeActions(t *testi
 			t.Fatal("technical errors leaked onto the overview")
 		}
 	}
-	if len(u.tabs.Items) != 4 {
+	if len(u.pages) != 4 {
 		t.Fatal("advanced tools became top-level navigation")
 	}
 	for _, code := range languageCodes {
@@ -87,7 +87,7 @@ func TestOverviewDistinguishesStoppedFromUnavailableAndKeepsSafeActions(t *testi
 		if u.messages.code != code || u.app.Preferences().String("language") != code && code != "en" {
 			t.Fatal("language did not persist", code)
 		}
-		if u.tabs.Items[0].Text != u.t("nav.overview") {
+		if u.messages.t(navigationKeys[0]) != u.t("nav.overview") {
 			t.Fatal("navigation was not translated")
 		}
 	}
