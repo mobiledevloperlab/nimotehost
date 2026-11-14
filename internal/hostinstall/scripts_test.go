@@ -14,7 +14,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if os.Getenv("NIMOTE_HOST_INSTALL_TEST_HELPER") == "1" {
+	if os.Getenv("NIMOTEHOST_INSTALL_TEST_HELPER") == "1" {
 		if len(os.Args) > 1 && os.Args[1] == "run" {
 			fmt.Fprintln(os.Stderr, "build fixture failure")
 			os.Exit(23)
@@ -36,7 +36,7 @@ func TestDistributionInstallerInvokesSetup(t *testing.T) {
 	if err := os.MkdirAll(scripts, 0755); err != nil {
 		t.Fatal(err)
 	}
-	binary := "nimote-host"
+	binary := "nimotehost"
 	script := "install.sh"
 	shell := "sh"
 	if runtime.GOOS == "windows" {
@@ -71,7 +71,7 @@ func TestDistributionInstallerInvokesSetup(t *testing.T) {
 		args = []string{"-NoProfile", "-NonInteractive", "-File", scriptPath}
 	}
 	cmd := exec.Command(shell, args...)
-	cmd.Env = append(os.Environ(), "NIMOTE_HOST_INSTALL_TEST_HELPER=1")
+	cmd.Env = append(os.Environ(), "NIMOTEHOST_INSTALL_TEST_HELPER=1")
 	output, err := cmd.CombinedOutput()
 	if err != nil || strings.TrimSpace(string(output)) != "setup" {
 		t.Fatalf("installer failed: %v\n%s", err, output)
@@ -115,7 +115,7 @@ func TestDistributionInstallerInvokesSetup(t *testing.T) {
 	}
 	args = args[:len(args)-1] // Remove the help argument.
 	cmd = exec.Command(shell, args...)
-	cmd.Env = append(os.Environ(), "NIMOTE_HOST_INSTALL_TEST_HELPER=1")
+	cmd.Env = append(os.Environ(), "NIMOTEHOST_INSTALL_TEST_HELPER=1")
 	for i, value := range cmd.Env {
 		if strings.EqualFold(strings.SplitN(value, "=", 2)[0], "PATH") {
 			cmd.Env[i] = "PATH=" + fakeBin + string(os.PathListSeparator) + os.Getenv("PATH")

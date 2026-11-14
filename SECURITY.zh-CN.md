@@ -6,7 +6,7 @@ Host 以当前系统用户权限执行命令，本地 token 等价于该用户�
 通过已认证 SSH 使用，不要通过未认证代理暴露回环 HTTP 接口。不要在公开 issue 中发送
 token、Host 状态文件、私有项目输出或其他凭据。
 
-报告漏洞时，使用 Nimote Host GitHub 仓库的 **Security → Report a vulnerability**。
+报告漏洞时，使用 NimoteHost GitHub 仓库的 **Security → Report a vulnerability**。
 仓库所有者在创建公开仓库时应开启私密漏洞报告。如果该入口不可用，请通过维护者的
 GitHub 个人资料请求私密沟通渠道，初次联系不要包含利用细节或秘密。
 

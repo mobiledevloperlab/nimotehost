@@ -25,7 +25,7 @@ class HostExportTests(unittest.TestCase):
         for name in ['.github', 'cmd', 'internal', 'scripts', 'docs', 'tools', 'third_party', 'test']:
             (self.host / name).mkdir(exist_ok=True)
             (self.host / name / 'fixture.txt').write_text('public\n')
-        self.archive = self.root / 'dist/public/nimote-host-source.tar.gz'
+        self.archive = self.root / 'dist/public/nimotehost-source.tar.gz'
 
     def export(self):
         return subprocess.run(['bash', str(self.root / 'scripts/export-source.sh')],

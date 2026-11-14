@@ -2,7 +2,7 @@
 
 **English** | [简体中文](THIRD_PARTY_NOTICES.zh-CN.md)
 
-Nimote Host code and documentation are licensed under Apache-2.0. Third-party
+NimoteHost code and documentation are licensed under Apache-2.0. Third-party
 components retain their own copyrights and licenses; their original license
 texts are preserved in `third_party/`, and copied to `licenses/` in binary
 bundles. No third-party source code is vendored here.
@@ -48,7 +48,7 @@ Transitive modules, including build/test dependencies, are recorded below and in
 ## Desktop dependencies / 桌面依赖
 
 Fyne and its transitive dependencies are isolated in
-`cmd/nimote-host-gui/go.mod` / `go.sum`; the CLI dependency manifest is unchanged.
+`cmd/nimotehost-gui/go.mod` / `go.sum`; the CLI dependency manifest is unchanged.
 Desktop distributions carry `GUI-MODULES.json` and upstream LICENSE/COPYING/NOTICE
 files in `licenses-gui/`, in addition to the CLI licenses. The builder fails if a
 resolved desktop module has no root license file. Fyne uses the BSD 3-Clause

@@ -24,7 +24,7 @@ func TestRejectUnreviewedReleaseInputs(t *testing.T) {
 	}
 }
 func TestDependencyLicenseBoundary(t *testing.T) {
-	main := `{"Path":"github.com/mobiledevloperlab/nimote-host","Main":true}`
+	main := `{"Path":"github.com/mobiledevloperlab/nimotehost","Main":true}`
 	expected := []dependency{{Module: "example.org/lib", Version: "v1.0", Directory: "lib"}}
 	for _, data := range []string{main, main + `{"Path":"example.org/lib","Version":"v2.0"}`, main + `{"Path":"example.org/lib","Version":"v1.0","Replace":{"Path":"../private"}}`, main + `{"Path":"example.org/new","Version":"v1.0"}`} {
 		if inspectModules([]byte(data), expected) == nil {
@@ -37,11 +37,11 @@ func TestDependencyLicenseBoundary(t *testing.T) {
 }
 
 func TestModuleManifestOmitsLocalPaths(t *testing.T) {
-	data, err := moduleManifest([]byte(`{"Path":"github.com/mobiledevloperlab/nimote-host","Main":true,"Dir":"/private/project","GoMod":"/private/project/go.mod"}`))
+	data, err := moduleManifest([]byte(`{"Path":"github.com/mobiledevloperlab/nimotehost","Main":true,"Dir":"/private/project","GoMod":"/private/project/go.mod"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Contains(data, []byte("private")) || !bytes.Contains(data, []byte("github.com/mobiledevloperlab/nimote-host")) {
+	if bytes.Contains(data, []byte("private")) || !bytes.Contains(data, []byte("github.com/mobiledevloperlab/nimotehost")) {
 		t.Fatalf("unexpected public manifest: %s", data)
 	}
 }
@@ -51,7 +51,7 @@ func TestCopyTreePreservesExecutables(t *testing.T) {
 		t.Skip("Windows does not use POSIX executable bits")
 	}
 	source, target := t.TempDir(), t.TempDir()
-	for _, name := range []string{"nimote-host", "scripts/install.sh", "README.md"} {
+	for _, name := range []string{"nimotehost", "scripts/install.sh", "README.md"} {
 		mode := os.FileMode(0755)
 		if name == "README.md" {
 			mode = 0644
@@ -67,7 +67,7 @@ func TestCopyTreePreservesExecutables(t *testing.T) {
 	if err := copyTree(source, target); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"nimote-host", "scripts/install.sh", "README.md"} {
+	for _, name := range []string{"nimotehost", "scripts/install.sh", "README.md"} {
 		info, err := os.Stat(filepath.Join(target, name))
 		if err != nil || (info.Mode()&0111 != 0) != (name != "README.md") {
 			t.Fatalf("mode not preserved for %s: %v %v", name, info, err)

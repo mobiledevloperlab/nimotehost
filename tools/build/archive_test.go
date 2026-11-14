@@ -27,7 +27,7 @@ func TestDeployableArchives(t *testing.T) {
 			if err := os.MkdirAll(filepath.Join(directory, "docs"), 0755); err != nil {
 				t.Fatal(err)
 			}
-			name := "nimote-host"
+			name := "nimotehost"
 			if targetOS == "windows" {
 				name += ".exe"
 			}

@@ -23,7 +23,7 @@ func (a *structuredAgent) initializeACP() error {
 		version = 2
 	}
 	a.acp.version = version
-	return a.send(map[string]any{"id": "host-init", "method": "initialize", "params": map[string]any{"protocolVersion": version, "clientCapabilities": map[string]any{}, "clientInfo": map[string]string{"name": "nimote_host", "version": Version}}})
+	return a.send(map[string]any{"id": "host-init", "method": "initialize", "params": map[string]any{"protocolVersion": version, "clientCapabilities": map[string]any{}, "clientInfo": map[string]string{"name": "nimotehost", "version": Version}}})
 }
 
 // receiveACPResult projects SDK results into Host session state. IDs here are

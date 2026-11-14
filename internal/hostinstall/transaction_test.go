@@ -19,7 +19,7 @@ import (
 func bundle(t *testing.T, version string) string {
 	t.Helper()
 	root := t.TempDir()
-	files := map[string]string{"nimote-host": "binary " + version, "LICENSE": "Apache-2.0", "NOTICE": "Nimote contributors", "BUILD.json": "{}", "MODULES.json": "[]", "docs/readme.md": "fixture " + version}
+	files := map[string]string{"nimotehost": "binary " + version, "LICENSE": "Apache-2.0", "NOTICE": "Nimote contributors", "BUILD.json": "{}", "MODULES.json": "[]", "docs/readme.md": "fixture " + version}
 	var names []string
 	for name := range files {
 		names = append(names, name)
@@ -32,7 +32,7 @@ func bundle(t *testing.T, version string) string {
 			t.Fatal(err)
 		}
 		mode := os.FileMode(0644)
-		if name == "nimote-host" {
+		if name == "nimotehost" {
 			mode = 0755
 		}
 		if err := os.WriteFile(path, []byte(files[name]), mode); err != nil {
@@ -78,14 +78,14 @@ func TestInstallUpgradeAndRollbackPreserveWholeBundle(t *testing.T) {
 	if err := Verify(ctx, tx.Backup); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(filepath.Join(target, "nimote-host"))
+	data, err := os.ReadFile(filepath.Join(target, "nimotehost"))
 	if err != nil || string(data) != "binary new" {
 		t.Fatalf("%s %v", data, err)
 	}
 	if err := tx.Rollback(ctx); err != nil {
 		t.Fatal(err)
 	}
-	data, err = os.ReadFile(filepath.Join(target, "nimote-host"))
+	data, err = os.ReadFile(filepath.Join(target, "nimotehost"))
 	if err != nil || string(data) != "binary old" {
 		t.Fatalf("%s %v", data, err)
 	}
@@ -101,7 +101,7 @@ func TestRejectedBundlesLeaveInstallationUntouched(t *testing.T) {
 			target := bundle(t, "old")
 			switch name {
 			case "modified":
-				os.WriteFile(filepath.Join(source, "nimote-host"), []byte("tampered"), 0755)
+				os.WriteFile(filepath.Join(source, "nimotehost"), []byte("tampered"), 0755)
 			case "missing":
 				os.Remove(filepath.Join(source, "LICENSE"))
 			case "unlisted":
@@ -136,7 +136,7 @@ func TestRejectedBundlesLeaveInstallationUntouched(t *testing.T) {
 			if err == nil {
 				t.Fatal("unsafe bundle accepted")
 			}
-			data, err := os.ReadFile(filepath.Join(target, "nimote-host"))
+			data, err := os.ReadFile(filepath.Join(target, "nimotehost"))
 			if err != nil || string(data) != "binary old" {
 				t.Fatalf("existing installation changed: %s %v", data, err)
 			}
@@ -223,7 +223,7 @@ func TestActivateFailureRestoresOldDirectory(t *testing.T) {
 	if err := tx.Activate(context.Background()); err == nil {
 		t.Fatal("missing staging accepted")
 	}
-	data, err := os.ReadFile(filepath.Join(target, "nimote-host"))
+	data, err := os.ReadFile(filepath.Join(target, "nimotehost"))
 	if err != nil || string(data) != "binary old" {
 		t.Fatalf("old bundle not restored: %s %v", data, err)
 	}

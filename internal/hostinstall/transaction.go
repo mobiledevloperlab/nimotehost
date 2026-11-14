@@ -43,7 +43,7 @@ func Prepare(ctx context.Context, source, target string) (*Transaction, error) {
 	if err := os.Mkdir(tx.lock, 0700); err != nil {
 		return nil, fmt.Errorf("cannot acquire setup lock %s (another setup may be running): %w", tx.lock, err)
 	}
-	stage, err := os.MkdirTemp(filepath.Dir(target), ".nimote-host-stage-")
+	stage, err := os.MkdirTemp(filepath.Dir(target), ".nimotehost-stage-")
 	if err != nil {
 		_ = tx.Close()
 		return nil, err
@@ -77,7 +77,7 @@ func (tx *Transaction) Activate(ctx context.Context) error {
 		return errors.New("setup transaction already activated")
 	}
 	if _, err := os.Stat(tx.Target); err == nil {
-		backup, err := os.MkdirTemp(filepath.Dir(tx.Target), ".nimote-host-previous-")
+		backup, err := os.MkdirTemp(filepath.Dir(tx.Target), ".nimotehost-previous-")
 		if err != nil {
 			return err
 		}
@@ -108,7 +108,7 @@ func (tx *Transaction) Rollback(ctx context.Context) error {
 	if !tx.active {
 		return nil
 	}
-	failed, err := os.MkdirTemp(filepath.Dir(tx.Target), ".nimote-host-failed-")
+	failed, err := os.MkdirTemp(filepath.Dir(tx.Target), ".nimotehost-failed-")
 	if err != nil {
 		return err
 	}

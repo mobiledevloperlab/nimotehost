@@ -54,6 +54,9 @@ func TestFeatureDocumentationLayout(t *testing.T) {
 	}
 	names := make([]string, 0, len(entries))
 	for _, entry := range entries {
+		if entry.Name() == "nimotehost.png" {
+			continue
+		} // Original brand artwork, not a feature document.
 		if entry.IsDir() {
 			t.Fatalf("unexpected documentation directory: %s", entry.Name())
 		}

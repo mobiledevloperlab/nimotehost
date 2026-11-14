@@ -19,7 +19,19 @@ func DefaultDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(base, "nimote-host"), nil
+	return filepath.Join(base, "nimotehost"), nil
+}
+
+// CheckStateName prevents a status probe or a new GUI from creating a second
+// identity before setup has migrated a legacy installation.
+func CheckStateName(dir string) error {
+	legacy := filepath.Join(filepath.Dir(dir), "nimote-host")
+	if _, err := os.Lstat(legacy); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return errors.New("legacy Host state is present; close the old GUI and run nimotehost setup to migrate before using the new command")
 }
 
 func randomID() (string, error) {

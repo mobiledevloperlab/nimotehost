@@ -12,11 +12,11 @@ if ($Help) {
 }
 if ($args.Count -ne 0) { throw 'Unexpected argument. Use -Help.' }
 $bundleDir = Split-Path -Parent $PSScriptRoot
-$hostExe = Join-Path $bundleDir 'nimote-host.exe'
+$hostExe = Join-Path $bundleDir 'nimotehost.exe'
 if (-not ((Test-Path -LiteralPath $hostExe -PathType Leaf) -and
           (Test-Path -LiteralPath (Join-Path $bundleDir 'SHA256SUMS') -PathType Leaf))) {
     if (-not (Test-Path -LiteralPath (Join-Path $bundleDir 'tools/install/main.go') -PathType Leaf)) {
-        throw 'Complete Nimote Host source or distribution required.'
+        throw 'Complete NimoteHost source or distribution required.'
     }
     if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
         throw 'Source installation requires Go 1.26.5+. Prebuilt distributions do not need Go.'

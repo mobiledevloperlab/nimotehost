@@ -80,7 +80,7 @@ are supported subject to CI and the same clean-build checks.
 The GUI is a separate module. After UI changes, also run:
 
 ```sh
-cd cmd/nimote-host-gui
+cd cmd/nimotehost-gui
 go test -mod=readonly -race -tags ci ./...
 go vet ./...
 ```

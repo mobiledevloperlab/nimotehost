@@ -50,13 +50,13 @@ Windows PowerShell 使用 `.\scripts\install.ps1`。将二进制保存在远端�
 Windows PowerShell uses `.\scripts\install.ps1`; keep the installed path stable.
 
 ```sh
-nimote-host start             # 前台运行 / foreground
-nimote-host capabilities
-nimote-host status
-nimote-host install           # 当前用户后台服务 / per-user service
-nimote-host restart
-nimote-host stop
-nimote-host uninstall         # 移除服务，保留身份和记录 / retain identity and records
+nimotehost start             # 前台运行 / foreground
+nimotehost capabilities
+nimotehost status
+nimotehost install           # 当前用户后台服务 / per-user service
+nimotehost restart
+nimotehost stop
+nimotehost uninstall         # 移除服务，保留身份和记录 / retain identity and records
 ```
 
 Linux 注销后运行取决于 systemd 用户会话和 lingering 策略。macOS/Windows 用户服务
@@ -88,10 +88,10 @@ Native conversation resume creates a new managed process for that conversation.
 手机优先复用 SSH exec 或 `rpc-stream`；无需新的消息总线。
 
 ```sh
-printf '%s' '{"method":"GET","path":"/v1/capabilities"}' | nimote-host rpc
+printf '%s' '{"method":"GET","path":"/v1/capabilities"}' | nimotehost rpc
 ```
 
-跨平台可使用 `nimote-host rpc-encoded <base64(JSON)>`，不要把用户输入插入 shell 字符串。
+跨平台可使用 `nimotehost rpc-encoded <base64(JSON)>`，不要把用户输入插入 shell 字符串。
 `rpc-stream` 使用 JSONL：greeting `{"stream_protocol":1}`，请求携带 id/method/path/body，
 响应按 id 匹配，最多八个并发。关闭 bridge 不取消任务。
 Use encoded argv, not shell interpolation. Closing the RPC bridge only detaches clients.
@@ -206,8 +206,8 @@ there is no background/offline system push.
 
 ## MCP 与开发检查 / MCP and checks
 
-`nimote-host mcp` 使用 MCP `2025-11-25` stdio 生命周期，默认仅提供 host_capabilities、
-host_sessions、host_output；本地设置 `NIMOTE_HOST_MCP_WRITE=1` 才提供 host_start、host_cancel。
+`nimotehost mcp` 使用 MCP `2025-11-25` stdio 生命周期，默认仅提供 host_capabilities、
+host_sessions、host_output；本地设置 `NIMOTEHOST_MCP_WRITE=1` 才提供 host_start、host_cancel。
 MCP 不启动 daemon，不自动打开端口。依赖及授权见[第三方声明](../THIRD_PARTY_NOTICES.md)。
 
 Agent 适配继续放在原 Go provider 分支，复用 SDK、认证、启动探测、输出/事件和生命周期；
@@ -243,7 +243,7 @@ Audit findings and reuse boundaries:
 
 | 范围 / Area | 已有实现与处理 / Finding and decision |
 | --- | --- |
-| 入口 / Entry | cmd/nimote-host: help/version/setup/install/uninstall/start/stop/restart/status/capabilities/rpc/rpc-encoded/rpc-stream/mcp；参数与语义保留。 |
+| 入口 / Entry | cmd/nimotehost: help/version/setup/install/uninstall/start/stop/restart/status/capabilities/rpc/rpc-encoded/rpc-stream/mcp；参数与语义保留。 |
 | 生命周期 / Lifecycle | start 前台 daemon；状态锁、认证 shutdown、Manager.Close 托管进程树；GUI 仅客户端，未安装服务时 detached 启动独立 CLI。 |
 | Core | 原任务、32 活跃/256 保留会话、输出环、幂等、事件、Agent SDK、历史、MCP 全部保留。无需重新实现终端或 Agent。 |
 | SSH/认证 / Auth | SSH exec 携带 RPC，Host 不实现 SSH server；本地 256-bit Token + 用户权限已有，无逐设备身份/撤销。GUI 不扫描 authorized_keys 冒充手机清单。 |
@@ -251,7 +251,7 @@ Audit findings and reuse boundaries:
 | 服务 / Services | systemd user、launchd、Windows 登录计划任务；新增显式 CLI 路径构造器，避免原生服务错误启动 GUI。 |
 | 平台 / Platform | Unix PTY/flock/进程组；Windows ConPTY/Job Objects/LockFileEx/DACL；保留。GUI 启动使用 Unix setsid / Windows detached process group。 |
 | 配置 / Configuration | 原无配置文件，端口为固定 loopback；现新增共享私有 config.json，默认不变，停止 Host 才能修改。GUI 生命周期通过 control.lock 跨进程串行化。 |
-| 环境 / Environment | 原 NIMOTE_HOST_MCP_WRITE=1、Unix PATH/XDG_CONFIG_HOME、Windows LOCALAPPDATA、交互 SHELL 均保留。新增 Fyne 自身主题/首选项存储；不复制环境凭证。 |
+| 环境 / Environment | 原 NIMOTEHOST_MCP_WRITE=1、Unix PATH/XDG_CONFIG_HOME、Windows LOCALAPPDATA、交互 SHELL 均保留。新增 Fyne 自身主题/首选项存储；不复制环境凭证。 |
 | 发布 / Distribution | 原 tools/build、安装事务、许可证校验、源码导出和六目标 CLI 构建保留；-gui 原生附加构建，独立归档，打包 CLI 与 GUI 许可证。 |
 | 移动协议 / Protocol | Protocol=1、RPC 路径/请求/响应、能力协商不变；旧移动端通过同一已更新 CLI 读取端口。没有启用 P2P/DERP。 |
 
@@ -259,7 +259,7 @@ Audit findings and reuse boundaries:
 
 - `internal/desktop`: 认证 RPC facade、Host 状态、真实会话、Agent 快照/审批、
   跨进程启停锁、独立进程启动和脱敏诊断。它不导入 Fyne。
-- `cmd/nimote-host-gui`: 独立 Fyne module、四入口侧边导航、托盘、主题、六语言与管理界面。
+- `cmd/nimotehost-gui`: 独立 Fyne module、四入口侧边导航、托盘、主题、六语言与管理界面。
   系统托盘菜单与关闭拦截使用 [Fyne 原生接口](https://developer.fyne.io/explore/systray)。
 - `internal/host/config.go`, `log.go`: 私有共享配置、Host 锁下写入、64 KiB 有界日志。
   Token、Agent/终端输出不进入新运行日志；导出仅包括健康摘要，不包含运行日志。
@@ -324,7 +324,7 @@ go run ./tools/build -gui -version 1.0.0-dev
 - Windows arm64、Linux arm64 CLI 保留。GUI 可在对应原生桌面/SDK 下执行相同构建命令，
   但当前 GUI CI 已配置 Linux arm64 原生构建，但尚未执行验收；Windows arm64 GUI 未配置，不能当作已支持的 GUI 发布产物。
 
-`dist/gui-<os>-<arch>` 和 `nimote-host-gui-<version>-<os>-<arch>` 为桌面完整分发；
+`dist/gui-<os>-<arch>` 和 `nimotehost-gui-<version>-<os>-<arch>` 为桌面完整分发；
 原 CLI 名称不变。现有脚本可安装完整 GUI 包，保留整个固定安装目录。
 macOS 应启动已安装目录中的 app，不要在临时解压目录启用长期服务后删除它。
 同一 v* Tag 在所有必需 CI 成功后统一上传 CLI、GUI 与源码；所用 runner 标签参考
@@ -345,7 +345,7 @@ macOS arm64 GUI 原生编译、联合打包和真实图形启动通过，GUI 退
 
 ## 只读设备授权、历史与更新入口 / Observer devices, history and updates
 
-现新增 `nimote-host devices list|add <name>|revoke <id>` 与 GUI Devices 注册/撤销。
+现新增 `nimotehost devices list|add <name>|revoke <id>` 与 GUI Devices 注册/撤销。
 每个设备使用独立随机凭证，凭证保留在 Host 本机私有 devices 目录；记录存储凭证摘要。
 每次 HTTP 请求重新验证设备记录；撤销持久化后，旧 RPC stream 后续请求也失败。
 已经通过认证的在途请求可能完成，不承诺撤销会回滚此前已返回或已读取的数据。
@@ -359,7 +359,7 @@ credentials and defeat revocation. Existing full SSH accounts are not retroactiv
 
 Unix 管理员为每台设备准备独立 SSH 公钥，把 GUI 显示的 `restrict,command="..."`
 条目安装到对应账号的 authorized_keys，替换其中 PUBLIC-KEY 为真实公钥；该密钥不能
-同时保留不受限的登录条目。强制命令为固定绝对路径的 `nimote-host device-bridge <id>`，
+同时保留不受限的登录条目。强制命令为固定绝对路径的 `nimotehost device-bridge <id>`，
 仅接受原有 rpc/rpc-encoded/rpc-stream/status/capabilities 桥接，不执行 SSH 原始字符串。
 `restrict` 禁止转发、PTY 和 user rc；详见 [OpenSSH 官方说明](https://man.openbsd.org/sshd)。
 本功能不自动修改 SSH 配置，也不修改已有普通 SSH 密钥。Windows 需按服务器默认 shell

@@ -1,4 +1,4 @@
-module github.com/mobiledevloperlab/nimote-host
+module github.com/mobiledevloperlab/nimotehost
 
 go 1.26.5
 

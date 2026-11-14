@@ -2,7 +2,7 @@
 
 [English](THIRD_PARTY_NOTICES.md) | **简体中文**
 
-Nimote Host 自有代码和文档采用 Apache-2.0。第三方组件保留各自版权与许可证；
+NimoteHost 自有代码和文档采用 Apache-2.0。第三方组件保留各自版权与许可证；
 原文保存在源码的 `third_party/`，构建时复制到二进制分发目录的 `licenses/`。
 本仓库未内置第三方组件源码。
 
@@ -45,7 +45,7 @@ MCP SDK 的许可证说明了 Apache-2.0 / MIT 的迁移状态；应保留其完
 ## Desktop dependencies / 桌面依赖
 
 Fyne and its transitive dependencies are isolated in
-`cmd/nimote-host-gui/go.mod` / `go.sum`; the CLI dependency manifest is unchanged.
+`cmd/nimotehost-gui/go.mod` / `go.sum`; the CLI dependency manifest is unchanged.
 Desktop distributions carry `GUI-MODULES.json` and upstream LICENSE/COPYING/NOTICE
 files in `licenses-gui/`, in addition to the CLI licenses. The builder fails if a
 resolved desktop module has no root license file. Fyne uses the BSD 3-Clause

@@ -61,7 +61,7 @@ go.mod；更新的 Go 版本需通过 CI 和相同的干净构建检查。
 GUI 是独立模块，修改后还需运行：
 
 ```sh
-cd cmd/nimote-host-gui
+cd cmd/nimotehost-gui
 go test -mod=readonly -race -tags ci ./...
 go vet ./...
 ```

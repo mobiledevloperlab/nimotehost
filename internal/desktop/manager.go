@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mobiledevloperlab/nimote-host/internal/host"
-	"github.com/mobiledevloperlab/nimote-host/internal/hostservice"
+	"github.com/mobiledevloperlab/nimotehost/internal/host"
+	"github.com/mobiledevloperlab/nimotehost/internal/hostservice"
 )
 
 type Manager struct{ Dir, Binary string }
@@ -42,6 +42,9 @@ func New(binary string) (*Manager, error) {
 	}
 	if !filepath.IsAbs(binary) {
 		return nil, errors.New("bundled CLI path must be absolute")
+	}
+	if err := host.CheckStateName(dir); err != nil {
+		return nil, err
 	}
 	return &Manager{dir, binary}, nil
 }
@@ -286,7 +289,7 @@ func (m *Manager) Diagnostics(ctx context.Context) string {
 	if r := s.RequestStorage; r != nil {
 		storage = fmt.Sprintf("Request storage: %d/%d receipts (%d legacy); %d/%d bytes; capacity warning: %t", r.Receipts, r.ReceiptLimit, r.LegacyReceipts, r.Bytes+r.ReservedBytes, r.ByteLimit, r.CapacityWarning)
 	}
-	return fmt.Sprintf("Nimote Host Desktop\nObserved: %s\nState: %s\nHost: %s\nPlatform: %s\nHost version: %s\nLocal IPC: %s\nLAN: %s (SSH only; IPC is loopback)\nLogin service: %t\nSSH: externally managed; availability not probed\n%s\n%s\nError: %v\n", time.Now().Format(time.RFC3339), s.State, s.Name, s.Platform, s.Version, s.Address, strings.Join(s.LAN, ", "), s.Autostart, s.ServiceHelp, storage, err)
+	return fmt.Sprintf("NimoteHost Desktop\nObserved: %s\nState: %s\nHost: %s\nPlatform: %s\nHost version: %s\nLocal IPC: %s\nLAN: %s (SSH only; IPC is loopback)\nLogin service: %t\nSSH: externally managed; availability not probed\n%s\n%s\nError: %v\n", time.Now().Format(time.RFC3339), s.State, s.Name, s.Platform, s.Version, s.Address, strings.Join(s.LAN, ", "), s.Autostart, s.ServiceHelp, storage, err)
 }
 
 // AgentState is a fresh provider snapshot, never inferred from terminal text.

@@ -9,7 +9,7 @@ Do not send tokens, Host state files, private project output or credentials in
 public issues.
 
 For vulnerabilities, use GitHub's **Security → Report a vulnerability** in the
-Nimote Host repository. The repository owner must enable private vulnerability
+NimoteHost repository. The repository owner must enable private vulnerability
 reporting when creating the public repository. If the option is unavailable,
 contact the maintainer through the GitHub profile and request a private channel
 without including exploit details or secrets in the initial message.
