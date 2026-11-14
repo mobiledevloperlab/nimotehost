@@ -13,7 +13,7 @@ import (
 
 // ResourceLimits governs Host admission and supervised process lifetimes. It is
 // separate from GUI-owned config.json, so old clients cannot silently erase it.
-// Zero runtime means unlimited. CPU/RSS are rejected until containment exists.
+// Zero runtime means unlimited. Native quotas require a supported kernel containment backend.
 type ResourceLimits struct {
 	MaxActiveSessions   int    `json:"max_active_sessions"`
 	MaxRetainedSessions int    `json:"max_retained_sessions"`
@@ -21,6 +21,10 @@ type ResourceLimits struct {
 	MinFreeDiskBytes    uint64 `json:"min_free_disk_bytes"`
 	CPUPercent          int    `json:"cpu_percent,omitempty"`
 	MemoryBytes         uint64 `json:"memory_bytes,omitempty"`
+	MaxProcesses        int    `json:"max_processes,omitempty"`
+	CgroupRoot          string `json:"cgroup_root,omitempty"`
+	scopeName           string
+	identity            *ExecutionIdentity
 }
 
 func DefaultResourceLimits() ResourceLimits {
@@ -33,8 +37,8 @@ func (l ResourceLimits) Validate() error {
 	if l.MaxRuntimeSeconds < 0 || l.MaxRuntimeSeconds > 365*24*60*60 {
 		return errors.New("runtime limit must be between zero and one year")
 	}
-	if l.CPUPercent != 0 || l.MemoryBytes != 0 {
-		return errors.New("hard CPU and memory quotas are unsupported; use OS containment")
+	if err := validateNativeQuotas(l); err != nil {
+		return err
 	}
 	return nil
 }
@@ -102,7 +106,10 @@ func (m *Manager) enforceResources(now time.Time, diskErr error) {
 			continue
 		}
 		reason := diskErr
-		if m.limits.MaxRuntimeSeconds > 0 && now.Sub(item.session.Started) >= time.Duration(m.limits.MaxRuntimeSeconds)*time.Second {
+		if m.controllerRevoked(item.scope) {
+			reason = errors.New("controller authorization revoked")
+		}
+		if item.runtimeLimit > 0 && now.Sub(item.session.Started) >= time.Duration(item.runtimeLimit)*time.Second {
 			reason = fmt.Errorf("%w: session runtime exceeded", errResourceLimit)
 		}
 		if outputErr := item.output.failure(); outputErr != nil {
@@ -139,4 +146,21 @@ func (m *Manager) Resources() ResourceStatus {
 	free, err := availableDiskBytes(m.dir)
 	status.FreeDiskBytes, status.DiskAvailable = free, err == nil
 	return status
+}
+
+func nativeQuotaOptions(options []ResourceLimits) ResourceLimits {
+	if len(options) == 0 {
+		return ResourceLimits{}
+	}
+	return options[0]
+}
+func validateNativeQuotas(l ResourceLimits) error {
+	if l.CPUPercent < 0 || l.CPUPercent > 100 || l.MaxProcesses < 0 || l.MaxProcesses > 4096 || l.MemoryBytes > uint64(1<<63-1) || (l.MemoryBytes > 0 && l.MemoryBytes < 16<<20) {
+		return errors.New("invalid native quota: CPU 0..100, processes 0..4096, memory zero or at least 16 MiB")
+	}
+	return platformQuotaValidate(l)
+}
+
+func (m *Manager) nativeConstraints() bool {
+	return m.limits.CPUPercent > 0 || m.limits.MemoryBytes > 0 || m.limits.MaxProcesses > 0 || m.limits.CgroupRoot != ""
 }

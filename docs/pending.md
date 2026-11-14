@@ -11,10 +11,9 @@ Implemented behavior lives in [completed functionality](completed.md). Items bel
 - [ ] 统一 AI Session Dashboard：在现有 AI 模式按主机/工作区聚合会话、搜索与状态筛选；
   保存带观察时间的离线摘要，不将缓存伪装成实时状态。
   Unified AI-mode dashboard and timestamped cross-host offline summaries.
-- [ ] 完整控制设备隔离及执行 ACL：已实现独立设备逐请求撤销、Session 范围读取及安全取消/拒绝权限；
-  拥有同一 OS 用户任意命令执行权的客户端不在该隔离范围内。完整控制需独立系统身份或沙箱，
-  当前仍无设备任意执行、输入、批准等完整写权限隔离策略。Authenticated observer revocation is implemented;
-  scoped observation/safe-stop ACL is implemented; execution-capable isolation remains open.
+- [ ] 完整控制设备的跨平台执行隔离：Linux root + 私有有限额 cgroup v2 + 每会话专用 UID
+  已提供显式 opt-in 后端与原生验收；macOS/Windows 无独立身份后端，拒绝完整控制授权。
+  Linux 的 UID 号段须由管理员跨 Host 保留，Agent 账号/凭据须独立配置；不提供通用容器或网络沙箱。
 - [ ] 旧格式请求键迁移及容量运维：七天有效期的新格式请求键已支持安全在线轮换和容量告警；
   旧格式回执仍不可安全淘汰，达到保留数量/空间限额时继续拒绝新操作。
   不通过删除旧回执允许延迟重放；需配套客户端迁移和明确的旧协议退役方案。
@@ -74,19 +73,27 @@ Deleted historical reports are available in Git history and do not establish cur
 
 ## Host 加固剩余门槛 / Remaining hardening gates
 
-- [ ] 完整可执行控制设备：独立 OS 身份或经验证沙箱、凭证隔离、每会话完整写权限；
-  当前 session_operator 只支持安全取消/打断/拒绝，不能描述为完整控制。
-- [ ] Linux/macOS/Windows CPU、RSS、进程数和工作区写入硬配额；当前仅有应用层
-  会话/并发/输出/磁盘下限和运行时限，非零 CPU/内存配额配置明确拒绝。
-- [ ] Unix Host SIGKILL/系统崩溃、脱离进程组后代、历史 helper 后代的 OS 级回收与
-  所有权证明；不使用旧 PID 杀进程，不承诺断电后输出环的事务一致性。
-- [ ] 错误事件/Session 元数据的人工可审查修复流程；损坏事件日志当前保留原文件并
-  拒绝启动，不自动删文件恢复；旧幂等回执仍不可无条件清理。
-- [ ] 三平台原生执行新增 ACL/资源探测/进程回收测试，真实 SSH forced-command、
-  Agent 审批/对话恢复与长时间负载/OS 重启验收。交叉编译仅说明编译兼容。
-- [ ] 逐设备公平限流和连接级准入；当前 HTTP handler/历史 helper 限流与读写容量分离，
-  不等价于恶意同用户进程的资源隔离。非可关闭 io.Writer 的阻塞无法被通用接口强制取消。
+- [ ] macOS/Windows 完整控制设备的独立执行身份；现有 session_operator 仍仅安全停止/拒绝。
+- [ ] macOS 硬 CPU/内存/进程配额；Linux CPU 控制器在此次 WSL 测试层级未委派，
+  不自动修改全局控制器，不将配置拒绝标为 CPU enforcement 通过。
+- [ ] 工作区磁盘硬配额：目前仅 Host 磁盘下限、输出/事件/账本容量与有限任务数，
+  不限制任意工作区写入；应在专用卷/管理员文件系统配额下部署不可信任务。
+- [ ] 默认 Unix 非 cgroup 任务主动脱离进程组后的回收；配置 cgroup 的 Linux 已验证 setsid 后代撤权清理。
+  Host SIGKILL 的普通进程组已验证，不承诺 supervisor 也被外部强杀、内核崩溃或断电时事务完整。
+- [ ] 独立原生 Linux（非 WSL）、Windows/macOS 系统重启、登录/注销、长时间负载与安装升级回退验收；
+  原生系统调用测试通过不等价于这些运维场景已验证。
+- [ ] 真实 SSH forced-command/转发/SFTP 限制与撤销验收；现有直接 CLI/RPC 回归不能替代 sshd 集成。
+- [ ] 更广泛的真实 Agent 版本/模型/平台矩阵；三个提供方 + deepseek-flash 的批准、拒绝、去重、
+  对话恢复已实际验证，但不能代表全部 provider 版本。ACP v2 全量 message upsert、
+  background work、终端显示及复杂恢复状态仍需专项一致性验收。
+  Linux 隔离 UID 下真实 Agent、独立凭据及 AF_UNIX/io_uring 限制兼容也需专门验收；
+  已通过的三个真实模型流程在 macOS owner 会话中执行。
+- [ ] 独立安全审查、长期饱和/故障注入；非可关闭 io.Writer 的阻塞仍无法由通用接口强制终止。
+  Linux 执行身份仅保护私有 Host/会话权限，不隐藏世界可读文件，不限制 IP 网络，
+  不承担内核漏洞或其他 root 管理员配置错误的防护。
 
+已完成逐设备公平准入、有限连接、明确状态修复、Unix lifetime supervisor、
+Windows 原生硬配额和 Linux cgroup/专用 UID 后端；不再重复列为完全缺失。
 Implemented contract and rollback: [hardening audit](host-hardening.md).
 Actual verification and limitations: [hardening tests](host-hardening-tests.md).
 These remaining items prevent claiming that all P0/P1 release goals are complete.

@@ -14,8 +14,8 @@ read before implementation; existing protections are retained.
 | --- | --- | --- |
 | P0 identity | Owner token; observer credentials; per-request durable revocation; restricted SSH bridge | Add explicit session-scoped identities. Same-user arbitrary execution cannot be isolated by an HTTP ACL; do not grant shell/input/accept/configure through a purported sandbox. |
 | P0 approvals | SDK request correlation, local permission IDs, one-time ACP grants, durable mutation receipts, bounded queues | Validate optional Codex thread/turn context and active lifecycle before publishing permissions; invalidate queued replies at turn end; enforce offered native decisions. |
-| P0 resources | 32 active / 256 retained sessions; 16 MiB output; bounded ledger/history/events/frames | Add configurable admission/runtime/free-disk protection, bounded HTTP helper concurrency; report CPU/RSS quotas as unsupported rather than promise an unenforced limit. |
-| P0 processes | Host lock, persisted launch intent, interrupted recovery, graceful tree kill; Windows atomic kill-on-close jobs | Reap same-process-group Unix descendants after root exit. SIGKILL survival on Unix and escaped process groups need OS containment, not unsafe PID-based startup killing. |
+| P0 resources | 32 active / 256 retained sessions; 16 MiB output; bounded ledger/history/events/frames | Configurable admission/runtime/free-disk protection; Windows jobs and opt-in Linux cgroup v2 native quotas; unsupported configurations fail closed. |
+| P0 processes | Host lock, persisted launch intent, interrupted recovery, graceful tree kill; Windows atomic kill-on-close jobs | Use a lifetime-pipe supervisor and reap after owned-group cleanup; Linux delegated cgroups additionally contain escaped groups. Never guess ownership from stored PIDs. |
 | P0 transport | Eight bridge slots, 64 KiB output pages, retained cursors, cancelable long polls | Unblock closeable output on cancellation; reject duplicate in-flight correlation IDs; signal future output resynchronization; bound and validate persisted event files. |
 | P1 adapters | Shared structuredAgent / SDK / lifecycle; native provider controls and real handshakes | Consolidate provider launch/protocol descriptors; keep provider-specific wire semantics, avoid a second adapter hierarchy. |
 | P1 detection | PATH discovery and live protocol negotiation | Report installed paths and protocol requirements; version probing must be bounded and explicitly invoked, never execute CLIs on every capabilities poll. |
@@ -24,10 +24,10 @@ read before implementation; existing protections are retained.
 
 ## Release boundary / 发布边界
 
-This audit is not release certification. Native Linux/Windows, real restricted SSH,
-real Agent approval/resume and crash/system restart testing remain required.
-Full execution-capable device isolation, hard CPU/RSS quotas and Unix daemon-crash
-containment remain open unless explicitly implemented and verified below.
+This audit is not release certification. Native macOS/Windows and WSL Linux tests,
+Linux root-only execution-boundary acceptance and real Codex approval/resume are
+recorded separately from remaining native service/restart/SSH/other-Agent gates.
+See the [actual test record](host-hardening-tests.md) for completed runs.
 
 本轮不修改 UI/客户端、不新增云或依赖、不把交叉编译当作实机验收。
 
@@ -57,7 +57,7 @@ nimotehost devices revoke <device-id>
 
 受限 SSH key 必须仍使用 `restrict` 和固定绝对路径 `device-bridge <id>`；
 不得为同一 key 另留普通 Shell 登录。Host 不自动改写 SSH 配置。
-operator 是“安全停止/拒绝”权限，不是任意代码执行权限；完整执行隔离仍未完成。
+operator 是“安全停止/拒绝”权限；完整控制只提供给以下明确部署的 Linux 独立执行身份。
 所有新角色每次 HTTP 请求重新读私有记录并检查撤销。已有在途操作可能完成，
 撤销不回滚已读取数据。事件保留全局 cursor/resync 语义，仅过滤事件内容；
 全局游标仍可暴露主机活动时序，不能声称完全隐藏流量模式。
@@ -67,6 +67,45 @@ accepts only interrupt or approval/decline and requires its existing request key
 Permission checks precede receipt lookup. Device ledger keys are namespaced by
 principal; owner keys/fingerprints and old receipts keep their original storage
 contract. A guessed owner key cannot retrieve an owner receipt through a device.
+
+### Linux independent controller / Linux 独立控制身份
+
+`StartRequest.execution_identity={"uid":N,"gid":N}` is an owner-only, opt-in
+Linux execution boundary. Each UID/GID is 1000000..2147483646, unknown to NSS,
+unused by existing processes, reserved permanently in private `identities/` and
+bound to exactly one Session. Administrators must reserve this numeric pool across
+all Host instances and OS account creation. IDs are not automatically recycled.
+Workspace is a private UID-owned directory; Host and credential state remain root-private.
+
+Prerequisites: root Host, cgroup v2 delegated memory+pids, root-owned 0700 delegation
+with finite aggregate memory.max/pids.max, and a root-owned public-readable/executable
+Host binary under protected searchable ancestors (root-owned sticky /tmp permitted).
+No setuid binary or account creation is involved. Unsupported conditions reject before launch.
+Each isolated session defaults to 512 MiB/64 tasks/3600 seconds if that budget is unspecified.
+The guardian launches the target atomically into the cgroup and drops UID/GID and
+supplementary groups before executing user code. The final stage enables no_new_privs,
+filters AF_UNIX socket/socketpair and io_uring setup (which could bypass socket
+syscalls) to prevent privileged socket brokers escaping the
+job, lowers priority, and execs the command. Only amd64/arm64 are supported.
+The target inherits a minimal environment with HOME/TMPDIR=workspace, not owner
+API/SSH credentials. Provision required Agent credentials separately for this UID.
+This is an OS account boundary, not a filesystem/network container: world-readable
+files and IP networking remain available; administrator and kernel compromise are outside it.
+
+`devices add-controller <name> <session-id>...` grants up to 64 such sessions,
+with immutable UID bindings in `controllers/`. It allows scoped input/resize,
+Agent prompts/approval/configuration, cancellation and completed-session deletion.
+It cannot create sessions, run native-history helpers, access other sessions or
+manage the Host. Authorization verifies live backend prerequisites, sidecar identity,
+record, binding and revocation before receipt lookup. Input receipts also bind the
+principal. Revoking a controller rejects new requests immediately; the 250ms
+monitor kills its entire owned cgroup, including setsid descendants. Already read
+data/finished effects cannot be undone. Bindings/reservations survive deletion and
+revocation; a revoked UID cannot be reassigned to another device. A failed partial
+multi-session grant is not usable for bindings that were not durably written.
+
+Darwin/Windows return unsupported for execution_identity/controller grants. Ordinary
+same-account owner sessions and observer/operator behavior retain their established semantics.
 
 ### Native approvals / 原生审批
 
@@ -107,8 +146,18 @@ Defaults preserve 32 active/256 retained sessions and unlimited runtime, adding 
 64 MiB free-space floor. Limits may only tighten the existing session ceilings;
 retained must be at least active. Runtime is 0..31536000 seconds, zero unlimited.
 Disk floor zero explicitly disables that guard. Startup rejects invalid policy,
-unknown fields, null and nonzero cpu_percent/memory_bytes. Hard CPU/RSS limits
-are not silently ignored and capabilities advertise both as false.
+unknown fields and null. Optional cpu_percent (0..100), memory_bytes (zero or >=16 MiB),
+max_processes (0..4096) and cgroup_root are validated against the actual backend.
+Windows applies CPU hard cap, aggregate committed-memory limit and active process
+limit before atomic Job assignment. Linux requires a canonical cgroup v2 root with
+the requested controllers already delegated; cpu.max, memory.max/swap.max=0/oom.group
+and pids.max are written before clone3 cgroup assignment. Kernel/startup errors fail
+launch; constrained/isolated auto mode never bypasses a failure with terminal fallback.
+macOS rejects native quotas and cgroup_root. Capabilities report configured enforcement,
+not an invented successful operation. Linux tasks include threads; Windows counts
+processes. Memory is cgroup-charged memory on Linux, committed bytes on Windows,
+not a portable RSS promise. CPU percent covers available host CPU capacity (Linux
+uses runtime.NumCPU); no global cgroup controllers are auto-enabled.
 
 磁盘探测使用 Unix Statfs / Windows GetDiskFreeSpaceEx，不引入命令或依赖。
 准入在 Manager 锁下完成，超过并发/保留或磁盘不足则在创建会话文件和进程前拒绝。
@@ -117,9 +166,11 @@ are not silently ignored and capabilities advertise both as false.
 若文件系统已无法写入，持久化错误会记录日志；重启可能只能恢复为 interrupted，
 不承诺磁盘彻底耗尽时仍能写入完整失败记录。
 这些是尽力保护，不是内核配额：空间可在采样间隔耗尽，工作区可能在其他磁盘，
-用户代码仍可能大量占用 CPU/RSS 或写入任意可写位置。资源失败不会触发自动任务重试。
+未配置内核约束时用户代码仍可大量占用 CPU/内存；工作区写入硬配额尚未实现。资源失败不会触发自动任务重试。
 
-The daemon admits at most 64 read handlers and 16 mutation handlers separately,
+The daemon admits at most 128 TCP sockets, 64 device read handlers and 16 device
+mutation handlers separately, with per-device limits of 8 reads/2 mutations and
+a separate owner reserve of 8 reads/4 mutations,
 with at most four native-history helpers. Read/output pressure cannot consume the
 mutation reserve. HTTP admission returns 503/Retry-After; resource admission
 returns 429/Retry-After and survives receipt reload with its error classification.
@@ -129,15 +180,20 @@ the original failed structured session is retained for inspection.
 
 ### Lifecycle and transport / 生命周期与流式传输
 
-Unix process handles now kill the owned process group after root Wait and before
-reporting session completion. Windows retains atomic Job Object ownership and
-kill-on-close. Descendants that deliberately detach into another process group
-are outside the Unix guarantee. No recovery code kills a persisted PID: PID reuse
-must not turn recovery into termination of an unrelated process. SIGKILL/OS crash
-on Unix still requires OS-level containment; startup marks sessions interrupted
-without resurrecting or blindly reaping unidentified processes. Output persistence
-failure now triggers the same supervised termination path rather than allowing an
-unobservable process to keep running.
+On Unix a private re-exec guardian observes the Host lifetime pipe. Host SIGKILL,
+cancellation or target completion triggers cleanup. waitid(WNOWAIT) on Linux or
+kqueue NOTE_EXIT on macOS observes exit without reaping; the root PID remains
+pinned until group cleanup, preventing reuse races. The guardian stays outside the
+target's group, keeps PTY foreground job control working, and closes unused stdin.
+Without a cgroup, intentionally escaped groups remain outside this guarantee.
+With configured Linux cgroups, the guardian uses a pinned cgroup FD and cgroup.kill;
+restart cleanup uses validated Session `.scope` ownership evidence, never a stored
+numeric PID. Windows retains atomic Job assignment and kill-on-close ownership.
+Native history helpers share this lifecycle, bounded frames, context cancellation
+and joined wait workers. Output failure terminates the owned session.
+Host restart marks records interrupted; no live conversation/process resurrection
+is claimed. If the guardian itself is externally killed, or the kernel fails,
+this user-space pipe mechanism alone cannot establish cleanup/transaction durability.
 
 RPC streams retain eight in-flight slots and bounded frames; duplicate concurrent
 correlation IDs are rejected. Context cancellation closes closeable input/output
@@ -151,6 +207,19 @@ drains accepted calls; disconnect never owns daemon task cancellation.
 Session ID、严格递增 revision、溢出边界；损坏日志拒绝加载且保留原文件，
 不会自动删除账本、输出或活动历史来“修复”状态。
 
+### Explicit state recovery / 显式状态修复
+
+`nimotehost repair inspect` produces a SHA256-bound review plan for session JSON,
+identity sidecars and event journal. `repair apply <plan-id>` rechecks the plan
+under control+Host locks and requires Host stopped. Unknown filenames, unsafe or
+oversized records and insufficient backup space block repair. Before changes it
+writes private backup copies and plan, then commits a monotonic event-reset watermark,
+quarantines malformed metadata and rebuilds events. Older event cursors require
+resync even after a partial apply. Error diagnostics include the backup path.
+Receipts, credential files, revocations, output and activity are never reset/replayed.
+Corrupt ownership evidence requires operator review; repair does not infer process
+ownership from a filename/PID or resurrect tasks. No automatic destructive repair.
+
 ### Adapter and diagnostics / 扩展与诊断
 
 A narrow internal agentAdapter interface and shared CLI descriptors centralize
@@ -159,9 +228,17 @@ Codex/ACP retain their provider-specific wire behavior and shared SDK state mach
 Capabilities add an `agents` map with path/installed/protocol/protocol_version and
 probe_status=not_probed; these describe requirements, not successful negotiation.
 Actual availability remains gated by the existing live handshake.
+ACP v1 load/resume accepts its standard empty acknowledgement while preserving
+and checking the requested conversation ID. Claude ACP v2 initialization uses
+info/capabilities, prompt messageId acknowledges insertion rather than completion,
+state_update owns foreground completion, and tool-call permission subjects enter
+the same context/one-time approval checks. Unknown states remain busy; unknown or
+conflicting permission subjects fail closed. Legacy stopReason responses remain
+compatible. The broad approval umbrella stays conservative; full advanced v2
+message upsert/terminal display is not claimed by a minimal model acceptance run.
 
 `nimotehost agents` explicitly probes installed structured adapter executables
-with --version, with a two-second deadline each plus process cleanup, using the supervised native backend and
+with --version, using a two-second probe context and independently bounded supervisor startup/cleanup, plus
 8 KiB diagnostic tails. Statuses distinguish not_installed/not_probed/ok/failed/
 timeout/canceled. Version text is untrusted descriptive CLI output, not a protocol
 compatibility decision. Normal capability polling does not execute third-party
@@ -178,8 +255,10 @@ operational logs. Self-review and tests are not independent security approval.
 
 - Protocol remains 1; SSH/RPC/MCP routes and provider command interfaces remain.
   New capability flags: device_session_acl_v1, device_safe_control_v1,
-  resource_limits_v1, output_resync_v1; hard_cpu_limit/hard_memory_limit are false.
-- Session metadata schema is unchanged. Receipt resource_limited is optional;
+  resource_limits_v1, output_resync_v1, process_supervision_v1, isolated_execution_v1;
+  hard limits/isolated_execution_v1 depend on the configured OS backend.
+- Session JSON schema is unchanged; optional `.scope`, `identities/`, `controllers/`
+  and `event-reset` files carry new security/recovery state. Receipt resource_limited is optional;
   the existing ledger decoder ignores unknown fields. Owner receipt identity and
   retention watermarks are unchanged. Device principal namespaces affect only
   the newly supported device mutations.
@@ -187,14 +266,25 @@ operational logs. Self-review and tests are not independent security approval.
   Old Hosts reject new role records instead of treating them as unrestricted
   observers. Old ListDevices may fail on these records; this is a safe refusal,
   not a supported transparent management downgrade.
-- resources.json is additive; older binaries ignore it and do not enforce these
-  guards. Do not downgrade while relying on resource guards or scoped devices.
+- New resource fields are additive; previous hardened versions reject unknown fields,
+  older versions may ignore the entire policy. None enforce the new UID/cgroup boundary. Do not downgrade while relying on resource guards or scoped devices.
   Stop/await cleanup, back up private state, revoke scoped keys and remove their
-  SSH authorizations before an intentional binary downgrade. Retain the current
+  SSH authorizations before an intentional binary downgrade. Keep identity reservations
+  and controller bindings; remove new resource fields only after no session relies on them.
+  Newer event-reset watermarks must not be restored backwards. Old binaries do not
+  understand repaired-event resync, so use a fresh client cursor after downgrade. Retain the current
   ledger, retirement watermark and revocations when upgrading back; never restore
   an older snapshot over newer mutations or revocations. The backup is for
   reviewed recovery, not an automatic state rollback. Do not delete request
   receipts to make rollback work.
+- Windows management locks live beside the state directory and normalize the
+  legacy/current names, retaining exclusion across rename/rollback. Close older
+  GUI/CLI managers before upgrade: older binaries use the in-directory lock.
+  Private readers use protected share-delete handles; atomic publication uses
+  FileRenameInfoEx POSIX replacement on supported kernels, with a bounded legacy
+  sharing-conflict fallback. Failure never reports successful revocation; retries
+  only publish the same metadata, never rerun a user command. RunLog seeks under
+  its mutex instead of relying on a Windows append-only handle for truncation.
 - UI/client code and third-party dependencies are unchanged. The lifecycle test
   now compares stable status fields plus instance identity, because free disk is
   intentionally dynamic; it also verifies restart changes the instance ID.

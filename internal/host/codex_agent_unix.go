@@ -4,36 +4,27 @@
 package host
 
 import (
+	"io"
+	"os"
 	"os/exec"
 )
 
 const structuredAgentSupported = true
 
-func startStructuredAgent(cmd *exec.Cmd, a *structuredAgent) (processHandle, error) {
-	if err := configureStructuredCommand(cmd, a); err != nil {
-		return nil, err
+func startProtocolProcess(cmd *exec.Cmd, output, diagnostics io.Writer, options ...ResourceLimits) (processHandle, io.WriteCloser, error) {
+	if err := validateNativeQuotas(nativeQuotaOptions(options)); err != nil {
+		return nil, nil, err
 	}
-	prepareTask(cmd)
-	input, err := cmd.StdinPipe()
+	inputR, input, err := os.Pipe()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	a.input = input
-	a.prepareRPCTransport()
-	cmd.Stdout = &agentLines{writer: a.rpc.writer, onError: a.fail, ready: a.rpc.ready}
-	cmd.Stderr = &a.diagnostics
-	if err = cmd.Start(); err != nil {
-		_ = input.Close()
-		a.close()
-		return nil, err
+	defer inputR.Close()
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = inputR, output, diagnostics
+	process, _, err := startSupervisedProcess(cmd, false, options...)
+	if err != nil {
+		input.Close()
+		return nil, nil, err
 	}
-	a.stopProcess = func() error { return killProcess(cmd) }
-	a.startProtocolIO()
-	if err = a.initialize(); err != nil {
-		_ = killProcess(cmd)
-		_ = cmd.Wait()
-		a.close()
-		return nil, err
-	}
-	return &unixProcess{cmd}, nil
+	return process, input, nil
 }

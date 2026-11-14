@@ -57,23 +57,11 @@ func codexRPC(ctx context.Context, cwd, method string, params any) (json.RawMess
 	}
 	cmd.Dir = cwd
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
-	stdin, err := cmd.StdinPipe()
+	stdin, stdout, cleanup, err := startAgentQuery(ctx, cmd)
 	if err != nil {
 		return nil, err
 	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-	var stderr boundedBuffer
-	cmd.Stderr = &stderr
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("start Codex history adapter: %w", err)
-	}
-	defer func() {
-		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
-	}()
+	defer cleanup()
 
 	reader := &rpcConfiguredReader{Reader: stdout, configured: make(chan struct{})}
 	conn := acp.NewConnection(func(_ context.Context, method string, _ json.RawMessage) (any, *acp.RequestError) {

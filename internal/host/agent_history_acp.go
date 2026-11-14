@@ -42,27 +42,13 @@ func acpHistoryRPC(ctx context.Context, agent, cwd, method string, params any) (
 	}
 	cmd.Dir = cwdOrHome(cwd)
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
-	in, err := cmd.StdinPipe()
+	in, out, cleanup, err := startAgentQuery(ctx, cmd)
 	if err != nil {
 		return nil, acpHistoryReplay{}, err
 	}
-	out, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, acpHistoryReplay{}, err
-	}
-	var stderr boundedBuffer
-	cmd.Stderr = &stderr
-	if err := cmd.Start(); err != nil {
-		return nil, acpHistoryReplay{}, err
-	}
+	defer cleanup()
 	var conn *acp.Connection
-	defer func() {
-		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
-		if conn != nil {
-			<-conn.Done()
-		}
-	}()
+
 	// The SDK owns request IDs, pending responses, ordered notifications and
 	// disconnect/cancellation handling. Host only projects history updates.
 	var updatesMu sync.Mutex
@@ -91,10 +77,7 @@ func acpHistoryRPC(ctx context.Context, agent, cwd, method string, params any) (
 	version := adapter.ProtocolVersion()
 	initialized, err := acp.SendRequest[struct {
 		ProtocolVersion int `json:"protocolVersion"`
-	}](conn, ctx, "initialize", map[string]any{
-		"protocolVersion": version, "clientCapabilities": map[string]any{},
-		"clientInfo": map[string]string{"name": "nimotehost_history", "version": Version},
-	})
+	}](conn, ctx, "initialize", acpInitializeParams(version, "nimotehost_history"))
 	if err != nil {
 		return nil, acpHistoryReplay{}, err
 	}

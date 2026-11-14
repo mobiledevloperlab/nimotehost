@@ -28,7 +28,7 @@ func TestAdapterDescriptorsAndMissingInstallations(t *testing.T) {
 		t.Fatal("unknown adapter accepted")
 	}
 	caps := capabilities("host")
-	if !caps.Features["device_session_acl_v1"] || !caps.Features["resource_limits_v1"] || caps.Features["hard_cpu_limit"] || caps.Features["hard_memory_limit"] {
+	if !caps.Features["device_session_acl_v1"] || !caps.Features["resource_limits_v1"] || caps.Features["hard_cpu_limit"] != nativeQuotasSupported || caps.Features["hard_memory_limit"] != nativeQuotasSupported {
 		t.Fatal("incorrect capability declaration")
 	}
 	for name, info := range InspectAgents(context.Background()) {

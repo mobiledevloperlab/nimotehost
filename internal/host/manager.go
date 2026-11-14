@@ -25,6 +25,8 @@ type processHandle interface {
 
 type managed struct {
 	resourceError error
+	scope         *sessionScope
+	runtimeLimit  int64
 	activity      *activityJournal
 	userCanceled  bool
 	session       Session
@@ -48,6 +50,7 @@ type Manager struct {
 	revision     uint64
 	closed       bool
 	events       []Event
+	eventReset   uint64
 }
 
 func NewManager(dir string) (*Manager, error) {
@@ -70,6 +73,15 @@ func NewManagerWithLimits(dir string, limits ResourceLimits) (*Manager, error) {
 	if err := m.loadEvents(); err != nil {
 		return nil, err
 	}
+	if data, err := readPrivate(filepath.Join(dir, "event-reset")); err == nil {
+		if err := decodeJSON(data, &m.eventReset); err != nil || m.eventReset >= ^uint64(0)-1024 {
+			return nil, errors.New("invalid event reset watermark")
+		}
+		m.revision = max(m.revision, m.eventReset)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -82,7 +94,7 @@ func NewManagerWithLimits(dir string, limits ResourceLimits) (*Manager, error) {
 		if !validID(id) {
 			return nil, errors.New("invalid session filename")
 		}
-		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		data, err := readPrivateLimit(filepath.Join(dir, entry.Name()), 2<<20)
 		if err != nil {
 			return nil, err
 		}
@@ -141,7 +153,14 @@ func NewManagerWithLimits(dir string, limits ResourceLimits) (*Manager, error) {
 		}
 		done := make(chan struct{})
 		close(done)
-		m.sessions[id] = &managed{session: record, done: done, activity: activity}
+		scope, err := loadSessionScope(dir, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := recoverExecutionScope(scope, limits); err != nil {
+			return nil, err
+		}
+		m.sessions[id] = &managed{session: record, done: done, activity: activity, scope: scope}
 	}
 	return m, nil
 }
@@ -231,7 +250,14 @@ func resolveCommand(req *StartRequest) error {
 }
 
 func (m *Manager) start(req StartRequest) (Session, error) {
+	if req.Identity != nil {
+		identity := *req.Identity
+		req.Identity = &identity
+	}
 	if err := resolveCommand(&req); err != nil {
+		return Session{}, err
+	}
+	if err := validateExecutionIdentity(req.Identity, req.Directory, m.limits); err != nil {
 		return Session{}, err
 	}
 	m.mu.Lock()
@@ -258,6 +284,29 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 	if err != nil {
 		return Session{}, err
 	}
+	limits := m.limits
+	var scope *sessionScope
+	if req.Identity != nil {
+		identity := *req.Identity
+		if err := reserveExecutionIdentity(m.dir, id, identity); err != nil {
+			return Session{}, err
+		}
+		limits.identity = &identity
+		limits.scopeName = scopeName(m.dir, id)
+		if limits.MemoryBytes == 0 {
+			limits.MemoryBytes = 512 << 20
+		}
+		if limits.MaxProcesses == 0 {
+			limits.MaxProcesses = 64
+		}
+		if limits.MaxRuntimeSeconds == 0 {
+			limits.MaxRuntimeSeconds = 3600
+		}
+		scope = &sessionScope{Identity: identity, CgroupRoot: limits.CgroupRoot, Name: limits.scopeName, SessionID: id}
+		if err := saveJSON(filepath.Join(m.dir, id+".scope"), scope); err != nil {
+			return Session{}, err
+		}
+	}
 	path := filepath.Join(m.dir, id+".ring")
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 	if err != nil {
@@ -282,7 +331,7 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 		os.Remove(path)
 		return Session{}, err
 	}
-	item := &managed{session: record, output: output, done: make(chan struct{})}
+	item := &managed{session: record, output: output, done: make(chan struct{}), scope: scope, runtimeLimit: limits.MaxRuntimeSeconds}
 	item.activity = &activityJournal{path: filepath.Join(m.dir, id+".activity"), events: []Activity{}}
 	if err := item.activity.append("session_started", "running", "", 0); err != nil {
 		f.Close()
@@ -291,15 +340,18 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 		return Session{}, err
 	}
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	if req.Identity != nil {
+		cmd.Env = identityEnvironment(req.Identity, req.Directory)
+	}
 	if req.Interaction == "structured" {
 		item.agent = newStructuredAgent(req.Agent, output, req.Directory, record.ConversationID)
 		item.agent.executionPolicy = req.ExecutionPolicy
 		item.agent.onExecutionPolicy = func(policy string) error { return m.setExecutionPolicy(item, policy) }
 		item.agent.onConversationID = func(conversationID string) { m.setConversationID(item, conversationID) }
 		item.agent.onActivity = item.agentActivity
-		item.process, err = startStructuredAgent(cmd, item.agent)
+		item.process, err = startStructuredAgent(cmd, item.agent, limits)
 	} else {
-		item.process, item.terminal, err = startProcess(cmd, req.Kind != "task", output)
+		item.process, item.terminal, err = startProcess(cmd, req.Kind != "task", output, limits)
 	}
 	if err != nil {
 		f.Close()
@@ -651,7 +703,7 @@ func (m *Manager) delete(id string, probeOnly bool) error {
 	item.session.Revision = m.revision
 	item.session.State = "deleted"
 	m.emit(item.session)
-	for _, ext := range []string{".ring", ".log", ".activity"} {
+	for _, ext := range []string{".ring", ".log", ".activity", ".scope"} {
 		if err := os.Remove(filepath.Join(m.dir, id+ext)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
