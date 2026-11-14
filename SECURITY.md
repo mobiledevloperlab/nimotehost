@@ -14,7 +14,7 @@ reporting when creating the public repository. If the option is unavailable,
 contact the maintainer through the GitHub profile and request a private channel
 without including exploit details or secrets in the initial message.
 
-During the 1.0.0-dev phase, fixes target the latest development version only;
+During the 2.4.0 phase, fixes target the latest development version only;
 there is no support or response-time SLA. A public source release is not an
 assertion of a completed independent security audit or native device acceptance.
 
