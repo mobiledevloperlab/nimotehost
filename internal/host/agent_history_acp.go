@@ -32,26 +32,14 @@ type acpHistoryReplay struct {
 // ACP providers own their session stores. The Host asks their documented ACP
 // session/list and load/resume methods and never scans provider-private files.
 func acpHistoryRPC(ctx context.Context, agent, cwd, method string, params any) (json.RawMessage, acpHistoryReplay, error) {
-	var path string
-	var args []string
-	switch agent {
-	case "opencode":
-		var err error
-		path, err = exec.LookPath("opencode")
-		if err != nil {
-			return nil, acpHistoryReplay{}, errors.New("OpenCode is not installed")
-		}
-		args = []string{"acp"}
-	case "claude":
-		var err error
-		path, err = exec.LookPath("claude-agent-acp")
-		if err != nil {
-			return nil, acpHistoryReplay{}, errors.New("Claude ACP adapter is not installed")
-		}
-	default:
+	adapter, ok := lookupAgentAdapter(agent)
+	if !ok || adapter.Protocol() != "acp" {
 		return nil, acpHistoryReplay{}, errors.New("unsupported ACP history provider")
 	}
-	cmd := exec.CommandContext(ctx, path, args...)
+	cmd := exec.CommandContext(ctx, adapter.Executable())
+	if err := adapter.ConfigureCommand(cmd); err != nil {
+		return nil, acpHistoryReplay{}, err
+	}
 	cmd.Dir = cwdOrHome(cwd)
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 	in, err := cmd.StdinPipe()
@@ -100,10 +88,7 @@ func acpHistoryRPC(ctx context.Context, agent, cwd, method string, params any) (
 	conn.SetLogger(slog.New(slog.DiscardHandler))
 	close(reader.configured)
 	// Killing and reaping the child closes stdout and shuts down the SDK reader.
-	version := 1
-	if agent == "claude" {
-		version = 2
-	}
+	version := adapter.ProtocolVersion()
 	initialized, err := acp.SendRequest[struct {
 		ProtocolVersion int `json:"protocolVersion"`
 	}](conn, ctx, "initialize", map[string]any{

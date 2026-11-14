@@ -74,6 +74,8 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		return setup(ctx, dir, stdout)
 	case "rpc-stream":
 		return host.ServeRPCStream(ctx, dir, stdin, stdout)
+	case "agents":
+		return json.NewEncoder(stdout).Encode(host.InspectAgents(ctx))
 	case "mcp":
 		return host.ServeMCP(ctx, dir, stdin, stdout, os.Getenv("NIMOTEHOST_MCP_WRITE") == "1")
 	case "start":

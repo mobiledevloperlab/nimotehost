@@ -12,7 +12,8 @@ on amd64 and arm64. Full native-platform and mobile/Agent acceptance remains
 outstanding; see
 [pending functionality](docs/pending.md).
 
-Current documentation: [completed functionality](docs/completed.md) and [pending functionality](docs/pending.md).
+Current functionality: [completed](docs/completed.md) and [pending](docs/pending.md).
+Hardening decisions and verification: [audit](docs/host-hardening.md) and [test results](docs/host-hardening-tests.md).
 
 ## Deploy a prebuilt release
 

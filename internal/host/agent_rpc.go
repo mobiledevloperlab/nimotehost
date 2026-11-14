@@ -112,13 +112,16 @@ func (a *structuredAgent) handleAgentRPC(ctx context.Context, method string, par
 		a.mu.Unlock()
 		return nil, acp.NewRequestCancelled(nil)
 	}
-	if a.acp == nil {
+	if ctx.Err() != nil {
 		a.mu.Unlock()
+		return nil, acp.NewRequestCancelled(nil)
+	}
+	if a.acp == nil {
 		if method != "item/commandExecution/requestApproval" && method != "item/fileChange/requestApproval" {
-			a.receiveCodex(codexFrame{Method: method, Params: params})
+			a.receiveCodexLocked(codexFrame{Method: method, Params: params})
+			a.mu.Unlock()
 			return nil, acp.NewMethodNotFound(method)
 		}
-		a.mu.Lock()
 	} else if method == "session/update" {
 		a.updateACP(params)
 		a.mu.Unlock()
@@ -126,6 +129,10 @@ func (a *structuredAgent) handleAgentRPC(ctx context.Context, method string, par
 	} else if method != "session/request_permission" {
 		a.mu.Unlock()
 		return nil, acp.NewMethodNotFound(method)
+	}
+	if !a.validPermissionContext(params) {
+		a.mu.Unlock()
+		return nil, acp.NewInvalidParams(map[string]string{"error": "permission does not belong to the active session/turn"})
 	}
 	if result, approved := a.automaticApproval(method, params); approved {
 		a.mu.Unlock()
@@ -151,9 +158,7 @@ func (a *structuredAgent) handleAgentRPC(ctx context.Context, method string, par
 			return nil, acp.NewInternalError(map[string]string{"error": err.Error()})
 		}
 	} else {
-		a.mu.Unlock()
-		a.receiveCodex(codexFrame{ID: id, Method: method, Params: params})
-		a.mu.Lock()
+		a.receiveCodexLocked(codexFrame{ID: id, Method: method, Params: params})
 	}
 	a.mu.Unlock()
 	defer func() {

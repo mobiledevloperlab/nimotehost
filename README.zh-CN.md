@@ -9,7 +9,8 @@ NimoteHost 是通过既有认证 SSH 使用的独立 Go 服务，可托管持久
 当前是 **`1.0.0-dev` 开发预览版**，提供 Linux、macOS、Windows 的 amd64/arm64 构建。
 完整原生平台和移动客户端/Agent 验收仍待完成，见[未完成功能](docs/pending.md)。
 
-当前文档仅保留[已完成功能](docs/completed.md)和[未完成功能](docs/pending.md)。
+功能状态见[已完成功能](docs/completed.md)和[未完成功能](docs/pending.md)；
+加固决策与验证见[加固审计](docs/host-hardening.md)和[测试记录](docs/host-hardening-tests.md)。
 
 ## 部署预编译版本
 

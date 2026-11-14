@@ -18,10 +18,8 @@ type acpState struct {
 }
 
 func (a *structuredAgent) initializeACP() error {
-	version := 1
-	if a.provider == "claude" {
-		version = 2
-	}
+	adapter, _ := lookupAgentAdapter(a.provider)
+	version := adapter.ProtocolVersion()
 	a.acp.version = version
 	return a.send(map[string]any{"id": "host-init", "method": "initialize", "params": map[string]any{"protocolVersion": version, "clientCapabilities": map[string]any{}, "clientInfo": map[string]string{"name": "nimotehost", "version": Version}}})
 }
@@ -114,6 +112,7 @@ func (a *structuredAgent) receiveACPResult(id string, payload, rpcError json.Raw
 	}
 }
 func (a *structuredAgent) finishACP(status string) {
+	a.rejectPendingPermissions()
 	a.lastTurnStatus = status
 	a.acp.canceling = false
 	a.busy = false
@@ -133,8 +132,8 @@ func (a *structuredAgent) messageACP(req AgentMessage) error {
 	if req.RequestID == "" || len(req.RequestID) > 128 {
 		return errors.New("request_id is required (maximum 128 bytes)")
 	}
-	if a.seen[req.RequestID] {
-		return nil
+	if replayed, err := a.replayedMessage(req); replayed {
+		return err
 	}
 	if req.Action != "interrupt" && req.Action != "approval" && len(a.seen) >= 4096 {
 		return errors.New("session request limit reached; start a new session")
@@ -157,7 +156,7 @@ func (a *structuredAgent) messageACP(req AgentMessage) error {
 		frame = map[string]any{"id": id, "method": "session/prompt", "params": map[string]any{"sessionId": a.thread, "prompt": []any{map[string]string{"type": "text", "text": req.Text}}}}
 	case "discover":
 		a.publishControls()
-		a.seen[req.RequestID] = true
+		a.rememberMessage(req)
 		return nil
 	case "configure":
 		if req.OptionID == executionPolicyOption {
@@ -225,7 +224,7 @@ func (a *structuredAgent) messageACP(req AgentMessage) error {
 	} else if err := a.send(frame); err != nil {
 		return err
 	}
-	a.seen[req.RequestID] = true
+	a.rememberMessage(req)
 	switch req.Action {
 	case "configure":
 		a.configuring = true

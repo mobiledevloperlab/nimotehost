@@ -45,6 +45,12 @@ type unixProcess struct{ cmd *exec.Cmd }
 
 func (p *unixProcess) Wait() (int, error) {
 	err := p.cmd.Wait()
+	// Root completion ends ownership of its process group. Do not leave
+	// descendants running after the session reports completion.
+	err = errors.Join(err, killProcess(p.cmd))
+	if p.cmd.ProcessState == nil {
+		return -1, err
+	}
 	return p.cmd.ProcessState.ExitCode(), err
 }
 func (p *unixProcess) Kill() error  { return killProcess(p.cmd) }

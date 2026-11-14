@@ -1,6 +1,6 @@
 # 已完成功能 / Completed functionality
 
-English / 简体中文 · `1.0.0-dev` · 更新 / Updated: 2026-11-13
+English / 简体中文 · `1.0.0-dev` · 更新 / Updated: 2026-11-14
 
 本文只描述当前源码已实现的功能、使用方式与边界。未完成能力和验收统一见
 [未完成功能](pending.md)。已实现不等于所有平台、手机和真实模型均已验收。
@@ -246,7 +246,7 @@ Audit findings and reuse boundaries:
 | 入口 / Entry | cmd/nimotehost: help/version/setup/install/uninstall/start/stop/restart/status/capabilities/rpc/rpc-encoded/rpc-stream/mcp；参数与语义保留。 |
 | 生命周期 / Lifecycle | start 前台 daemon；状态锁、认证 shutdown、Manager.Close 托管进程树；GUI 仅客户端，未安装服务时 detached 启动独立 CLI。 |
 | Core | 原任务、32 活跃/256 保留会话、输出环、幂等、事件、Agent SDK、历史、MCP 全部保留。无需重新实现终端或 Agent。 |
-| SSH/认证 / Auth | SSH exec 携带 RPC，Host 不实现 SSH server；本地 256-bit Token + 用户权限已有，无逐设备身份/撤销。GUI 不扫描 authorized_keys 冒充手机清单。 |
+| SSH/认证 / Auth | SSH exec 携带 RPC，Host 不实现 SSH server；本地 256-bit Token + 用户权限；后续补充独立 observer 和 Session 范围身份/撤销。GUI 不扫描 authorized_keys 冒充手机清单。 |
 | IPC | 原认证 loopback HTTP 满足已有 IPC 优先复用原则；没有增加管理 HTTP 端口，也没有新增 UDS/Named Pipe 或公开监听。 |
 | 服务 / Services | systemd user、launchd、Windows 登录计划任务；新增显式 CLI 路径构造器，避免原生服务错误启动 GUI。 |
 | 平台 / Platform | Unix PTY/flock/进程组；Windows ConPTY/Job Objects/LockFileEx/DACL；保留。GUI 启动使用 Unix setsid / Windows detached process group。 |
@@ -351,9 +351,9 @@ macOS arm64 GUI 原生编译、联合打包和真实图形启动通过，GUI 退
 已经通过认证的在途请求可能完成，不承诺撤销会回滚此前已返回或已读取的数据。
 其他设备、owner Token 与运行任务不受影响。列表不返回原始凭证或摘要。
 
-设备默认且仅支持 observer：允许状态、能力、会话元数据、会话输出、activity 和 Agent
+原有 `devices add` 默认创建 observer：允许状态、能力、会话元数据、会话输出、activity 和 Agent
 状态读取；禁止任务创建/输入/审批/停机/原生历史 helper 等所有写入或进程启动入口。
-observer 可看到该账号的会话输出，授权前应确认该可见范围；当前没有每会话读 ACL。
+observer 可看到该账号的会话输出，授权前应确认该可见范围；新增 Session 范围身份可限制读取；原有 observer 仍为账号范围读取。
 Devices are read-only because unrestricted same-user command execution would expose owner
 credentials and defeat revocation. Existing full SSH accounts are not retroactively isolated.
 
@@ -385,3 +385,32 @@ Settings 可显式查询官方 GitHub 最新发行版，并在用户确认后打
 真实 CLI device-bridge 集成、旧 RPC stream 后续请求撤销、持久撤销、其他设备和 owner
 隔离、越权写入拒绝均通过。权限边界模糊测试约 51 万次未失败。该结论不包含真实 SSH
 服务器 key 配置、物理手机、Windows/Linux 图形环境或完整控制设备的安全验收。
+
+
+## Host 加固增量 / Host hardening increment
+
+2026-11-14：保持 Protocol 1、SSH/RPC/MCP 和 Session 存储格式，未修改 UI/客户端。
+
+- 新增 Session 范围的 session_observer / session_operator 身份与
+  `devices add-scoped`；列表、事件和单项读取均检查范围。operator 仅可取消、
+  打断与拒绝审批，不能启动命令、输入终端、批准或修改策略。旧 observer 保持原语义。
+- 审批在同一锁内校验活动上下文并发布；轮次结束清除原生等待句柄，丢弃未发送的旧批准；
+  手动批准遵循 provider 提供的单次决策。新设备写请求使用独立主体的持久回执键空间。
+- 独立私有 resources.json 支持收紧会话上限、运行时限和磁盘下限；进程输出失败、
+  运行超时和低磁盘空间走现有进程终止/失败保存路径。CPU/RSS 硬配额明确不支持。
+  Agent auto 初始化因资源/输出失败时保留失败会话，不再启动终端后备进程。
+- HTTP 读/写分别限并发，历史 helper 限四个；流式 RPC 拒绝同时重复 ID，
+  取消时释放可关闭的阻塞输出；输出新增 resync_required，保留旧 offset 行为。
+- Unix 根进程结束时回收同进程组后代；不按持久 PID 猜测并杀进程，不承诺 Unix
+  Host 崩溃或主动脱离进程组后的回收。Windows 继续使用原有 Job Objects。
+- 共享 Agent Adapter 启动/协议描述；capabilities 新增安装信息；本地
+  `nimotehost agents` 显式执行有界版本探测。status 新增资源信息和 daemon instance_id，
+  错误新增 code 分类，现有 error 字段保留。
+
+Implemented: scoped read/safe-stop identities, approval lifecycle guards, resource
+admission/supervision, bounded HTTP/stream behavior, Unix same-group cleanup and
+shared adapter descriptors/explicit probes. These are not full execution isolation,
+hard CPU/RSS quotas or release certification.
+
+权限、配置、资源语义、兼容与回滚见 [Host 加固审计](host-hardening.md)；
+实际测试和平台边界见 [加固测试记录](host-hardening-tests.md)。

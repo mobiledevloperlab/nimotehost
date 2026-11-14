@@ -21,6 +21,10 @@ type codexFrame struct {
 func (a *structuredAgent) receiveCodex(f codexFrame) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.receiveCodexLocked(f)
+}
+
+func (a *structuredAgent) receiveCodexLocked(f codexFrame) {
 	if a.closed {
 		return
 	}
@@ -31,6 +35,7 @@ func (a *structuredAgent) receiveCodex(f codexFrame) {
 			case "item/commandExecution/requestApproval", "item/fileChange/requestApproval":
 				a.approvals[key] = append(json.RawMessage(nil), f.ID...)
 				detail := approvalDetail(key, f.Method, f.Params)
+				detail["accept_allowed"] = codexDecisionAllowed(f.Params, "accept")
 				if item := a.activeItems[fmt.Sprint(detail["item_id"])]; item != nil {
 					if detail["command"] == "" && detail["kind"] == "command" {
 						detail["command"] = item["title"]
@@ -69,6 +74,7 @@ func (a *structuredAgent) receiveCodex(f codexFrame) {
 			a.emit("turn_completed", map[string]string{"status": "completed"})
 		}
 		if f.Method == "turn/completed" {
+			a.rejectPendingPermissions()
 			a.lastTurnStatus = "unknown"
 			var p struct {
 				Turn struct {
@@ -198,8 +204,8 @@ func (a *structuredAgent) message(req AgentMessage) error {
 	if req.RequestID == "" || len(req.RequestID) > 128 {
 		return errors.New("request_id is required (maximum 128 bytes)")
 	}
-	if a.seen[req.RequestID] {
-		return nil
+	if replayed, err := a.replayedMessage(req); replayed {
+		return err
 	}
 	// Stop new work at the limit, but allow the active turn to be drained.
 	// Keep control IDs too: a late retry must never interrupt a later turn.
@@ -257,7 +263,7 @@ func (a *structuredAgent) message(req AgentMessage) error {
 		if err := a.configureCodex(req.OptionID, req.Value); err != nil {
 			return err
 		}
-		a.seen[req.RequestID] = true
+		a.rememberMessage(req)
 		return nil
 	case "compact":
 		if a.thread == "" || a.busy || a.configuring {
@@ -277,6 +283,9 @@ func (a *structuredAgent) message(req AgentMessage) error {
 		if req.Decision != "accept" && req.Decision != "decline" {
 			return errors.New("decision must be accept or decline")
 		}
+		if allowed, present := a.approvalDetails[req.ApprovalID]["accept_allowed"]; req.Decision == "accept" && present && allowed != true {
+			return errors.New("agent did not offer one-time approval")
+		}
 		frame = map[string]any{"id": rpcID, "result": map[string]string{"decision": req.Decision}}
 	default:
 		return errors.New("unknown agent action")
@@ -284,7 +293,7 @@ func (a *structuredAgent) message(req AgentMessage) error {
 	if err := a.send(frame); err != nil {
 		return err
 	}
-	a.seen[req.RequestID] = true
+	a.rememberMessage(req)
 	switch req.Action {
 	case "steer":
 		if a.steers == nil {

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -21,13 +22,14 @@ var errRequestUncertain = errors.New("request outcome is uncertain; inspect the 
 // A reservation without a result is never executed again. Exactly-once execution
 // cannot be promised across a process/terminal write and a filesystem transaction.
 type requestRecord struct {
-	CreatedAt   int64           `json:"created_at,omitempty"`
-	Fingerprint string          `json:"fingerprint"`
-	Complete    bool            `json:"complete"`
-	Result      json.RawMessage `json:"result,omitempty"`
-	Error       string          `json:"error,omitempty"`
-	Uncertain   bool            `json:"uncertain,omitempty"`
-	NotFound    bool            `json:"not_found,omitempty"`
+	CreatedAt       int64           `json:"created_at,omitempty"`
+	Fingerprint     string          `json:"fingerprint"`
+	Complete        bool            `json:"complete"`
+	Result          json.RawMessage `json:"result,omitempty"`
+	Error           string          `json:"error,omitempty"`
+	Uncertain       bool            `json:"uncertain,omitempty"`
+	NotFound        bool            `json:"not_found,omitempty"`
+	ResourceLimited bool            `json:"resource_limited,omitempty"`
 }
 
 type requestLedger struct {
@@ -85,7 +87,15 @@ func runOnce[T any](m *Manager, id, operation string, payload any, run func() (T
 		return zero, err
 	}
 	hash := sha256.Sum256(append([]byte(operation+"\x00"), encoded...))
-	key := sha256.Sum256([]byte(id))
+	keyID := id
+	if strings.HasPrefix(operation, "device/") {
+		parts := strings.SplitN(operation, "/", 3)
+		if len(parts) != 3 || !validID(parts[1]) {
+			return zero, errors.New("invalid mutation principal")
+		}
+		keyID = "device/" + parts[1] + "\x00" + id
+	}
+	key := sha256.Sum256([]byte(keyID))
 	ledger := m.requests
 	path := filepath.Join(ledger.dir, hex.EncodeToString(key[:]))
 	fingerprint := hex.EncodeToString(hash[:])
@@ -122,6 +132,9 @@ func runOnce[T any](m *Manager, id, operation string, payload any, run func() (T
 			return zero, errRequestUncertain
 		}
 		if record.Error != "" {
+			if record.ResourceLimited {
+				return zero, errors.Join(errResourceLimit, errors.New(record.Error))
+			}
 			if record.Uncertain {
 				return zero, errors.Join(errRequestUncertain, errors.New(record.Error))
 			}
@@ -184,6 +197,7 @@ func runOnce[T any](m *Manager, id, operation string, payload any, run func() (T
 		record.Error = runErr.Error()
 		record.Uncertain = errors.Is(runErr, errRequestUncertain)
 		record.NotFound = errors.Is(runErr, os.ErrNotExist)
+		record.ResourceLimited = errors.Is(runErr, errResourceLimit)
 	}
 	record.Complete = true
 	final, err := json.Marshal(record)
