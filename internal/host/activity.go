@@ -13,7 +13,10 @@ import (
 	"time"
 )
 
-const maxActivityEvents = 256
+const (
+	maxActivityEvents = 256
+	maxActivityBytes  = 256 << 10
+)
 
 // Activity is a small history reference, never a second copy of terminal/tool
 // content. OutputOffset points into the existing rolling byte log.
@@ -63,11 +66,11 @@ func loadActivity(path string) (*activityJournal, error) {
 		return nil, err
 	}
 	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, (256<<10)+1))
+	data, err := io.ReadAll(io.LimitReader(f, maxActivityBytes+1))
 	if err != nil {
 		return nil, err
 	}
-	if len(data) > 256<<10 {
+	if len(data) > maxActivityBytes {
 		return nil, errors.New("session activity exceeds retention limit")
 	}
 	if err := json.Unmarshal(data, &j.events); err != nil {
@@ -100,11 +103,39 @@ func (j *activityJournal) append(kind, state, reference string, offset int64) er
 		reference = ""
 	}
 	event := Activity{Sequence: seq, Type: kind, State: state, ReferenceID: reference, OutputOffset: offset, Time: time.Now().UTC()}
+	encodedEvent, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	// Reject one oversized event without losing history or advancing its cursor.
+	if len(encodedEvent)+2 > maxActivityBytes {
+		return errors.New("session activity event exceeds retention limit")
+	}
 	next := append(append([]Activity(nil), j.events...), event)
 	if len(next) > maxActivityEvents {
 		next = next[len(next)-maxActivityEvents:]
 	}
-	if err := saveJSON(j.path, next); err != nil {
+	encoded, err := json.Marshal(next)
+	if err != nil {
+		return err
+	}
+	size, drop := len(encoded), 0
+	for size > maxActivityBytes {
+		oldest, err := json.Marshal(next[drop])
+		if err != nil {
+			return err
+		}
+		size -= len(oldest) + 1 // The removed event and its separating comma.
+		drop++
+	}
+	if drop > 0 {
+		next = append([]Activity(nil), next[drop:]...)
+		encoded, err = json.Marshal(next)
+		if err != nil {
+			return err
+		}
+	}
+	if err := atomicWrite(j.path, encoded); err != nil {
 		j.failure = err
 		slog.Warn("persist session activity", "error", err)
 		return err

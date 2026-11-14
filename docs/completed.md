@@ -193,7 +193,7 @@ Unix 状态文件替换同步文件内容和父目录；Windows 保留文件刷�
 | 会话 / Sessions | 32 active，256 retained |
 | 输出 / Output | 每会话最新 16 MiB，绝对字节游标；旧 .log 可读 |
 | 进程事件 / Process events | 最新 1024 条 |
-| 生命周期 / Lifecycle | 每会话最新 256 条，加载最多 256 KiB |
+| 生命周期 / Lifecycle | 每会话最新最多 256 条，写入及加载均最多 256 KiB；超限先淘汰最早事件，单条超大事件拒绝且不推进游标 |
 | 请求账本 / Request ledger | 65,536 keys，64 in-flight，64 MiB（含结果预留），单回执最多 2 MiB |
 | 结构化轮次 / Structured work | 4096 不同工作请求后拒绝新工作，保留活动审批/中断处理 |
 | 手机缓存 / Client cache | 四个会话视图 LRU，100 条应用内通知；不重复存大量输出 |

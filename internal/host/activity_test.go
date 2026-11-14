@@ -217,3 +217,49 @@ func TestTaskReferenceValidationAndCrashBoundary(t *testing.T) {
 		t.Fatal("unbounded activity")
 	}
 }
+
+func TestActivityByteRetentionKeepsNewestAndSurvivesReload(t *testing.T) {
+	j := &activityJournal{path: filepath.Join(t.TempDir(), "events")}
+	for i := 0; i < 100; i++ {
+		if err := j.append("turn_started", strings.Repeat("x", 4096), "", 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	data, err := os.ReadFile(j.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data) > 256<<10 {
+		t.Fatalf("activity grew to %d bytes", len(data))
+	}
+	recovered, err := loadActivity(j.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := recovered.page(0)
+	if err != nil || !page.ResyncRequired || page.Cursor != 100 || len(page.Events) >= 100 {
+		t.Fatalf("unexpected retained page: count=%d cursor=%d gap=%v err=%v", len(page.Events), page.Cursor, page.ResyncRequired, err)
+	}
+	for i := 1; i < len(page.Events); i++ {
+		if page.Events[i].Sequence != page.Events[i-1].Sequence+1 {
+			t.Fatal("sequence gap")
+		}
+	}
+}
+
+func TestOversizedActivityDoesNotPoisonJournal(t *testing.T) {
+	j := &activityJournal{path: filepath.Join(t.TempDir(), "events")}
+	if err := j.append("ready", "idle", "", 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := j.append("turn_started", strings.Repeat("x", 256<<10), "", 0); err == nil {
+		t.Fatal("oversized event accepted")
+	}
+	if err := j.append("turn_completed", "completed", "", 0); err != nil {
+		t.Fatal(err)
+	}
+	page, err := j.page(0)
+	if err != nil || page.Cursor != 2 || len(page.Events) != 2 || page.ResyncRequired {
+		t.Fatalf("oversized event lost valid history: %+v %v", page, err)
+	}
+}
