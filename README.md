@@ -8,12 +8,28 @@ loopback, authenticates every RPC request and requires no Nimote account,
 control plane, Tailcat or public relay.
 
 Host is a **development preview (`2.4.0`)**. It supports Linux/macOS/Windows
-on amd64 and arm64. Full native-platform and mobile/Agent acceptance remains
+on amd64 and arm64, plus Linux/Windows 32-bit x86 (386) CLIs. Full native-platform and mobile/Agent acceptance remains
 outstanding; see
 [pending functionality](docs/pending.md).
 
 Current functionality: [completed](docs/completed.md) and [pending](docs/pending.md).
 Hardening decisions and verification: [audit](docs/host-hardening.md) and [test results](docs/host-hardening-tests.md).
+
+## CPU architectures
+
+| Platform | CLI | GUI |
+| --- | --- | --- |
+| Linux | amd64, arm64, 386 | amd64, arm64 |
+| macOS | amd64, arm64 | amd64, arm64 |
+| Windows | amd64, arm64, 386 | amd64, arm64 |
+
+`amd64` means 64-bit Intel/AMD x86; `arm64` means 64-bit ARM (including Apple
+Silicon). `386` is legacy 32-bit x86, CLI only. macOS has no 32-bit build target.
+32-bit ARM is outside this distribution matrix. CLI and GUI in a bundle must match
+the target architecture. GUI CI uses six native runners with the required desktop
+SDKs; cross-building a CLI alone does not verify the GUI or interactive behavior.
+On Windows ARM64, use MSYS2 CLANGARM64 (`CC=clang`, `CXX=clang++`), rather than the
+x64 MinGW compiler. See [MSYS2 ARM64](https://www.msys2.org/docs/arm64/).
 
 ## Deploy a prebuilt release
 
@@ -159,7 +175,7 @@ go vet ./...
 ```
 
 `make build` and `make check` are optional shortcuts. The standalone CI covers
-three native platforms and six cross-build targets. Tests do not install real
+three native platforms and eight CLI cross-build targets. Tests do not install real
 system services. All runtime packages are internal; external integrations use
 the versioned RPC/MCP protocol. Module path: `github.com/mobiledevloperlab/nimotehost`.
 
@@ -180,3 +196,22 @@ GUI Devices 和 `nimotehost devices add <name>` 可注册独立只读设备，
 Observer identities use restricted SSH keys, not unrestricted same-user shell access.
 设备注册及绑定方法、安全边界见 [设备授权说明](docs/completed.md#只读设备授权历史与更新入口--observer-devices-history-and-updates)。
 GUI History 已接入原生历史查询/恢复；Settings 可查询最新官方版本并打开下载入口。
+
+## Windows portable discovery
+
+Run the CLI from any local directory accessible to the SSH user, including paths
+with spaces or Unicode: `& 'D:\My Tools\nimotehost.exe' start` in PowerShell.
+A GUI bundle must keep its GUI and CLI together; a standalone CLI executable does
+not include the GUI and does not start the server when launched without arguments.
+On successful Windows startup, Host publishes its absolute executable path in
+`%APPDATA%\nimotehost\discovery.json`. Updated clients read this record over SSH
+before trying `%LOCALAPPDATA%\NimoteHost\nimotehost.exe` and PATH. No PATH update
+or SSH service restart is required. Restart from the new location after moving it.
+The record remains when stopped; discovery does not start the service. Older clients
+must be updated. Use the same Windows account for SSH and Host.
+
+Installation is optional for portable use. For a fixed installation and login
+startup, run `scripts\install.ps1` or `nimotehost setup` from the complete bundle.
+Setup requires the complete distribution, not just an executable. Windows CLI targets
+are amd64 (x64), arm64, and 386 (32-bit x86). GUI distribution targets remain amd64
+and arm64 and require a native desktop toolchain.

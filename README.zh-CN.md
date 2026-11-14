@@ -6,11 +6,26 @@ NimoteHost 是通过既有认证 SSH 使用的独立 Go 服务，可托管持久
 编程 Agent CLI。Host 只监听本机回环地址，所有 RPC 请求均需认证，无需 Nimote 账号、
 控制面、Tailcat 或公网中继。
 
-当前是 **`2.4.0` 开发预览版**，提供 Linux、macOS、Windows 的 amd64/arm64 构建。
+当前是 **`2.4.0` 开发预览版**，提供 Linux、macOS、Windows 的 amd64/arm64 构建，以及 Linux/Windows 32 位 x86（386）CLI 构建。
 完整原生平台和移动客户端/Agent 验收仍待完成，见[未完成功能](docs/pending.md)。
 
 功能状态见[已完成功能](docs/completed.md)和[未完成功能](docs/pending.md)；
 加固决策与验证见[加固审计](docs/host-hardening.md)和[测试记录](docs/host-hardening-tests.md)。
+
+## CPU 架构
+
+| 系统 | CLI | GUI |
+| --- | --- | --- |
+| Linux | amd64、arm64、386 | amd64、arm64 |
+| macOS | amd64、arm64 | amd64、arm64 |
+| Windows | amd64、arm64、386 | amd64、arm64 |
+
+`amd64` 是 Intel/AMD 的 64 位 x86，`arm64` 是 64 位 ARM（包括 Apple Silicon）。
+`386` 是传统 32 位 x86，仅提供 CLI；macOS 没有 32 位构建目标。
+32 位 ARM 不在当前发行矩阵内。同一分发包中的 CLI 与 GUI 必须匹配目标架构。
+GUI CI 配置六个具备桌面 SDK 的原生 runner；仅 CLI 交叉构建通过不代表 GUI 或交互已验收。
+Windows ARM64 使用 MSYS2 CLANGARM64（`CC=clang`、`CXX=clang++`），不能复用 x64 MinGW 编译器，
+参见 [MSYS2 ARM64](https://www.msys2.org/docs/arm64/)。
 
 ## 部署预编译版本
 
@@ -58,6 +73,23 @@ go run ./tools/build -os windows -arch arm64 -version 2.4.0
 后台服务并等待就绪，或用 `nimotehost start` 前台运行。Host 不会配置 SSH，也不会安装第三方 Agent。
 客户端断开不会停止任务；Host/系统重启会将未完成会话标记为 interrupted，不会恢复其进程。
 
+## Windows 便携运行与安装
+
+CLI `nimotehost.exe` 可放在任意当前用户可访问的本地目录（包括空格和中文路径），
+通过 PowerShell 执行 `& 'D:\你的目录\nimotehost.exe' start`。GUI 分发包需保持 GUI 与 CLI
+位于同一目录；单独下载 CLI exe 不包含图形界面，双击无参数不会启动 Host。
+
+Windows Host 成功启动时，会在 `%APPDATA%\nimotehost\discovery.json` 自动记录当前
+CLI 的绝对路径。配套新版客户端通过同一账号的 SSH 读取该文件，优先查找运行位置，
+再回退到 `%LOCALAPPDATA%\NimoteHost\nimotehost.exe` 和 SSH PATH。
+无需手动修改 PATH 或重启 SSH 服务；移动目录后需从新位置重新启动 Host。
+已停止的 Host 仍可被发现，但客户端不会因此自动启动服务。旧客户端需要升级才能读取发现记录。
+
+需要固定安装位置与登录启动时，从完整分发包运行 `scripts\install.ps1` 或 `nimotehost setup`；
+安装需要完整包，单个 exe 的便携运行不需要安装。客户端 SSH 账号必须与运行 Host 的 Windows 账号一致。
+Windows CLI 架构为 x64/amd64、ARM64/arm64 和 32 位 x86/386；GUI 当前发行目标为 amd64/arm64，
+GUI 构建需要对应系统的原生工具链。发现机制不依赖 CPU 架构。
+
 ## 接口与能力
 
 - 已认证 SSH exec：`nimotehost rpc` 或 `rpc-encoded`。
@@ -75,7 +107,7 @@ go test -mod=readonly -race ./...
 go vet ./...
 ```
 
-也可使用 `make build` 和 `make check`。独立 CI 包含三平台原生检查和六目标交叉构建。
+也可使用 `make build` 和 `make check`。独立 CI 包含三平台原生检查和八目标 CLI 交叉构建。
 测试不安装真实系统服务。运行时代码均位于 internal 包，外部通过版本化 RPC/MCP 接入。
 模块路径为 `github.com/mobiledevloperlab/nimotehost`。
 

@@ -59,6 +59,11 @@ jobs:
       matrix:
         os: [linux, darwin, windows]
         arch: [amd64, arm64]
+        include:
+          - os: windows
+            arch: "386"
+          - os: linux
+            arch: "386"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -112,6 +117,9 @@ jobs:
           - runner: windows-2025
             os: windows
             arch: amd64
+          - runner: windows-11-arm
+            os: windows
+            arch: arm64
           - runner: macos-15-intel
             os: darwin
             arch: amd64
@@ -132,20 +140,41 @@ jobs:
       - name: Linux desktop dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libxkbcommon-dev
-      - name: Windows C compiler
-        if: runner.os == 'Windows'
+      - name: Windows x64 C compiler
+        if: runner.os == 'Windows' && matrix.arch == 'amd64'
         shell: bash
         run: echo 'C:/msys64/mingw64/bin' >> "$GITHUB_PATH"
+      - name: Windows ARM64 C compiler
+        if: runner.os == 'Windows' && matrix.arch == 'arm64'
+        shell: pwsh
+        run: |
+          $env:MSYSTEM = 'CLANGARM64'
+          & C:/msys64/usr/bin/bash.exe -lc 'pacman -Sy --noconfirm --needed mingw-w64-clang-aarch64-toolchain'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          'C:/msys64/clangarm64/bin' >> $env:GITHUB_PATH
+          'CC=clang' >> $env:GITHUB_ENV
+          'CXX=clang++' >> $env:GITHUB_ENV
       - name: Use tag version
         shell: bash
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             echo "HOST_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
           fi
+      - name: Native Host checks
+        shell: bash
+        run: |
+          go test -mod=readonly ./...
+          go vet ./...
       - name: Desktop unit checks
         working-directory: cmd/nimotehost-gui
+        shell: bash
         run: |
-          go test -mod=readonly -race -tags ci ./...
+          race=(-race)
+          # Go's race detector does not support Windows ARM64.
+          if [[ "$(go env GOOS)/$(go env GOARCH)" == "windows/arm64" ]]; then
+            race=()
+          fi
+          go test -mod=readonly "${race[@]}" -tags ci ./...
           go vet ./...
       - name: Build CLI and native desktop bundle
         shell: bash
