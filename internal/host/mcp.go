@@ -58,7 +58,7 @@ func (mcpWriter) Close() error { return nil }
 
 func newMCPServer(write bool, call func(context.Context, RPCRequest) ([]byte, error)) *mcp.Server {
 	var ready sync.Map
-	server := mcp.NewServer(&mcp.Implementation{Name: "nimote-host", Version: Version}, &mcp.ServerOptions{
+	server := mcp.NewServer(&mcp.Implementation{Name: "nimotehost", Version: Version}, &mcp.ServerOptions{
 		SupportedProtocolVersions: []string{"2025-11-25"},
 		InitializedHandler:        func(_ context.Context, req *mcp.InitializedRequest) { ready.Store(req.Session, true) },
 	})

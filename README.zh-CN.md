@@ -1,8 +1,8 @@
-# Nimote Host
+# NimoteHost
 
 [English](README.md) | **简体中文**
 
-Nimote Host 是通过既有认证 SSH 使用的独立 Go 服务，可托管持久任务、终端和已安装的
+NimoteHost 是通过既有认证 SSH 使用的独立 Go 服务，可托管持久任务、终端和已安装的
 编程 Agent CLI。Host 只监听本机回环地址，所有 RPC 请求均需认证，无需 Nimote 账号、
 控制面、Tailcat 或公网中继。
 
@@ -37,10 +37,10 @@ go run ./tools/build
 ```
 
 该命令可在 PowerShell 和 Unix Shell 中运行。生成的二进制位于
-`dist/<os>-<arch>/nimote-host`；Windows 文件名为 `nimote-host.exe`。例如 Linux amd64：
+`dist/<os>-<arch>/nimotehost`；Windows 文件名为 `nimotehost.exe`。例如 Linux amd64：
 
 ```sh
-./dist/linux-amd64/nimote-host start
+./dist/linux-amd64/nimotehost start
 ```
 
 指定其他目标平台和版本：
@@ -53,13 +53,13 @@ go run ./tools/build -os windows -arch arm64 -version 1.0.0-dev
 构建还会生成带版本的 `.tar.gz`（Linux/macOS）或 `.zip`（Windows）以及配套 `.sha256`。也可使用 Bash 包装脚本：
 `./scripts/build-host.sh <os> <arch> [version]`。分发二进制时请保留整个分发目录。
 
-将二进制放到远端用户 PATH 中的固定位置后，执行 `nimote-host install` 安装当前用户的
-后台服务并等待就绪，或用 `nimote-host start` 前台运行。Host 不会配置 SSH，也不会安装第三方 Agent。
+将二进制放到远端用户 PATH 中的固定位置后，执行 `nimotehost install` 安装当前用户的
+后台服务并等待就绪，或用 `nimotehost start` 前台运行。Host 不会配置 SSH，也不会安装第三方 Agent。
 客户端断开不会停止任务；Host/系统重启会将未完成会话标记为 interrupted，不会恢复其进程。
 
 ## 接口与能力
 
-- 已认证 SSH exec：`nimote-host rpc` 或 `rpc-encoded`。
+- 已认证 SSH exec：`nimotehost rpc` 或 `rpc-encoded`。
 - 本地认证 HTTP RPC：任务/会话管理、终端输入与尺寸调整、按字节偏移恢复输出、持久化事件。
 - stdio MCP：默认只读，写工具必须由本地操作者显式开启。
 - Agent 终端适配：已安装的 Codex、Claude Code 和 OpenCode CLI；已有 app-server/ACP 结构化审批与原生历史，运行时能力和完整实机验收分别判定。
@@ -76,7 +76,7 @@ go vet ./...
 
 也可使用 `make build` 和 `make check`。独立 CI 包含三平台原生检查和六目标交叉构建。
 测试不安装真实系统服务。运行时代码均位于 internal 包，外部通过版本化 RPC/MCP 接入。
-模块路径为 `github.com/mobiledevloperlab/nimote-host`。
+模块路径为 `github.com/mobiledevloperlab/nimotehost`。
 
 ## 许可证
 
@@ -87,29 +87,41 @@ go vet ./...
 
 ## Fyne 桌面管理器 / Desktop
 
+命令和分发包统一命名为 `nimotehost`，GUI 显示 `NimoteHost`。
+升级前先关闭旧 GUI，再从完整包运行 `nimotehost setup`。安装器通过已认证的空闲停止
+迁移旧数据目录；有活动会话或新旧数据目录冲突时不会强制迁移。身份、凭证与记录保留，
+安装失败时恢复旧服务。GUI 会一次性导入原语言和主题偏好。Unix 上旧 SSH 命令和
+原绝对可执行路径会转到新 CLI，原二进制另存用于恢复。Windows 上手动配置的 SSH
+强制命令绝对路径需改用 `nimotehost.exe`。旧拼写仅用于升级兼容。
+
 CLI 与 GUI 复用现有 Go Host、认证本地 RPC 和三平台用户服务；Fyne 在
-`cmd/nimote-host-gui` 独立 module 中，CLI 不引入图形依赖。
+`cmd/nimotehost-gui` 独立 module 中，CLI 不引入图形依赖。
 
 ```sh
 go run ./tools/build -gui -version 1.0.0-dev
 ```
 
 需在目标系统本机构建并安装 C 编译器/桌面 SDK。产物为
-`nimote-host-gui-<版本>-<系统>-<架构>.tar.gz`（Windows 为 zip），包含 CLI、
+`nimotehost-gui-<版本>-<系统>-<架构>.tar.gz`（Windows 为 zip），包含 CLI、
 GUI、完整许可证、GUI-MODULES.json 和校验清单；原 CLI 发行包继续单独生成。
 从解压包运行原安装脚本，会把整个包复制到固定目录并启动用户服务：Unix 为
-`~/.local/share/nimote-host`，Windows 为 `%LOCALAPPDATA%/NimoteHost`。
-随后打开安装目录中的 Windows `nimote-host-gui.exe`、macOS `Nimote Host.app`、
-Linux `nimote-host-gui`。Linux desktop 文件需 GUI 在 PATH，或把 Exec 改为绝对路径。
+`~/.local/share/nimotehost`，Windows 为 `%LOCALAPPDATA%/NimoteHost`。
+随后打开安装目录中的 Windows `nimotehost-gui.exe`、macOS `NimoteHost.app`、
+Linux `nimotehost-gui`。Linux desktop 文件需 GUI 在 PATH，或把 Exec 改为绝对路径。
 也可从 `dist/gui-<系统>-<架构>` 直接运行；启用登录启动后不要移动此目录。
 
 界面保留 Overview、Sessions、Devices、Settings 四个主要入口。首屏显示服务状态和主要操作；
 会话按名称、工作区和可读状态展示，支持搜索、筛选，历史对话位于 Sessions → Past conversations。
-端口、日志级别等放入 Advanced settings，诊断放入 Help & diagnostics；审批仍展示实际命令与文件修改。
+设置页按常规、本地服务和关于分组；本地服务中可直接启停 Host、编辑端口与日志级别，
+采用银灰浅色与深色外观、统一圆角和间距；支持端口校验、未保存提示、撤销修改与固定保存栏。
+切换界面语言会保留配置草稿和会话筛选。历史对话支持展开阅读；详情可选择、复制，诊断与日志使用大面积分页视图。
+关于页说明与 NimoteCode 的分工、SSH 使用方式、本地数据、第三方 Agent 数据边界及外观。
+快捷键：macOS 使用 ⌘，Windows/Linux 使用 Ctrl；1–4 切换页面、逗号打开设置、F 搜索会话、R 刷新状态。
+诊断位于 Help & diagnostics；审批仍展示实际命令与文件修改。
 Settings → Language 支持英语、简体中文、西班牙语、日语、韩语和俄语，默认英语；
 切换语言立即生效并持久保存，不重启 Host。Fyne 使用系统字体，Linux 的中日韩显示需安装
 相应字体，例如 `fonts-noto-cjk`。
-配置复用 OS 用户配置目录下的 `nimote-host/config.json`，默认 `127.0.0.1:47831`，
+配置复用 OS 用户配置目录下的 `nimotehost/config.json`，默认 `127.0.0.1:47831`，
 修改端口和日志级别前需停止 Host。GUI 语言、主题与 Linux 托盘偏好由 Fyne 单独持久化。
 
 Windows/macOS 关闭窗口隐藏到托盘；Linux 默认关闭窗口仅退出 GUI，确认有托盘支持
@@ -121,8 +133,8 @@ Host 任务。完整控制仍依赖 SSH 系统账号；Devices 已支持独立�
 
 ## Device authorization / 设备授权补充
 
-GUI Devices 和 `nimote-host devices add <name>` 可注册独立只读设备，
-`nimote-host devices list` 列出设备，`nimote-host devices revoke <id>` 撤销。
+GUI Devices 和 `nimotehost devices add <name>` 可注册独立只读设备，
+`nimotehost devices list` 列出设备，`nimotehost devices revoke <id>` 撤销。
 管理员须把独立 SSH 公钥绑定到 `restrict` + `device-bridge` 强制命令；
 不能同时给这把密钥普通 Shell 登录权限。凭证不发送给手机，撤销针对后续 Host 请求生效。
 完整 SSH/任务执行权限仍属于系统账号，不受只读设备撤销隔离。

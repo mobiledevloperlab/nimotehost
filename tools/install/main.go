@@ -30,11 +30,11 @@ func install(ctx context.Context) error {
 	if runtime.GOOS != "windows" && os.Geteuid() == 0 {
 		return fmt.Errorf("run installation as your normal user, without sudo")
 	}
-	fmt.Fprintln(os.Stdout, "Building Nimote Host...")
+	fmt.Fprintln(os.Stdout, "Building NimoteHost...")
 	if err := run(ctx, "go", "run", "./tools/build"); err != nil {
 		return fmt.Errorf("build failed; installation was not started: %w", err)
 	}
-	name := "nimote-host"
+	name := "nimotehost"
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}

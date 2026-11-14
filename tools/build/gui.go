@@ -27,20 +27,31 @@ func buildGUI(targetOS, arch, version string) error {
 	if err := copyTree(source, output); err != nil {
 		return err
 	}
+	for _, asset := range []struct{ source, target string }{
+		{"icon.png", "nimotehost.png"}, {"icon.ico", "nimotehost.ico"},
+	} {
+		if err := copyFile(filepath.Join("cmd", "nimotehost-gui", "assets", asset.source), filepath.Join(output, asset.target)); err != nil {
+			return err
+		}
+	}
 	binaryDir := output
 	if targetOS == "darwin" {
-		binaryDir = filepath.Join(output, "Nimote Host.app", "Contents", "MacOS")
+		binaryDir = filepath.Join(output, "NimoteHost.app", "Contents", "MacOS")
 		if err := os.MkdirAll(binaryDir, 0755); err != nil {
 			return err
 		}
-		if err := copyFile(filepath.Join(output, "nimote-host"), filepath.Join(binaryDir, "nimote-host")); err != nil {
+		if err := copyFile(filepath.Join(output, "nimotehost"), filepath.Join(binaryDir, "nimotehost")); err != nil {
 			return err
 		}
-		if err := os.Chmod(filepath.Join(binaryDir, "nimote-host"), 0755); err != nil {
+		if err := os.Chmod(filepath.Join(binaryDir, "nimotehost"), 0755); err != nil {
 			return err
 		}
-		plist := `<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleExecutable</key><string>nimote-host-gui</string><key>CFBundleIdentifier</key><string>com.nimote.host.desktop</string><key>CFBundleName</key><string>Nimote Host</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleShortVersionString</key><string>` + version + `</string><key>NSHighResolutionCapable</key><true/></dict></plist>`
-		if err := os.WriteFile(filepath.Join(output, "Nimote Host.app", "Contents", "Info.plist"), []byte(plist), 0644); err != nil {
+		resources := filepath.Join(output, "NimoteHost.app", "Contents", "Resources")
+		if err := copyFile(filepath.Join("cmd", "nimotehost-gui", "assets", "icon.icns"), filepath.Join(resources, "nimotehost.icns")); err != nil {
+			return err
+		}
+		plist := `<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleExecutable</key><string>nimotehost-gui</string><key>CFBundleIdentifier</key><string>com.nimotehost.desktop</string><key>CFBundleName</key><string>NimoteHost</string><key>CFBundleIconFile</key><string>nimotehost.icns</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleShortVersionString</key><string>` + version + `</string><key>NSHighResolutionCapable</key><true/></dict></plist>`
+		if err := os.WriteFile(filepath.Join(output, "NimoteHost.app", "Contents", "Info.plist"), []byte(plist), 0644); err != nil {
 			return err
 		}
 	}
@@ -48,7 +59,7 @@ func buildGUI(targetOS, arch, version string) error {
 	if err != nil {
 		return err
 	}
-	name := "nimote-host-gui"
+	name := "nimotehost-gui"
 	if targetOS == "windows" {
 		name += ".exe"
 	}
@@ -123,8 +134,8 @@ func buildGUI(targetOS, arch, version string) error {
 		return err
 	}
 	if targetOS == "linux" {
-		entry := "[Desktop Entry]\nType=Application\nName=Nimote Host\nExec=nimote-host-gui\nTerminal=false\nCategories=Development;Utility;\n"
-		if err = os.WriteFile(filepath.Join(output, "nimote-host.desktop"), []byte(entry), 0644); err != nil {
+		entry := "[Desktop Entry]\nType=Application\nName=NimoteHost\nExec=nimotehost-gui\nIcon=nimotehost\nTerminal=false\nCategories=Development;Utility;\n"
+		if err = os.WriteFile(filepath.Join(output, "nimotehost.desktop"), []byte(entry), 0644); err != nil {
 			return err
 		}
 	}
@@ -132,7 +143,7 @@ func buildGUI(targetOS, arch, version string) error {
 	if err = writeGUISums(output); err != nil {
 		return err
 	}
-	archive, err := packageNamedDistribution(output, targetOS, arch, version, "nimote-host-gui")
+	archive, err := packageNamedDistribution(output, targetOS, arch, version, "nimotehost-gui")
 	if err != nil {
 		return err
 	}
@@ -141,7 +152,7 @@ func buildGUI(targetOS, arch, version string) error {
 }
 func guiCommand(args ...string) *exec.Cmd {
 	cmd := exec.Command("go", args...)
-	cmd.Dir = filepath.Join("cmd", "nimote-host-gui")
+	cmd.Dir = filepath.Join("cmd", "nimotehost-gui")
 	for _, item := range os.Environ() {
 		key, _, _ := strings.Cut(item, "=")
 		if key != "GOWORK" && key != "GOOS" && key != "GOARCH" && key != "CGO_ENABLED" {

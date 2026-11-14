@@ -108,7 +108,7 @@ func acpHistoryRPC(ctx context.Context, agent, cwd, method string, params any) (
 		ProtocolVersion int `json:"protocolVersion"`
 	}](conn, ctx, "initialize", map[string]any{
 		"protocolVersion": version, "clientCapabilities": map[string]any{},
-		"clientInfo": map[string]string{"name": "nimote_host_history", "version": Version},
+		"clientInfo": map[string]string{"name": "nimotehost_history", "version": Version},
 	})
 	if err != nil {
 		return nil, acpHistoryReplay{}, err

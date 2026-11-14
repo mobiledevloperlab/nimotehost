@@ -22,7 +22,7 @@ func (s *Service) installWindows(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(s.config.ConfigDir, "nimote-host", "service.xml")
+	path := filepath.Join(s.config.ConfigDir, "nimotehost", "service.xml")
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func (s *Service) installWindows(ctx context.Context) error {
 	return nil
 }
 func (s *Service) uninstallWindows(ctx context.Context) error {
-	path := filepath.Join(s.config.ConfigDir, "nimote-host", "service.xml")
+	path := filepath.Join(s.config.ConfigDir, "nimotehost", "service.xml")
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return nil
 	} else if err != nil {

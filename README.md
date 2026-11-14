@@ -1,4 +1,4 @@
-# Nimote Host
+# NimoteHost
 
 **English** | [简体中文](README.zh-CN.md)
 
@@ -43,10 +43,10 @@ go run ./tools/build
 ```
 
 This works from PowerShell as well as Unix shells. Run the generated binary at
-`dist/<os>-<arch>/nimote-host` (`nimote-host.exe` on Windows):
+`dist/<os>-<arch>/nimotehost` (`nimotehost.exe` on Windows):
 
 ```sh
-./dist/linux-amd64/nimote-host start
+./dist/linux-amd64/nimotehost start
 ```
 
 For other targets or a versioned distribution:
@@ -61,15 +61,25 @@ a module manifest, build metadata and SHA256SUMS. Builds also produce a versione
 is also available. Preserve the entire distribution when sharing binaries.
 
 Put the binary in a fixed location on the remote user's PATH, then use
-`nimote-host install` to start a per-user background service and wait until ready, or `nimote-host start`
+`nimotehost install` to start a per-user background service and wait until ready, or `nimotehost start`
 for foreground operation. This does not configure SSH or install Agent CLIs.
 Tasks outlive client disconnection; Host/OS restart marks unfinished sessions
 interrupted and does not resurrect their processes.
 
 ## Desktop edition (Fyne)
 
+The public executable and package name is now `nimotehost` (`NimoteHost` in the GUI).
+Close the previous GUI before running `nimotehost setup` from a complete bundle.
+Setup migrates the previous state directory only after an authenticated idle shutdown;
+active sessions and conflicting state directories block migration. Credentials, Host
+identity and records are retained, and failed installation restores the previous service.
+The GUI imports the previous language/theme preferences once. On Unix the old SSH
+command and absolute executable path forward to the new CLI, with the old executable
+retained for recovery. On Windows, update any manually configured absolute SSH forced
+command to `nimotehost.exe`. Only upgrade compatibility retains the old spelling.
+
 The CLI and desktop manager share the existing Go Host and authenticated loopback
-RPC. Desktop dependencies live in `cmd/nimote-host-gui/go.mod`; a CLI build does
+RPC. Desktop dependencies live in `cmd/nimotehost-gui/go.mod`; a CLI build does
 not compile or download Fyne. No mobile protocol or public transport is changed.
 
 ```sh
@@ -78,13 +88,13 @@ go run ./tools/build -gui -version 1.0.0-dev
 # Or: make desktop
 ```
 
-Downloads are named `nimote-host-<version>-<os>-<arch>` (CLI) and
-`nimote-host-gui-<version>-<os>-<arch>` (desktop, including CLI). Desktop archives
+Downloads are named `nimotehost-<version>-<os>-<arch>` (CLI) and
+`nimotehost-gui-<version>-<os>-<arch>` (desktop, including CLI). Desktop archives
 include dependency licenses, GUI-MODULES.json and checksums. Run the existing
 installer from the extracted desktop bundle to copy the complete bundle to a stable
-path and start the login service. Then open the installed `nimote-host-gui.exe`
-(Windows), `Nimote Host.app` (macOS), or `nimote-host-gui` (Linux).
-Unix installation: `~/.local/share/nimote-host`; Windows: `%LOCALAPPDATA%/NimoteHost`.
+path and start the login service. Then open the installed `nimotehost-gui.exe`
+(Windows), `NimoteHost.app` (macOS), or `nimotehost-gui` (Linux).
+Unix installation: `~/.local/share/nimotehost`; Windows: `%LOCALAPPDATA%/NimoteHost`.
 The Linux `.desktop` file assumes the installed GUI directory is on PATH; copy it
 to `~/.local/share/applications` or set its Exec to the absolute GUI path.
 
@@ -97,9 +107,17 @@ tray use in Settings only with a working tray. Windows/macOS close hides to tray
 
 The four main pages are Overview, Sessions, Devices and Settings. Overview shows
 service status and one primary action; Sessions uses readable names, search and
-status filters, with saved conversations under Past conversations. Advanced
-settings and Help & diagnostics stay out of the everyday workflow. Command and
-file-change approvals still show their actual content before you decide.
+status filters, with saved conversations under Past conversations. Settings groups
+general preferences, local service and about information. Local service controls
+include start/stop, port validation, unsaved change status and a fixed save bar.
+Silver-gray light and dark appearances use consistent rounded surfaces and spacing.
+Changing the display language preserves configuration drafts and session filters.
+Conversations can expand into a reading view with selectable text and copying;
+diagnostics and logs have large tabbed viewports in Help & diagnostics. About
+explains the NimoteCode companion workflow, local data, access and agent privacy,
+and appearance. Shortcuts use Cmd on macOS or Ctrl on Windows/Linux: 1–4 switch
+pages, comma opens Settings, F searches sessions, and R refreshes status. Command and file-change approvals still show their actual
+content before you decide.
 
 Choose English, 简体中文, Español, 日本語, 한국어 or Русский in Settings → Language.
 English is the default; language changes apply immediately and persist without
@@ -107,7 +125,7 @@ restarting Host. Fyne uses installed system fonts; Linux needs suitable CJK font
 (such as `fonts-noto-cjk`) for Chinese, Japanese and Korean.
 
 Settings share `config.json` in the existing OS user configuration directory under
-`nimote-host`. Defaults remain port 47831 and log level info; changes require Host
+`nimotehost`. Defaults remain port 47831 and log level info; changes require Host
 stopped. The port always binds 127.0.0.1, **not LAN IPs**. SSH remains externally
 managed. Runtime logs are owner-private and bounded at 64 KiB; diagnostic exports
 exclude logs, credentials, command arguments and session contents. GUI preferences
@@ -120,7 +138,7 @@ and [remaining acceptance](docs/pending.md).
 
 ## Interfaces
 
-- Authenticated SSH exec: `nimote-host rpc` or `rpc-encoded`.
+- Authenticated SSH exec: `nimotehost rpc` or `rpc-encoded`.
 - Local authenticated HTTP RPC: task/session lifecycle, terminal input/resize,
   byte-offset output replay and persistent state events.
 - Stdio MCP: read-only by default; writes require explicit local opt-in.
@@ -142,7 +160,7 @@ go vet ./...
 `make build` and `make check` are optional shortcuts. The standalone CI covers
 three native platforms and six cross-build targets. Tests do not install real
 system services. All runtime packages are internal; external integrations use
-the versioned RPC/MCP protocol. Module path: `github.com/mobiledevloperlab/nimote-host`.
+the versioned RPC/MCP protocol. Module path: `github.com/mobiledevloperlab/nimotehost`.
 
 ## License
 
@@ -153,8 +171,8 @@ licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Device authorization / 设备授权补充
 
-GUI Devices 和 `nimote-host devices add <name>` 可注册独立只读设备，
-`nimote-host devices list` 列出设备，`nimote-host devices revoke <id>` 撤销。
+GUI Devices 和 `nimotehost devices add <name>` 可注册独立只读设备，
+`nimotehost devices list` 列出设备，`nimotehost devices revoke <id>` 撤销。
 管理员须把独立 SSH 公钥绑定到 `restrict` + `device-bridge` 强制命令；
 不能同时给这把密钥普通 Shell 登录权限。凭证不发送给手机，撤销针对后续 Host 请求生效。
 完整 SSH/任务执行权限仍属于系统账号，不受只读设备撤销隔离。

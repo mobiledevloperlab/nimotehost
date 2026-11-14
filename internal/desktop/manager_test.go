@@ -4,7 +4,7 @@ package desktop
 import (
 	"context"
 	"encoding/base64"
-	"github.com/mobiledevloperlab/nimote-host/internal/host"
+	"github.com/mobiledevloperlab/nimotehost/internal/host"
 	"net"
 	"os"
 	"os/exec"
@@ -29,11 +29,11 @@ func TestIndependentHostLifecycle(t *testing.T) {
 	if os.Getenv("NIMOTE_DESKTOP_TEST_PROCESS") == "1" {
 		return
 	}
-	binary := filepath.Join(t.TempDir(), "nimote-host")
+	binary := filepath.Join(t.TempDir(), "nimotehost")
 	if runtime.GOOS == "windows" {
 		binary += ".exe"
 	}
-	cmd := exec.Command("go", "build", "-o", binary, "../../cmd/nimote-host")
+	cmd := exec.Command("go", "build", "-o", binary, "../../cmd/nimotehost")
 	if b, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("build CLI: %v %s", err, b)
 	}
@@ -77,7 +77,7 @@ func TestIndependentHostLifecycle(t *testing.T) {
 	bridge := func(request string) error {
 		encoded := base64.StdEncoding.EncodeToString([]byte(request))
 		cmd := exec.CommandContext(ctx, binary, "device-bridge", device.ID)
-		cmd.Env = append(os.Environ(), "SSH_ORIGINAL_COMMAND=nimote-host rpc-encoded "+encoded)
+		cmd.Env = append(os.Environ(), "SSH_ORIGINAL_COMMAND=nimotehost rpc-encoded "+encoded)
 		return cmd.Run()
 	}
 	if err = bridge(`{"method":"GET","path":"/v1/status"}`); err != nil {

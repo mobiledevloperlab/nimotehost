@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mobiledevloperlab/nimote-host/internal/host"
+	"github.com/mobiledevloperlab/nimotehost/internal/host"
 )
 
 func TestMutationRequestIDNegotiatesExpiryAndPreservesOldHosts(t *testing.T) {

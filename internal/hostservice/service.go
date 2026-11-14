@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Nimote contributors
 
-// Package hostservice owns operating-system service integration for Nimote Host.
+// Package hostservice owns operating-system service integration for NimoteHost.
 // It deliberately contains no control-plane or transport code.
 package hostservice
 
@@ -18,7 +18,7 @@ import (
 	"strings"
 )
 
-const label = "com.nimote.host"
+const label = "com.nimotehost"
 
 type commandRunner func(context.Context, string, ...string) error
 
@@ -42,7 +42,7 @@ type Service struct{ config Config }
 func NewHostDefault() (*Service, error) {
 	executable, err := os.Executable()
 	if err != nil {
-		return nil, fmt.Errorf("locate nimote-host executable: %w", err)
+		return nil, fmt.Errorf("locate nimotehost executable: %w", err)
 	}
 	return NewHostExecutable(executable)
 }
@@ -89,10 +89,10 @@ func New(config Config) (*Service, error) {
 		config.OS = runtime.GOOS
 	}
 	if config.OS != "linux" && config.OS != "darwin" && config.OS != "windows" {
-		return nil, fmt.Errorf("Nimote Host services are not supported on %s", config.OS)
+		return nil, fmt.Errorf("NimoteHost services are not supported on %s", config.OS)
 	}
 	if !filepath.IsAbs(config.Executable) || strings.ContainsAny(config.Executable, "\x00\r\n") {
-		return nil, errors.New("invalid nimote-host executable path")
+		return nil, errors.New("invalid nimotehost executable path")
 	}
 	if !filepath.IsAbs(config.ConfigDir) || !filepath.IsAbs(config.HomeDir) || strings.ContainsAny(config.ConfigDir+config.HomeDir, "\x00\r\n") {
 		return nil, errors.New("user service directories are required")
@@ -115,7 +115,7 @@ func New(config Config) (*Service, error) {
 func (s *Service) Installed() (bool, error) {
 	path := s.definitionPath()
 	if s.config.OS == "windows" {
-		path = filepath.Join(s.config.ConfigDir, "nimote-host", "service.xml")
+		path = filepath.Join(s.config.ConfigDir, "nimotehost", "service.xml")
 	}
 	info, err := os.Stat(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -134,9 +134,9 @@ func (s *Service) Installed() (bool, error) {
 func (s *Service) Diagnostics() string {
 	switch s.config.OS {
 	case "linux":
-		return "Check systemctl --user status nimote-host.service and journalctl --user -u nimote-host.service -n 50 --no-pager. Without a user service manager, use nimote-host start."
+		return "Check systemctl --user status nimotehost.service and journalctl --user -u nimotehost.service -n 50 --no-pager. Without a user service manager, use nimotehost start."
 	case "darwin":
-		return fmt.Sprintf("Check launchctl print gui/%d/com.nimote.host in the logged-in user's GUI session; use nimote-host start for foreground operation.", s.config.UID)
+		return fmt.Sprintf("Check launchctl print gui/%d/com.nimotehost in the logged-in user's GUI session; use nimotehost start for foreground operation.", s.config.UID)
 	default:
 		return "Check schtasks.exe /Query /TN NimoteHost /V /FO LIST. Run as the intended logged-in user."
 	}
@@ -186,10 +186,10 @@ func (s *Service) Install(ctx context.Context) error {
 	path := s.definitionPath()
 	_, wasInstalled := os.Stat(path)
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return fmt.Errorf("create Nimote Host service directory: %w", err)
+		return fmt.Errorf("create NimoteHost service directory: %w", err)
 	}
 	if err := writePrivateFile(path, s.definition()); err != nil {
-		return fmt.Errorf("write Nimote Host service definition: %w", err)
+		return fmt.Errorf("write NimoteHost service definition: %w", err)
 	}
 	if s.config.OS == "linux" {
 		if err := s.run(ctx, "systemctl", "--user", "daemon-reload"); err != nil {
@@ -215,7 +215,7 @@ func (s *Service) Install(ctx context.Context) error {
 	return nil
 }
 
-// Uninstall stops, disables, and removes only Nimote Host's own service file.
+// Uninstall stops, disables, and removes only NimoteHost's own service file.
 func (s *Service) Uninstall(ctx context.Context) error {
 	if s.config.OS == "windows" {
 		return s.uninstallWindows(ctx)
@@ -225,7 +225,7 @@ func (s *Service) Uninstall(ctx context.Context) error {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
-		return fmt.Errorf("inspect Nimote Host service definition: %w", err)
+		return fmt.Errorf("inspect NimoteHost service definition: %w", err)
 	}
 	if s.config.OS == "linux" {
 		if err := s.run(ctx, "systemctl", "--user", "disable", "--now", filepath.Base(path)); err != nil {
@@ -238,19 +238,19 @@ func (s *Service) Uninstall(ctx context.Context) error {
 		return s.managerError("stop", err)
 	}
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("remove Nimote Host service definition: %w", err)
+		return fmt.Errorf("remove NimoteHost service definition: %w", err)
 	}
 	return nil
 }
 
-// Restart asks the native manager to restart the existing Nimote Host service.
+// Restart asks the native manager to restart the existing NimoteHost service.
 func (s *Service) Restart(ctx context.Context) error {
 	installed, err := s.Installed()
 	if err != nil {
 		return err
 	}
 	if !installed {
-		return errors.New("Nimote Host service is not installed; run nimote-host install first")
+		return errors.New("NimoteHost service is not installed; run nimotehost install first")
 	}
 	if s.config.OS == "windows" {
 		return s.restartWindows(ctx)
@@ -258,9 +258,9 @@ func (s *Service) Restart(ctx context.Context) error {
 	path := s.definitionPath()
 	if _, err := os.Stat(path); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return errors.New("Nimote Host service is not installed; run `nimote-host install` first")
+			return errors.New("NimoteHost service is not installed; run `nimotehost install` first")
 		}
-		return fmt.Errorf("inspect Nimote Host service definition: %w", err)
+		return fmt.Errorf("inspect NimoteHost service definition: %w", err)
 	}
 	if s.config.OS == "linux" {
 		if err := s.run(ctx, "systemctl", "--user", "restart", filepath.Base(path)); err != nil {
@@ -288,7 +288,7 @@ func (s *Service) definitionPath() string {
 
 func (s *Service) definition() []byte {
 	if s.config.OS == "linux" {
-		description := "Nimote Host"
+		description := "NimoteHost"
 		var environment strings.Builder
 		for _, key := range s.environmentKeys() {
 			environment.WriteString("Environment=" + systemdQuote(key+"="+s.config.Environment[key]) + "\n")
@@ -324,7 +324,7 @@ func runCommand(ctx context.Context, name string, args ...string) error {
 }
 
 func writePrivateFile(path string, value []byte) error {
-	temporary, err := os.CreateTemp(filepath.Dir(path), ".nimote-host-*")
+	temporary, err := os.CreateTemp(filepath.Dir(path), ".nimotehost-*")
 	if err != nil {
 		return err
 	}
@@ -345,7 +345,7 @@ func writePrivateFile(path string, value []byte) error {
 }
 
 func (s *Service) managerError(action string, err error) error {
-	return fmt.Errorf("Nimote Host service could not %s: %w. %s", action, err, s.Diagnostics())
+	return fmt.Errorf("NimoteHost service could not %s: %w. %s", action, err, s.Diagnostics())
 }
 
 func (s *Service) environmentKeys() []string {
@@ -379,5 +379,5 @@ func (s *Service) label() string {
 	return label
 }
 func (s *Service) unitName() string {
-	return "nimote-host.service"
+	return "nimotehost.service"
 }

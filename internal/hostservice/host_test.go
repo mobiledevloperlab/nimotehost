@@ -38,7 +38,7 @@ func TestHostServiceHasIndependentIdentity(t *testing.T) {
 }
 func TestWindowsHostTaskIsPerUserAndUnprivileged(t *testing.T) {
 	var commands []recordedCommand
-	service, err := New(Config{OS: "windows", Executable: filepath.Join(t.TempDir(), "nimote-host.exe"), ConfigDir: t.TempDir(), HomeDir: t.TempDir(), Run: func(_ context.Context, name string, args ...string) error {
+	service, err := New(Config{OS: "windows", Executable: filepath.Join(t.TempDir(), "nimotehost.exe"), ConfigDir: t.TempDir(), HomeDir: t.TempDir(), Run: func(_ context.Context, name string, args ...string) error {
 		commands = append(commands, recordedCommand{name, args})
 		return nil
 	}})
@@ -48,7 +48,7 @@ func TestWindowsHostTaskIsPerUserAndUnprivileged(t *testing.T) {
 	if err := service.Install(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(filepath.Join(service.config.ConfigDir, "nimote-host", "service.xml"))
+	data, err := os.ReadFile(filepath.Join(service.config.ConfigDir, "nimotehost", "service.xml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ type recordedCommand struct {
 
 func newTestService(t *testing.T, platform string, run commandRunner) *Service {
 	t.Helper()
-	service, err := New(Config{OS: platform, Executable: filepath.Join(t.TempDir(), "nimote-host"), ConfigDir: t.TempDir(), HomeDir: t.TempDir(), UID: 1000, Run: run})
+	service, err := New(Config{OS: platform, Executable: filepath.Join(t.TempDir(), "nimotehost"), ConfigDir: t.TempDir(), HomeDir: t.TempDir(), UID: 1000, Run: run})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestLinuxPreflightPreservesServiceOnFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	err := s.Install(context.Background())
-	if !errors.Is(err, failure) || !strings.Contains(err.Error(), "nimote-host start") {
+	if !errors.Is(err, failure) || !strings.Contains(err.Error(), "nimotehost start") {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(s.definitionPath())
@@ -108,7 +108,7 @@ func TestServiceEnvironmentAndEscaping(t *testing.T) {
 	for _, platform := range []string{"linux", "darwin"} {
 		t.Run(platform, func(t *testing.T) {
 			s := newTestService(t, platform, func(context.Context, string, ...string) error { return nil })
-			s.config.Executable = filepath.Join(s.config.HomeDir, `Host %n $AGENT & tools`, "nimote-host")
+			s.config.Executable = filepath.Join(s.config.HomeDir, `Host %n $AGENT & tools`, "nimotehost")
 			s.config.Environment = map[string]string{"PATH": "/opt/Agent tools:/bin", "XDG_CONFIG_HOME": "/home/test/config %n & data"}
 			if err := s.Install(context.Background()); err != nil {
 				t.Fatal(err)
@@ -235,7 +235,7 @@ func decodeTaskXML(t *testing.T, data []byte) string {
 }
 
 func TestWindowsTaskEncodingPreservesUnicode(t *testing.T) {
-	document := `<?xml version="1.0" encoding="UTF-16"?><Command>C:\用户 空格\工具🚀\nimote-host.exe</Command>`
+	document := `<?xml version="1.0" encoding="UTF-16"?><Command>C:\用户 空格\工具🚀\nimotehost.exe</Command>`
 	if actual := decodeTaskXML(t, encodeTaskXML(document)); actual != document {
 		t.Fatalf("task XML changed: %q", actual)
 	}
@@ -246,7 +246,7 @@ func TestWindowsRegistrationFailureRestoresPreviousDefinition(t *testing.T) {
 	for _, existing := range []bool{false, true} {
 		t.Run(fmt.Sprint(existing), func(t *testing.T) {
 			service := newTestService(t, "windows", func(context.Context, string, ...string) error { return failure })
-			path := filepath.Join(service.config.ConfigDir, "nimote-host", "service.xml")
+			path := filepath.Join(service.config.ConfigDir, "nimotehost", "service.xml")
 			original := []byte("previous definition")
 			if existing {
 				if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {

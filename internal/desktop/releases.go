@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const ReleasesURL = "https://github.com/mobiledevloperlab/nimote-host/releases"
+const ReleasesURL = "https://github.com/mobiledevloperlab/nimotehost/releases"
 
 type Release struct {
 	Version string `json:"tag_name"`
@@ -20,7 +20,7 @@ type Release struct {
 
 // LatestRelease is explicit user-initiated metadata lookup, never executable download.
 func LatestRelease(ctx context.Context) (Release, error) {
-	return latestRelease(ctx, &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, "https://api.github.com/repos/mobiledevloperlab/nimote-host/releases/latest")
+	return latestRelease(ctx, &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, "https://api.github.com/repos/mobiledevloperlab/nimotehost/releases/latest")
 }
 func latestRelease(ctx context.Context, client *http.Client, endpoint string) (Release, error) {
 	var release Release

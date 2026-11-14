@@ -95,9 +95,9 @@ func Serve(ctx context.Context, dir string, ready io.Writer) error {
 			_ = server.Close()
 		}
 	}()
-	slog.Info("Nimote Host listening", "address", config.Address(), "protocol", Protocol)
+	slog.Info("NimoteHost listening", "address", config.Address(), "protocol", Protocol)
 	if ready != nil {
-		_, _ = fmt.Fprintf(ready, "Nimote Host %s listening on %s\n", Version, config.Address())
+		_, _ = fmt.Fprintf(ready, "NimoteHost %s listening on %s\n", Version, config.Address())
 	}
 	err = server.Serve(listener)
 	cancel()

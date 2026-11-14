@@ -1,5 +1,5 @@
-/nimote-host
-/nimote-host.exe
+/nimotehost
+/nimotehost.exe
 /dist/
 *.test
 *.test.exe

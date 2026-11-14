@@ -21,7 +21,7 @@ import (
 	"strings"
 )
 
-const modulePath = "github.com/mobiledevloperlab/nimote-host"
+const modulePath = "github.com/mobiledevloperlab/nimotehost"
 
 type dependency struct {
 	Module    string `json:"module"`
@@ -187,12 +187,12 @@ func build(targetOS, arch, version string) error {
 	if err := os.MkdirAll(output, 0755); err != nil {
 		return err
 	}
-	name := "nimote-host"
+	name := "nimotehost"
 	if targetOS == "windows" {
 		name += ".exe"
 	}
 	binary := filepath.Join(output, name)
-	cmd := command("build", "-mod=readonly", "-trimpath", "-buildvcs=false", "-ldflags", "-X "+modulePath+"/internal/host.Version="+version, "-o", binary, "./cmd/nimote-host")
+	cmd := command("build", "-mod=readonly", "-trimpath", "-buildvcs=false", "-ldflags", "-X "+modulePath+"/internal/host.Version="+version, "-o", binary, "./cmd/nimotehost")
 	cmd.Env = append(cmd.Env, "GOOS="+targetOS, "GOARCH="+arch)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {

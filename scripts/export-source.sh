@@ -29,7 +29,7 @@ for entry in entries:
         data = path.read_bytes()
         if secret.search(data): raise SystemExit(f'Credential pattern found in {path.relative_to(source)}')
         files.append((path.relative_to(source).as_posix(), data, path.stat().st_mode))
-output = root / 'dist/public/nimote-host-source.tar.gz'
+output = root / 'dist/public/nimotehost-source.tar.gz'
 output.parent.mkdir(parents=True, exist_ok=True)
 with output.open('wb') as dest, gzip.GzipFile(filename='', mode='wb', fileobj=dest, mtime=0) as compressed, tarfile.open(fileobj=compressed, mode='w') as archive:
     for name, data, mode in sorted(files):

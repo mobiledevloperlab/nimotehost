@@ -40,7 +40,7 @@
 - Simplify single-terminal setup; verify readiness, protect running tasks during reinstall, preserve tool paths on Unix, and provide actionable service diagnostics.
 - Package deployable archives with bilingual installation and service guidance.
 - Provide English and Simplified Chinese documentation.
-- Extract standalone Nimote Host from Nimote Connect.
+- Extract standalone NimoteHost from Nimote Connect.
 - Authenticated loopback RPC, persistent tasks/output/events, PTY/ConPTY and
   installed Codex/Claude Code/OpenCode terminal adapters.
 - Per-user Linux/macOS/Windows service integration and opt-in MCP write tools.

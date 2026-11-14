@@ -83,7 +83,7 @@ func (a *structuredAgent) initialize() error {
 	if a.acp != nil {
 		return a.initializeACP()
 	}
-	return a.send(map[string]any{"id": "host-init", "method": "initialize", "params": map[string]any{"clientInfo": map[string]string{"name": "nimote_host", "version": Version}}})
+	return a.send(map[string]any{"id": "host-init", "method": "initialize", "params": map[string]any{"clientInfo": map[string]string{"name": "nimotehost", "version": Version}}})
 }
 func (a *structuredAgent) close() {
 	a.mu.Lock()

@@ -2,7 +2,7 @@
 # Verify standalone source with no inherited workspace or Go caches.
 set -eu
 source_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-check_dir=$(mktemp -d "${TMPDIR:-/tmp}/nimote-host-clean.XXXXXXXX")
+check_dir=$(mktemp -d "${TMPDIR:-/tmp}/nimotehost-clean.XXXXXXXX")
 cleanup() {
     # Go's module cache contains read-only directories.
     chmod -R u+w "$check_dir"

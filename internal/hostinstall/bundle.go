@@ -73,8 +73,8 @@ func copyVerified(ctx context.Context, source, target string) error {
 			return fmt.Errorf("incomplete distribution: missing %s", name)
 		}
 	}
-	if _, ok := sums["nimote-host"]; !ok {
-		if _, ok := sums["nimote-host.exe"]; !ok {
+	if _, ok := sums["nimotehost"]; !ok {
+		if _, ok := sums["nimotehost.exe"]; !ok {
 			return errors.New("incomplete distribution: missing Host binary")
 		}
 	}

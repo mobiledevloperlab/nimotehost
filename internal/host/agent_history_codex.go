@@ -82,7 +82,7 @@ func codexRPC(ctx context.Context, cwd, method string, params any) (json.RawMess
 	conn.SetLogger(slog.New(slog.DiscardHandler))
 	close(reader.configured)
 	if _, err := acp.SendRequest[json.RawMessage](conn, ctx, "initialize", map[string]any{
-		"clientInfo": map[string]string{"name": "nimote_host_history", "version": Version}, "capabilities": map[string]any{},
+		"clientInfo": map[string]string{"name": "nimotehost_history", "version": Version}, "capabilities": map[string]any{},
 	}); err != nil {
 		return nil, err
 	}
