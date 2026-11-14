@@ -102,9 +102,8 @@ managed. Runtime logs are owner-private and bounded at 64 KiB; diagnostic export
 exclude logs, credentials, command arguments and session contents. GUI preferences
 (theme, Linux tray) are stored separately by Fyne.
 
-Sessions and structured Agent approvals use live existing RPC data. Devices explains
-the current SSH-account identity boundary: per-device identity/revocation is not
-implemented. SSH health is reported as externally managed rather than guessed.
+Sessions and structured Agent approvals use live existing RPC data. Devices manages restricted read-only identities and revocation; unrestricted
+SSH accounts remain outside device isolation. SSH health is reported as externally managed rather than guessed.
 See [desktop audit, build prerequisites and limits](docs/completed.md#desktop-architecture-audit)
 and [remaining acceptance](docs/pending.md).
 
@@ -140,3 +139,14 @@ the versioned RPC/MCP protocol. Module path: `github.com/mobiledevloperlab/nimot
 to this standalone Host source tree, extracted from `nimote-connect/host` at
 Connect commit `4701d14`. Third-party components retain their own
 licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## Device authorization / 设备授权补充
+
+GUI Devices 和 `nimote-host devices add <name>` 可注册独立只读设备，
+`nimote-host devices list` 列出设备，`nimote-host devices revoke <id>` 撤销。
+管理员须把独立 SSH 公钥绑定到 `restrict` + `device-bridge` 强制命令；
+不能同时给这把密钥普通 Shell 登录权限。凭证不发送给手机，撤销针对后续 Host 请求生效。
+完整 SSH/任务执行权限仍属于系统账号，不受只读设备撤销隔离。
+Observer identities use restricted SSH keys, not unrestricted same-user shell access.
+设备注册及绑定方法、安全边界见 [设备授权说明](docs/completed.md#只读设备授权历史与更新入口--observer-devices-history-and-updates)。
+GUI History 已接入原生历史查询/恢复；Settings 可查询最新官方版本并打开下载入口。

@@ -30,6 +30,12 @@ func main() {
 	}
 }
 func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
+	if len(args) == 2 && args[0] == "device-bridge" {
+		return deviceBridge(ctx, args[1], stdin, stdout)
+	}
+	if len(args) >= 1 && args[0] == "devices" {
+		return devicesCommand(args[1:], stdout)
+	}
 	if len(args) == 2 && args[0] == "rpc-encoded" {
 		data, err := base64.StdEncoding.DecodeString(args[1])
 		if err != nil {

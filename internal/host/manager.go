@@ -135,6 +135,12 @@ func validID(id string) bool {
 // Terminal adapters preserve the installed CLI interface. Structured Codex
 // sessions use app-server and explicit semantic operations instead of PTY I/O.
 func resolveCommand(req *StartRequest) error {
+	if req.ExecutionPolicy != "" && !validExecutionPolicy(req.ExecutionPolicy) {
+		return errors.New("unsupported execution policy")
+	}
+	if req.ExecutionPolicy != "" && req.ExecutionPolicy != "confirm" && (req.Kind != "agent" || req.Interaction != "structured") {
+		return errors.New("execution policy requires a structured Agent session")
+	}
 	if req.Task != nil && (req.Task.ID == "" || len(req.Task.ID) > 512 || len(req.Task.Label) > 160 || strings.ContainsRune(req.Task.ID, '\x00')) {
 		return errors.New("invalid task reference")
 	}
@@ -232,7 +238,7 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 	cmd := exec.Command(req.Command, req.Args...)
 	cmd.Dir = req.Directory
 	cmd.WaitDelay = 2 * time.Second
-	record := Session{CompatibilityFallback: req.fallbackReason, Interaction: req.Interaction, ID: id, ConversationID: resumeConversationID(req.Resume), Kind: req.Kind, Agent: req.Agent, Command: req.Command, Args: append([]string(nil), req.Args...), Directory: req.Directory, State: "running", Started: time.Now().UTC()}
+	record := Session{ExecutionPolicy: req.ExecutionPolicy, CompatibilityFallback: req.fallbackReason, Interaction: req.Interaction, ID: id, ConversationID: resumeConversationID(req.Resume), Kind: req.Kind, Agent: req.Agent, Command: req.Command, Args: append([]string(nil), req.Args...), Directory: req.Directory, State: "running", Started: time.Now().UTC()}
 	m.revision++
 	record.Revision = m.revision
 	record.StartRequestID = req.RequestID
@@ -258,6 +264,8 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 	if req.Interaction == "structured" {
 		item.agent = newStructuredAgent(req.Agent, output, req.Directory, record.ConversationID)
+		item.agent.executionPolicy = req.ExecutionPolicy
+		item.agent.onExecutionPolicy = func(policy string) error { return m.setExecutionPolicy(item, policy) }
 		item.agent.onConversationID = func(conversationID string) { m.setConversationID(item, conversationID) }
 		item.agent.onActivity = item.agentActivity
 		item.process, err = startStructuredAgent(cmd, item.agent)
@@ -284,6 +292,22 @@ func resumeConversationID(resume *AgentResume) string {
 		return ""
 	}
 	return resume.ConversationID
+}
+
+// Called under the agent lock, before publishing or applying a policy change.
+func (m *Manager) setExecutionPolicy(item *managed, policy string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	record := item.session
+	record.ExecutionPolicy = policy
+	record.Revision = m.revision + 1
+	if err := saveJSON(filepath.Join(m.dir, record.ID+".json"), record); err != nil {
+		return err
+	}
+	item.session = record
+	m.revision = record.Revision
+	m.emit(record)
+	return nil
 }
 
 func (m *Manager) setConversationID(item *managed, conversationID string) {

@@ -111,7 +111,18 @@ GUI 主题与 Linux 托盘偏好由 Fyne 单独持久化。
 
 Windows/macOS 关闭窗口隐藏到托盘；Linux 默认关闭窗口仅退出 GUI，确认有托盘支持
 后可在设置启用。退出 GUI 不停止 Host、SSH 或后台任务；明确 Stop/Restart 才结束
-Host 任务。设备认证继续依赖 SSH 系统账号，当前无逐设备身份/撤销接口，GUI 不伪造
-设备列表，也不改写 SSH 密钥。SSH 由系统管理，诊断不猜测其健康状态。
+Host 任务。完整控制仍依赖 SSH 系统账号；Devices 已支持独立只读设备身份和撤销，
+不自动改写 SSH 密钥。SSH 由系统管理，诊断不猜测其健康状态。
 详细审计、构建依赖和限制见[已完成](docs/completed.md#desktop-architecture-audit)，
 原生平台与手机验收见[待完成](docs/pending.md)。
+
+## Device authorization / 设备授权补充
+
+GUI Devices 和 `nimote-host devices add <name>` 可注册独立只读设备，
+`nimote-host devices list` 列出设备，`nimote-host devices revoke <id>` 撤销。
+管理员须把独立 SSH 公钥绑定到 `restrict` + `device-bridge` 强制命令；
+不能同时给这把密钥普通 Shell 登录权限。凭证不发送给手机，撤销针对后续 Host 请求生效。
+完整 SSH/任务执行权限仍属于系统账号，不受只读设备撤销隔离。
+Observer identities use restricted SSH keys, not unrestricted same-user shell access.
+设备注册及绑定方法、安全边界见 [设备授权说明](docs/completed.md#只读设备授权历史与更新入口--observer-devices-history-and-updates)。
+GUI History 已接入原生历史查询/恢复；Settings 可查询最新官方版本并打开下载入口。

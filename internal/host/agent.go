@@ -25,6 +25,8 @@ type AgentMessage struct {
 }
 
 type structuredAgent struct {
+	executionPolicy    string
+	onExecutionPolicy  func(string) error
 	onActivity         func(string, any)
 	lastTurnStatus     string
 	controls           agentControls

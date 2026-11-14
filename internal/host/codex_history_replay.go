@@ -56,6 +56,7 @@ func (a *structuredAgent) receiveCodexHistory(raw json.RawMessage) {
 	if a.onConversationID != nil {
 		a.onConversationID(a.thread)
 	}
+	a.publishControls()
 	a.emit("ready", map[string]string{"thread_id": a.thread})
 	a.completeStartup(nil)
 }

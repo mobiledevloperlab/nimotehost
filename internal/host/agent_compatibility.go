@@ -37,6 +37,9 @@ func (m *Manager) startRequest(req StartRequest) (Session, error) {
 	return m.startAuto(req, agentStartupTimeout)
 }
 func (m *Manager) startAuto(req StartRequest, timeout time.Duration) (Session, error) {
+	if req.ExecutionPolicy != "" && req.ExecutionPolicy != "confirm" {
+		return Session{}, errors.New("execution policies require explicit structured interaction; terminal fallback is not supported")
+	}
 	if req.Kind != "agent" || !supportsStructuredAgent(req.Agent) || len(req.Args) != 0 {
 		return Session{}, errors.New("auto interaction requires a supported agent without CLI arguments")
 	}

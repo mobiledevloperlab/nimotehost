@@ -48,8 +48,23 @@ func TestCodexProtocolChild(t *testing.T) {
 			fmt.Printf("{\"id\":%v,\"result\":{\"thread\":{\"id\":\"fake-thread\"}}}\n", f["id"])
 		case "turn/start":
 			fmt.Println(`{"method":"turn/started","params":{"turn":{"id":"fake-turn"}}}`)
+			if os.Getenv("NIMOTE_CODEX_PROTOCOL_VARIANT") == "smart-approval" {
+				cwd, _ := os.Getwd()
+				request, _ := json.Marshal(map[string]any{"id": "native-approval", "method": "item/commandExecution/requestApproval", "params": map[string]any{"threadId": "fake-thread", "turnId": "fake-turn", "command": "cat README.md", "cwd": cwd}})
+				fmt.Println(string(request))
+				continue
+			}
 			fmt.Println(`{"method":"item/agentMessage/delta","params":{"itemId":"answer","delta":"hello from subprocess"}}`)
 			fmt.Println(`{"method":"turn/completed","params":{"turn":{"id":"fake-turn","status":"completed"}}}`)
+		default:
+			if f["id"] == "native-approval" {
+				result, _ := f["result"].(map[string]any)
+				if result["decision"] != "accept" {
+					os.Exit(2)
+				}
+				fmt.Println(`{"method":"item/agentMessage/delta","params":{"itemId":"answer","delta":"approval received without UI"}}`)
+				fmt.Println(`{"method":"turn/completed","params":{"turn":{"id":"fake-turn","status":"completed"}}}`)
+			}
 		}
 	}
 	os.Exit(0)
@@ -226,5 +241,66 @@ func TestAutoAgentCompatibilityFallback(t *testing.T) {
 				t.Fatalf("probe left orphaned sessions: %v", page)
 			}
 		})
+	}
+}
+
+func TestSmartApprovalsSurviveClientDetachmentAndPolicyIsDurable(t *testing.T) {
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	script := "#!/bin/sh\nexec '" + strings.ReplaceAll(exe, "'", "'\\''") + "' -test.run=TestCodexProtocolChild\n"
+	if err := os.WriteFile(filepath.Join(dir, "codex"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("source"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("NIMOTE_CODEX_PROTOCOL_CHILD", "1")
+	t.Setenv("NIMOTE_CODEX_PROTOCOL_VARIANT", "smart-approval")
+	m := newTestManager(t)
+	session, err := m.Start(StartRequest{Kind: "agent", Agent: "codex", Interaction: "structured", Directory: dir, ExecutionPolicy: "smart"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	await := func(fragment string) {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			data, _, err := m.Output(session.ID, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(data), fragment) {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		data, _, _ := m.Output(session.ID, 0)
+		t.Fatal("missing output", fragment, string(data))
+	}
+	await(`"type":"ready"`)
+	// There is no Agent approval call from any client. The daemon must answer.
+	if err := m.AgentMessage(session.ID, AgentMessage{Action: "prompt", RequestID: "prompt", Text: "read source"}); err != nil {
+		t.Fatal(err)
+	}
+	await("approval received without UI")
+	await(`"type":"turn_completed"`)
+	if err := m.AgentMessage(session.ID, AgentMessage{Action: "configure", RequestID: "policy", OptionID: executionPolicyOption, Value: "confirm"}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(m.dir, session.ID+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stored Session
+	if json.Unmarshal(data, &stored) != nil || stored.ExecutionPolicy != "confirm" {
+		t.Fatal("policy not persisted", string(data))
+	}
+	snapshot, err := m.AgentSnapshot(session.ID)
+	if err != nil || len(snapshot["approvals"].([]any)) != 0 {
+		t.Fatal(snapshot, err)
 	}
 }

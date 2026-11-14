@@ -18,7 +18,7 @@ See [pending work](pending.md) for remaining features and validation.
 | Agent 接入 / Agents | 已安装 Codex、Claude Code、OpenCode 的终端入口；Codex app-server，OpenCode ACP，Claude 通过已安装 claude-agent-acp。结构化能力按安装与握手协商，不自动下载 CLI。 |
 | Agent 状态 / Activity state | 官方结构化事件投影为 running、idle、needs_approval、completed、failed、disconnected、unknown。存活的纯终端 Agent 显示 unknown，不匹配输出文字猜测状态。 |
 | 对话历史 / Native history | provider 原生列表、transcript 和指定 conversation 恢复；原生 conversation ID 与 Host Session ID 分开，恢复失败不悄悄开启新对话。 |
-| 审批 / Approvals | Codex 命令/文件审批；ACP 优先 allow_once/reject_once，不选择 allow_always。当前 pending ID、会话及请求 ID 由原适配器验证。 |
+| 审批 / Approvals | `agent_execution_policy_v1` 提供 confirm/smart/auto 会话策略；未指定保持 confirm。智能模式只自动批准可验证的工作区读取、搜索和 ACP 结构化编辑，未知/越界/删除仍转原生 pending。自动模式由 daemon 回复单次原生批准，客户端断开仍有效；不选择 ACP allow_always，保留 provider 原有审批与沙箱配置。策略更新要求会话空闲，先保存 Session 元数据再生效，非确认策略禁止终端降级。 |
 | 持久幂等 / Idempotency | 创建、终端输入、结构化消息的请求预留和回执；同一 ID 的不同操作、会话或内容冲突返回 409；未知结果不自动重跑。 |
 | Task 关联 / Task links | 现有 SSH Task 菜单进入按 Task/工作区筛选的 Host 列表；新建及显式恢复携带 Task 引用；进入已有会话使用原 ID。 |
 | 生命周期 Timeline | 每个会话保留最新 256 条摘要及序号，记录启动、执行、审批响应排队、完成与中断，只引用原输出游标。 |
@@ -75,7 +75,7 @@ Credentials stay on the host. Every RPC is authenticated within the existing SSH
 
 浏览器 Origin 请求拒绝；不提供 CORS。请求体上限 1 MiB，未知字段、多个 JSON 值和非法
 会话 ID 被拒绝。会话 ID 是 64 位十六进制随机串，Host ID 独立持久化。
-权限域为当前 OS 用户；同一 SSH 账号内没有独立逐手机角色授权。
+权限域为当前 OS 用户；原有完整 SSH 客户端仍共享账号权限；新增的受限 observer 设备使用独立可撤销身份。
 
 `session_disconnect_survival=true`、`session_restart_survival=false`：手机断开只分离；
 停止 Host 会终止其托管进程，Host/OS 重启不恢复活进程，未完成记录标记 interrupted。
@@ -266,7 +266,7 @@ go run ./tools/build -gui -version 1.0.0-dev
 - Windows amd64：原生 Go + MinGW-w64 gcc（CI 使用 msys64/mingw64/bin）；生成无控制台
   GUI 与 CLI zip。沿用用户安装脚本，无需管理员权限，不提供 MSI/Authenticode 签名。
 - Windows arm64、Linux arm64 CLI 保留。GUI 可在对应原生桌面/SDK 下执行相同构建命令，
-  但当前 GUI CI 不覆盖这两个目标，不能当作已支持的 GUI 发布产物。
+  但当前 GUI CI 已配置 Linux arm64 原生构建，但尚未执行验收；Windows arm64 GUI 未配置，不能当作已支持的 GUI 发布产物。
 
 `dist/gui-<os>-<arch>` 和 `nimote-host-gui-<version>-<os>-<arch>` 为桌面完整分发；
 原 CLI 名称不变。现有脚本可安装完整 GUI 包，保留整个固定安装目录。
@@ -286,3 +286,40 @@ Fyne 窗口测试使用无显示器测试驱动；不能替代真实系统托盘
 macOS arm64 GUI 原生编译、联合打包和真实图形启动通过，GUI 退出不发送 Host 停止请求；
 归档清单逐文件校验通过。真实图形启动出现 Fyne zh-Hans 内建选择器缺译的非致命日志，
 不影响启动；三平台托盘、签名、服务/系统重启和手机矩阵仍列在 pending。
+
+## 只读设备授权、历史与更新入口 / Observer devices, history and updates
+
+现新增 `nimote-host devices list|add <name>|revoke <id>` 与 GUI Devices 注册/撤销。
+每个设备使用独立随机凭证，凭证保留在 Host 本机私有 devices 目录；记录存储凭证摘要。
+每次 HTTP 请求重新验证设备记录；撤销持久化后，旧 RPC stream 后续请求也失败。
+已经通过认证的在途请求可能完成，不承诺撤销会回滚此前已返回或已读取的数据。
+其他设备、owner Token 与运行任务不受影响。列表不返回原始凭证或摘要。
+
+设备默认且仅支持 observer：允许状态、能力、会话元数据、会话输出、activity 和 Agent
+状态读取；禁止任务创建/输入/审批/停机/原生历史 helper 等所有写入或进程启动入口。
+observer 可看到该账号的会话输出，授权前应确认该可见范围；当前没有每会话读 ACL。
+Devices are read-only because unrestricted same-user command execution would expose owner
+credentials and defeat revocation. Existing full SSH accounts are not retroactively isolated.
+
+Unix 管理员为每台设备准备独立 SSH 公钥，把 GUI 显示的 `restrict,command="..."`
+条目安装到对应账号的 authorized_keys，替换其中 PUBLIC-KEY 为真实公钥；该密钥不能
+同时保留不受限的登录条目。强制命令为固定绝对路径的 `nimote-host device-bridge <id>`，
+仅接受原有 rpc/rpc-encoded/rpc-stream/status/capabilities 桥接，不执行 SSH 原始字符串。
+`restrict` 禁止转发、PTY 和 user rc；详见 [OpenSSH 官方说明](https://man.openbsd.org/sshd)。
+本功能不自动修改 SSH 配置，也不修改已有普通 SSH 密钥。Windows 需按服务器默认 shell
+配置正确强制命令；GUI 不输出未经原生验证的 Windows 授权行。
+撤销 Host 权限后，还应移除相应受限 SSH key 来禁止后续 SSH 登录；Host 撤销无需等待该操作。
+
+GUI History 从当前 Host 的原生 provider API 读取历史列表（支持列表分页）与 transcript，
+使用原 conversation_id 显式恢复新结构化 Agent 会话；不重放旧提示，不自动转成新对话。
+加载目录/Agent 与展示数据绑定，编辑查询条件不会改变已选记录的恢复目标。
+Settings 可显式查询官方 GitHub 最新发行版，并在用户确认后打开下载页，使用原有校验和
+安装事务更新；不执行下载代码、不静默覆盖活跃服务。版本查询使用
+[GitHub 官方 releases API](https://docs.github.com/en/rest/releases/releases)。
+原生跨主机 Dashboard、离线推送、活进程跨 daemon/OS 恢复等仍列 pending，不能用本次
+桌面映射或 fake provider 测试代替它们的实现与真机验收。
+
+设备功能本轮验证 / Device verification: 全量 Go race、两模块 vet、Fyne 生命周期、
+真实 CLI device-bridge 集成、旧 RPC stream 后续请求撤销、持久撤销、其他设备和 owner
+隔离、越权写入拒绝均通过。权限边界模糊测试约 51 万次未失败。该结论不包含真实 SSH
+服务器 key 配置、物理手机、Windows/Linux 图形环境或完整控制设备的安全验收。

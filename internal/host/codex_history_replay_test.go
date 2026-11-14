@@ -29,14 +29,17 @@ func TestCodexResumePersistsPaginatedHistoryBeforeReady(t *testing.T) {
 	}
 	a.receive([]byte(`{"id":"host-history","result":{"data":[{"item":{"type":"agentMessage","id":"a","text":"previous response"}},{"item":{"type":"commandExecution","id":"t","command":"pwd","status":"completed"}}],"nextCursor":null}}`))
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
-	if len(lines) != 4 || a.thread != "saved-thread" || a.busy || len(a.approvals) != 0 {
+	if len(lines) != 5 || a.thread != "saved-thread" || a.busy || len(a.approvals) != 0 {
 		t.Fatal(out.String())
 	}
-	for i, want := range []string{"history", "history", "history", "ready"} {
+	for i, want := range []string{"history", "history", "history", "controls", "ready"} {
 		var event map[string]any
 		if json.Unmarshal([]byte(lines[i]), &event) != nil || event["type"] != want {
 			t.Fatal(lines[i])
 		}
+	}
+	if len(a.controls.Options) != 1 || a.controls.Options[0].ID != executionPolicyOption {
+		t.Fatal("resumed session did not advertise its execution policy", a.controls)
 	}
 	if strings.Contains(out.String(), "hidden") || !strings.Contains(out.String(), "previous response") {
 		t.Fatal(out.String())
