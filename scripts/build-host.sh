@@ -3,4 +3,4 @@
 set -euo pipefail
 host_repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$host_repo_root"
-exec go run ./tools/build -os "${1:-$(go env GOOS)}" -arch "${2:-$(go env GOARCH)}" -version "${3:-1.0.0-dev}"
+exec go run ./tools/build -os "${1:-$(go env GOOS)}" -arch "${2:-$(go env GOARCH)}" -version "${3:-2.4.0}"

@@ -2,7 +2,7 @@
 
 **English** | [简体中文](CHANGELOG.zh-CN.md)
 
-## Unreleased — 1.0.0-dev
+## Unreleased — 2.4.0
 
 - Refine desktop spacing, labeled sidebar navigation, status and metric cards, and light/dark palettes; open current approvals directly and cover contrast and control sizing.
 

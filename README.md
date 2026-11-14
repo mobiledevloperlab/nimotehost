@@ -7,7 +7,7 @@ agent CLIs over an existing authenticated SSH connection. Host listens only on
 loopback, authenticates every RPC request and requires no Nimote account,
 control plane, Tailcat or public relay.
 
-Host is a **development preview (`1.0.0-dev`)**. It supports Linux/macOS/Windows
+Host is a **development preview (`2.4.0`)**. It supports Linux/macOS/Windows
 on amd64 and arm64. Full native-platform and mobile/Agent acceptance remains
 outstanding; see
 [pending functionality](docs/pending.md).
@@ -53,7 +53,7 @@ This works from PowerShell as well as Unix shells. Run the generated binary at
 For other targets or a versioned distribution:
 
 ```sh
-go run ./tools/build -os windows -arch arm64 -version 1.0.0-dev
+go run ./tools/build -os windows -arch arm64 -version 2.4.0
 ```
 
 The complete distribution includes current bilingual feature documentation, licenses,
@@ -85,7 +85,7 @@ not compile or download Fyne. No mobile protocol or public transport is changed.
 
 ```sh
 # Native desktop SDK / C compiler required; also builds the CLI distribution
-go run ./tools/build -gui -version 1.0.0-dev
+go run ./tools/build -gui -version 2.4.0
 # Or: make desktop
 ```
 

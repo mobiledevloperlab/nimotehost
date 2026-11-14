@@ -15,7 +15,7 @@ import (
 const Protocol = 1
 
 // Version is set by the release build; protocol compatibility is tracked separately.
-var Version = "1.0.0-dev"
+var Version = "2.4.0"
 
 const maxOutput = 16 << 20
 

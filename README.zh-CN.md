@@ -6,7 +6,7 @@ NimoteHost 是通过既有认证 SSH 使用的独立 Go 服务，可托管持久
 编程 Agent CLI。Host 只监听本机回环地址，所有 RPC 请求均需认证，无需 Nimote 账号、
 控制面、Tailcat 或公网中继。
 
-当前是 **`1.0.0-dev` 开发预览版**，提供 Linux、macOS、Windows 的 amd64/arm64 构建。
+当前是 **`2.4.0` 开发预览版**，提供 Linux、macOS、Windows 的 amd64/arm64 构建。
 完整原生平台和移动客户端/Agent 验收仍待完成，见[未完成功能](docs/pending.md)。
 
 功能状态见[已完成功能](docs/completed.md)和[未完成功能](docs/pending.md)；
@@ -47,7 +47,7 @@ go run ./tools/build
 指定其他目标平台和版本：
 
 ```sh
-go run ./tools/build -os windows -arch arm64 -version 1.0.0-dev
+go run ./tools/build -os windows -arch arm64 -version 2.4.0
 ```
 
 完整分发目录包含当前中英文功能说明、许可证、模块清单、构建信息和 SHA256SUMS。
@@ -99,7 +99,7 @@ CLI 与 GUI 复用现有 Go Host、认证本地 RPC 和三平台用户服务；F
 `cmd/nimotehost-gui` 独立 module 中，CLI 不引入图形依赖。
 
 ```sh
-go run ./tools/build -gui -version 1.0.0-dev
+go run ./tools/build -gui -version 2.4.0
 ```
 
 需在目标系统本机构建并安装 C 编译器/桌面 SDK。产物为
