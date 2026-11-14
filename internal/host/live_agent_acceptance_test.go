@@ -21,11 +21,20 @@ func TestLiveAgentApprovalDeclineAndConversationResume(t *testing.T) {
 	if !supportsStructuredAgent(provider) {
 		t.Fatal("unsupported live provider")
 	}
-	m := newTestManager(t)
-	workspace := t.TempDir()
-	api := &Server{manager: m, token: "acceptance-owner"}
+	runLiveAgentAcceptance(t, provider, newTestManager(t), t.TempDir(), nil, nil)
+}
+
+// Optional callbacks let the Linux root fixture assign a new UID per resumed
+// Host session and exercise the controller credential rather than owner authority.
+func runLiveAgentAcceptance(t *testing.T, provider string, m *Manager, workspace string, identityForStart func(string) *ExecutionIdentity, authorize func(Session) string) {
+	t.Helper()
+	api := &Server{dir: filepath.Dir(m.dir), manager: m, token: "acceptance-owner"}
+	credentials := map[string]string{}
 	start := func(conversation string) Session {
 		req := StartRequest{Kind: "agent", Agent: provider, Interaction: "structured", ExecutionPolicy: "confirm", Directory: workspace}
+		if identityForStart != nil {
+			req.Identity = identityForStart(conversation)
+		}
 		if conversation != "" {
 			req.Resume = &AgentResume{ConversationID: conversation}
 		}
@@ -54,6 +63,10 @@ func TestLiveAgentApprovalDeclineAndConversationResume(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				credentials[ready.ID] = "acceptance-owner"
+				if authorize != nil {
+					credentials[ready.ID] = authorize(ready)
+				}
 				return ready
 			}
 			if snapshot["status"] == "disconnected" {
@@ -66,7 +79,7 @@ func TestLiveAgentApprovalDeclineAndConversationResume(t *testing.T) {
 	}
 	send := func(id string, req AgentMessage) {
 		body, _ := json.Marshal(req)
-		w := deviceRequest(api, "acceptance-owner", "POST", "/v1/sessions/"+id+"/agent-message", string(body))
+		w := deviceRequest(api, credentials[id], "POST", "/v1/sessions/"+id+"/agent-message", string(body))
 		if w.Code != 200 {
 			t.Fatalf("live semantic operation failed HTTP %d: %s", w.Code, w.Body.String())
 		}

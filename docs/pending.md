@@ -73,21 +73,34 @@ Deleted historical reports are available in Git history and do not establish cur
 
 ## Host 加固剩余门槛 / Remaining hardening gates
 
+### 执行边界 / Approval boundaries
+
+用户已明确：**重启任何机器必须先获得单独、明确批准**。提供 env.md 不代表授权重启。
+系统登录/注销、生产 SSH/service/firewall 配置变更、系统级安装、挂载及文件系统配额变更，
+也应在准备好影响范围、测试窗口与恢复方案后请求批准。本轮先使用临时目录、独立端口、
+临时测试密钥与独立进程完成可逆验证；没有条件的项目保留于本页，不标记完成。
+Machine reboots require explicit prior approval. Environment access alone does not authorize them.
+
+
 - [ ] macOS/Windows 完整控制设备的独立执行身份；现有 session_operator 仍仅安全停止/拒绝。
-- [ ] macOS 硬 CPU/内存/进程配额；Linux CPU 控制器在此次 WSL 测试层级未委派，
-  不自动修改全局控制器，不将配置拒绝标为 CPU enforcement 通过。
+- [ ] macOS 硬 CPU/内存/进程配额尚未实现。Linux 已在现有 CPU 委派的 Ubuntu WSL 环境
+  验证 cpu.max 与实际内核节流；未委派的系统仍明确拒绝，不自动启用全局控制器。
 - [ ] 工作区磁盘硬配额：目前仅 Host 磁盘下限、输出/事件/账本容量与有限任务数，
   不限制任意工作区写入；应在专用卷/管理员文件系统配额下部署不可信任务。
 - [ ] 默认 Unix 非 cgroup 任务主动脱离进程组后的回收；配置 cgroup 的 Linux 已验证 setsid 后代撤权清理。
   Host SIGKILL 的普通进程组已验证，不承诺 supervisor 也被外部强杀、内核崩溃或断电时事务完整。
 - [ ] 独立原生 Linux（非 WSL）、Windows/macOS 系统重启、登录/注销、长时间负载与安装升级回退验收；
   原生系统调用测试通过不等价于这些运维场景已验证。
-- [ ] 真实 SSH forced-command/转发/SFTP 限制与撤销验收；现有直接 CLI/RPC 回归不能替代 sshd 集成。
+- [ ] Windows/macOS 原生 SSH 全链路验收。Linux WSL 已用现有 OpenSSH、独立回环端口和临时密钥
+  验证强制命令、Session 范围、shell/SFTP/TCP 转发/PTY 拒绝与撤权；没有修改现有服务或 authorized_keys。
+  Windows 普通管理员上下文的临时 sshd 认证未通过，当前 token 未报告 SeAssignPrimaryTokenPrivilege；
+  需要经批准的专用服务身份继续定位/验收，不能将本次失败标为通过。
 - [ ] 更广泛的真实 Agent 版本/模型/平台矩阵；三个提供方 + deepseek-flash 的批准、拒绝、去重、
   对话恢复已实际验证，但不能代表全部 provider 版本。ACP v2 全量 message upsert、
   background work、终端显示及复杂恢复状态仍需专项一致性验收。
-  Linux 隔离 UID 下真实 Agent、独立凭据及 AF_UNIX/io_uring 限制兼容也需专门验收；
-  已通过的三个真实模型流程在 macOS owner 会话中执行。
+  Linux 独立 UID + session_controller 下 Codex 0.169.0 已验证真实批准、拒绝、去重与新 UID 恢复。
+  Linux Claude/OpenCode 对应 CLI/ACP 运行时与隔离凭据配置尚未提供/验收；原三个提供方的完整流程
+  仍以 macOS owner 会话的结果为准，不推广为全部隔离后端的兼容结论。
 - [ ] 独立安全审查、长期饱和/故障注入；非可关闭 io.Writer 的阻塞仍无法由通用接口强制终止。
   Linux 执行身份仅保护私有 Host/会话权限，不隐藏世界可读文件，不限制 IP 网络，
   不承担内核漏洞或其他 root 管理员配置错误的防护。
@@ -97,3 +110,18 @@ Windows 原生硬配额和 Linux cgroup/专用 UID 后端；不再重复列为�
 Implemented contract and rollback: [hardening audit](host-hardening.md).
 Actual verification and limitations: [hardening tests](host-hardening-tests.md).
 These remaining items prevent claiming that all P0/P1 release goals are complete.
+
+## 待批准与缺少条件的项目 / Approval and prerequisites
+
+| 项目 | 当前状态与所需条件 | 准备或执行边界 |
+| --- | --- | --- |
+| 任何机器重启、登录/注销 | 等待明确批准与可中断时间窗口 | 先确认目标主机、服务/会话影响、恢复入口；本轮零次机器重启 |
+| Windows 原生受限 SSH | 当前管理员临时 daemon 的验收失败，未关闭 | 可在批准后创建专用临时 SYSTEM 服务，仅监听 127.0.0.1、独立端口/密钥/config，测试后删除；不得改现有 sshd 服务/登录权限来绕过条件 |
+| macOS 受限 SSH | 缺少获准的 sshd 测试运行环境 | 不擅自开启 Remote Login 或修改用户 authorized_keys |
+| 长期负载与独立 Linux OS 运维 | 尚无专用、可持续占用的隔离主机和运行窗口 | 现有短时故障/并发回归不能代替长期与系统启动验收 |
+| 磁盘硬配额 | 后端代码未实现，且未指定可操作的独立测试卷/文件系统 | 需先确定项目/卷配额方案；挂载、启用文件系统配额等操作等待批准 |
+| macOS 硬配额、macOS/Windows 独立执行身份 | 后端代码尚未完成，当前明确拒绝 | 需各 OS 的可验证身份/容器与权限方案；创建系统身份、AppContainer 配置/ACL 等状态变更须先审查和批准 |
+| Linux Claude/OpenCode 隔离流程 | 当前选用的 Ubuntu WSL 未发现对应受支持 CLI/ACP/Node 运行时 | 待提供版本与独立凭据配置；不自动作系统级安装 |
+
+上述项目均未被视为已接受风险或正式发布通过。已完成项及实际命令见
+[completed](completed.md) 与 [测试记录](host-hardening-tests.md)。

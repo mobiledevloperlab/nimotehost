@@ -84,9 +84,11 @@ No setuid binary or account creation is involved. Unsupported conditions reject 
 Each isolated session defaults to 512 MiB/64 tasks/3600 seconds if that budget is unspecified.
 The guardian launches the target atomically into the cgroup and drops UID/GID and
 supplementary groups before executing user code. The final stage enables no_new_privs,
-filters AF_UNIX socket/socketpair and io_uring setup (which could bypass socket
-syscalls) to prevent privileged socket brokers escaping the
-job, lowers priority, and execs the command. Only amd64/arm64 are supported.
+allows only IPv4/IPv6 socket creation and connected anonymous AF_UNIX stream
+socketpairs for runtime signal wakeups. Named Unix socket creation, reconnectable
+datagram/seqpacket pairs, other socket families (including vsock) and io_uring setup
+are denied to block privileged socket/interop brokers escaping the job. The stage
+then lowers priority and execs the command. Only amd64/arm64 are supported.
 The target inherits a minimal environment with HOME/TMPDIR=workspace, not owner
 API/SSH credentials. Provision required Agent credentials separately for this UID.
 This is an OS account boundary, not a filesystem/network container: world-readable
@@ -291,3 +293,44 @@ operational logs. Self-review and tests are not independent security approval.
 
 中文结论：旧客户端继续使用旧接口；新增能力需要协商。不做破坏性数据迁移，
 不自动清理未知文件/凭证/任务，不把受限 operator 或应用层限流描述为 OS 沙箱。
+
+## Follow-up acceptance and deployment / 后续验收及部署决策
+
+Linux native Codex acceptance exposed Tokio's use of anonymous Unix stream pairs
+for signal wakeups. Blanket socketpair denial caused startup to panic. The filter
+now permits only connected stream pairs (including CLOEXEC/NONBLOCK flags), with
+kernel tests proving data transfer, rejection of reconnect/listen/AF_UNSPEC/closed-peer
+reuse against a reachable dummy broker, and continued rejection of datagram,
+seqpacket, named Unix and vsock sockets. The Linux 6.18 implementation of
+[Unix sockets](https://github.com/torvalds/linux/blob/v6.18/net/unix/af_unix.c)
+provides the connection semantics; native tests also attempt harmless Windows interop
+and require that it cannot execute under the isolated identity. This is still not
+an IP network or filesystem container.
+
+Real Agent acceptance uses an explicitly assigned private profile, not inherited
+owner credentials. A root-owned test launcher reads a 0600 JSON credential file
+inside the UID-owned private HOME and supplies only the intended provider key.
+Codex uses a private TMPDIR distinct from CODEX_HOME; its security checks refuse
+helper aliases when the credential home is nested inside TMPDIR. There is no
+production auto-install or secret environment inheritance added by the test fixture.
+
+Each resumed Host Session must use a fresh UID. The owner stops the previous owned
+cgroup before explicitly transferring the selected private workspace/profile to
+the new UID and granting a new controller. UID reservations are never reused and
+profiles are not automatically shared across devices. The new fixture exercises
+actual controller credentials for prompts/approvals, not an owner-token substitute.
+
+Native SSH acceptance uses a separate daemon process, ephemeral host/device keys,
+a pinned test known_hosts entry, a loopback-only port and private config. Linux
+uses a root-protected temporary directory under /var/lib because OpenSSH StrictModes
+correctly rejects authorized-key paths under world-writable /tmp. The real Host
+runs under an existing unprivileged login using explicit private XDG_CONFIG_HOME;
+no production state, user keys or service definitions are edited. Test-owned daemon
+trees are placed in private cgroups/Windows Jobs and stopped before scratch cleanup.
+Windows admin-mode daemon authentication has not passed; an approved service-context
+acceptance remains required. A service-context limitation is described by the
+[upstream Windows OpenSSH troubleshooting issue](https://github.com/PowerShell/Win32-OpenSSH/issues/1304),
+but the current failure is not claimed resolved merely from that reference.
+
+All machine reboots require explicit approval. See the concrete deferred actions
+and prerequisites in [pending](pending.md); this follow-up has performed no reboot.

@@ -420,3 +420,17 @@ Platform support and verification are bounded by the actual backend; no release 
 
 权限模型、部署前提、资源语义及回滚见 [Host 加固审计](host-hardening.md)；
 实际测试、未验证项与剩余风险见 [加固测试记录](host-hardening-tests.md) 和 [待办](pending.md)。
+
+### 后续风险关闭 / Follow-up risk closure
+
+- Linux WSL 真实 OpenSSH：独立 daemon/端口/临时密钥验收通过，覆盖强制命令、Session 范围、
+  shell/SFTP/TCP 转发/PTY 拒绝、持久撤权与 owner 不受撤权影响；未改现有 SSH 配置。
+- Linux 独立 UID 下 Codex 0.169.0 + deepseek-flash：用 session_controller 凭据实际完成
+  批准、拒绝、重复审批去重和新 UID 下原 conversation 恢复；owner 显式转移私有 profile。
+- Linux CPU 控制器已在现有委派层级验证真实 cpu.max 配置与 nr_throttled 增长；只操作新建测试子树。
+- Linux 内存硬限制实际验证：触碰 128 MiB 内存，在 512 MiB 配额下成功、64 MiB 下由内核终止；
+  身份边界、CPU/内存、SSH 与隔离 Codex 均以原生 race 二进制另行验收通过。
+- 修复隔离后端过度阻断匿名 Unix stream socketpair 导致 Tokio 启动失败的问题；
+  保留命名 broker、可重连 socketpair、非 IP socket 和 io_uring 的拒绝及对应内核回归。
+- 机器重启与系统配置变更的批准边界、未具备的环境及未实现的后端已逐项记录于 pending；
+  未完成项目没有因提交或短时测试通过而被标记为正式发布完成。
