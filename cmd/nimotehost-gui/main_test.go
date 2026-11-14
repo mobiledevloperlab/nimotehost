@@ -18,6 +18,38 @@ import (
 	"time"
 )
 
+type iconTrackingApp struct {
+	fyne.App
+	iconBeforeWindow fyne.Resource
+	windowIcon       fyne.Resource
+	icon             fyne.Resource
+}
+
+func (a *iconTrackingApp) SetIcon(icon fyne.Resource) { a.icon = icon }
+func (a *iconTrackingApp) NewWindow(title string) fyne.Window {
+	a.iconBeforeWindow = a.icon
+	return &iconTrackingWindow{Window: a.App.NewWindow(title), app: a}
+}
+
+type iconTrackingWindow struct {
+	fyne.Window
+	app *iconTrackingApp
+}
+
+func (w *iconTrackingWindow) SetIcon(icon fyne.Resource) { w.app.windowIcon = icon }
+
+func TestWindowIconAssignedBeforeAndAfterCreation(t *testing.T) {
+	base := test.NewApp()
+	defer base.Quit()
+	a := &iconTrackingApp{App: base}
+	w, cleanup := newManagerWindow(a, &desktop.Manager{}, false)
+	defer cleanup()
+	defer w.Close()
+	if a.iconBeforeWindow != applicationLogo || a.windowIcon != applicationLogo {
+		t.Fatal("application icon must be set before window creation and applied to the window")
+	}
+}
+
 func TestWindowCloseReopenAndQuitPreserveHostTask(t *testing.T) {
 	binary := filepath.Join(t.TempDir(), "nimotehost")
 	if runtime.GOOS == "windows" {
