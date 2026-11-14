@@ -3,18 +3,21 @@
 English / 简体中文 · `1.0.0-dev` · 更新 / Updated: 2026-11-14
 
 当前源码已实现的功能、使用方式和协议只维护在[已完成功能](completed.md)。
-本页只列未完成的功能与验收，不重复历史过程，不把已有代码再次列为缺失。
-Implemented behavior lives in [completed functionality](completed.md). Items below remain open.
+本页以清单跟踪功能与验收：已完成子项标记 `[x]`，未完成、部分完成或待批准项标记 `[ ]`。
+完成项的实现细节及证据分别见 completed 与加固测试记录，不把局部完成视为整体完成。
+Implemented behavior lives in [completed functionality](completed.md). Checked items are complete within their stated scope; unchecked items remain open.
 
 ## 功能 / Features
 
 - [ ] 统一 AI Session Dashboard：在现有 AI 模式按主机/工作区聚合会话、搜索与状态筛选；
   保存带观察时间的离线摘要，不将缓存伪装成实时状态。
   Unified AI-mode dashboard and timestamped cross-host offline summaries.
-- [ ] 完整控制设备的跨平台执行隔离：Linux root + 私有有限额 cgroup v2 + 每会话专用 UID
-  已提供显式 opt-in 后端与原生验收；macOS/Windows 无独立身份后端，拒绝完整控制授权。
+- [x] Linux 完整控制设备执行隔离：root + 私有有限额 cgroup v2 + 每会话专用 UID
+  的显式 opt-in 后端与原生 WSL 验收已完成。
   Linux 的 UID 号段须由管理员跨 Host 保留，Agent 账号/凭据须独立配置；不提供通用容器或网络沙箱。
-- [ ] 旧格式请求键迁移及容量运维：七天有效期的新格式请求键已支持安全在线轮换和容量告警；
+- [ ] macOS/Windows 完整控制设备执行隔离：无独立身份后端，当前拒绝完整控制授权。
+- [x] 新格式请求键：七天有效期、安全在线轮换与容量告警。
+- [ ] 旧格式请求键迁移及容量运维：
   旧格式回执仍不可安全淘汰，达到保留数量/空间限额时继续拒绝新操作。
   不通过删除旧回执允许延迟重放；需配套客户端迁移和明确的旧协议退役方案。
   Legacy-key migration remains open; expiring IDs now rotate safely within a bounded retry window.
@@ -83,30 +86,39 @@ Machine reboots require explicit prior approval. Environment access alone does n
 
 
 - [ ] macOS/Windows 完整控制设备的独立执行身份；现有 session_operator 仍仅安全停止/拒绝。
-- [ ] macOS 硬 CPU/内存/进程配额尚未实现。Linux 已在现有 CPU 委派的 Ubuntu WSL 环境
-  验证 cpu.max 与实际内核节流；未委派的系统仍明确拒绝，不自动启用全局控制器。
+- [x] Linux CPU 硬配额：在现有委派的 Ubuntu WSL 环境验证 cpu.max 与实际内核节流；
+  未委派的系统仍明确拒绝，不自动启用全局控制器。
+- [x] Linux 内存硬配额：实际触碰 128 MiB 内存，512 MiB 配额下成功、64 MiB 下由内核终止；
+  CPU/内存原生 race 验收通过。
+- [ ] macOS 硬 CPU/内存/进程配额尚未实现。
 - [ ] 工作区磁盘硬配额：目前仅 Host 磁盘下限、输出/事件/账本容量与有限任务数，
   不限制任意工作区写入；应在专用卷/管理员文件系统配额下部署不可信任务。
-- [ ] 默认 Unix 非 cgroup 任务主动脱离进程组后的回收；配置 cgroup 的 Linux 已验证 setsid 后代撤权清理。
-  Host SIGKILL 的普通进程组已验证，不承诺 supervisor 也被外部强杀、内核崩溃或断电时事务完整。
+- [x] Unix supervisor 的 Host SIGKILL 普通进程组清理，以及 Linux cgroup 下 setsid 后代撤权清理已验证。
+- [ ] 默认 Unix 非 cgroup 任务主动脱离进程组后的回收；不承诺 supervisor 也被外部强杀、
+  内核崩溃或断电时事务完整。
 - [ ] 独立原生 Linux（非 WSL）、Windows/macOS 系统重启、登录/注销、长时间负载与安装升级回退验收；
   原生系统调用测试通过不等价于这些运维场景已验证。
-- [ ] Windows/macOS 原生 SSH 全链路验收。Linux WSL 已用现有 OpenSSH、独立回环端口和临时密钥
-  验证强制命令、Session 范围、shell/SFTP/TCP 转发/PTY 拒绝与撤权；没有修改现有服务或 authorized_keys。
-  Windows 普通管理员上下文的临时 sshd 认证未通过，当前 token 未报告 SeAssignPrimaryTokenPrivilege；
+- [x] Linux WSL 原生 SSH 全链路：用现有 OpenSSH、独立回环端口和临时密钥
+  验证强制命令、Session 范围、shell/SFTP/TCP 转发/PTY 拒绝与撤权，原生 race 验收通过；
+  没有修改现有服务或 authorized_keys。
+- [ ] Windows/macOS 原生 SSH 全链路验收：Windows 普通管理员上下文的临时 sshd
+  认证未通过，当前 token 未报告 SeAssignPrimaryTokenPrivilege；
   需要经批准的专用服务身份继续定位/验收，不能将本次失败标为通过。
-- [ ] 更广泛的真实 Agent 版本/模型/平台矩阵；三个提供方 + deepseek-flash 的批准、拒绝、去重、
-  对话恢复已实际验证，但不能代表全部 provider 版本。ACP v2 全量 message upsert、
-  background work、终端显示及复杂恢复状态仍需专项一致性验收。
-  Linux 独立 UID + session_controller 下 Codex 0.169.0 已验证真实批准、拒绝、去重与新 UID 恢复。
-  Linux Claude/OpenCode 对应 CLI/ACP 运行时与隔离凭据配置尚未提供/验收；原三个提供方的完整流程
-  仍以 macOS owner 会话的结果为准，不推广为全部隔离后端的兼容结论。
+- [x] macOS owner 会话的 Codex/Claude Code/OpenCode + deepseek-flash：实际批准、拒绝、
+  审批去重与对话恢复已验证；具体版本见测试记录。
+- [x] Linux 独立 UID + session_controller 下 Codex 0.169.0：真实批准、拒绝、去重与新 UID
+  恢复通过原生 race 验收；隔离运行时匿名 stream socketpair 兼容修复及内核负向回归通过。
+- [ ] 更广泛的真实 Agent 版本/模型/平台矩阵：Linux Claude/OpenCode 对应 CLI/ACP 运行时
+  与隔离凭据配置尚未提供/验收；已验证的版本不推广为全部隔离后端的兼容结论。
+  ACP v2 全量 message upsert、background work、终端显示及复杂恢复状态仍需专项一致性验收。
 - [ ] 独立安全审查、长期饱和/故障注入；非可关闭 io.Writer 的阻塞仍无法由通用接口强制终止。
   Linux 执行身份仅保护私有 Host/会话权限，不隐藏世界可读文件，不限制 IP 网络，
   不承担内核漏洞或其他 root 管理员配置错误的防护。
 
-已完成逐设备公平准入、有限连接、明确状态修复、Unix lifetime supervisor、
-Windows 原生硬配额和 Linux cgroup/专用 UID 后端；不再重复列为完全缺失。
+- [x] 逐设备公平准入与有限连接，明确状态修复、备份及恢复水位回归。
+- [x] Windows Job Object 原生 CPU/内存/进程数硬限制；内存分配拒绝和 Job 生命周期已验证。
+
+以上已勾选项均限定于所述实现和测试范围；未勾选项仍是发布门槛。
 Implemented contract and rollback: [hardening audit](host-hardening.md).
 Actual verification and limitations: [hardening tests](host-hardening-tests.md).
 These remaining items prevent claiming that all P0/P1 release goals are complete.
