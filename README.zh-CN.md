@@ -201,3 +201,6 @@ Sessions → Past conversations 已接入原生历史查询/恢复；Settings �
 [公开 HCP 1.0 规范](docs/plugin-system/spec/v1/README.md)及
 [SDK / HTTP API Inspector 开发安装指南](docs/plugin-system/plugin-sdk.md)。
 插件默认禁用，需明确批准后启用；运行第三方程序前请阅读[安全边界](docs/plugin-system/security.md)。
+
+同时支持本地离线包安装和 GitHub 目录搜索、下载及安装。开发者只需提交
+[目录元数据](docs/plugin-system/catalog.md)，源码与发布包保留在自己的仓库中。

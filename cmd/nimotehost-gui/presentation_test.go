@@ -79,7 +79,7 @@ func TestOverviewDistinguishesStoppedFromUnavailableAndKeepsSafeActions(t *testi
 			t.Fatal("technical errors leaked onto the overview")
 		}
 	}
-	if len(u.pages) != 4 {
+	if len(u.pages) != 5 {
 		t.Fatal("advanced tools became top-level navigation")
 	}
 	for _, code := range languageCodes {
