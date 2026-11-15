@@ -17,9 +17,10 @@ import (
 func devicePanel(u *managerWindow) fyne.CanvasObject {
 	cards := column(12, wrappedLabel(u.t("action.loading")))
 	ctx := u.ctx
+	driver := u.app.Driver()
 	var refresh func()
-	refresh = func() {
-		devices, err := host.ListDevices(u.manager.Dir)
+	loading, pending := false, false
+	render := func(devices []host.Device, err error) {
 		if ctx.Err() != nil {
 			return
 		}
@@ -28,9 +29,9 @@ func devicePanel(u *managerWindow) fyne.CanvasObject {
 			cards.Refresh()
 			return
 		}
-		cards.Objects = nil
+		objects := []fyne.CanvasObject{}
 		if len(devices) == 0 {
-			cards.Add(surface(column(12, widget.NewIcon(theme.ComputerIcon()), sectionTitle(u.t("devices.empty")), mutedLabel(u.t("devices.emptyHint")))))
+			objects = append(objects, surface(column(12, widget.NewIcon(theme.ComputerIcon()), sectionTitle(u.t("devices.empty")), mutedLabel(u.t("devices.emptyHint")))))
 		}
 		for _, device := range devices {
 			d := device
@@ -46,7 +47,7 @@ func devicePanel(u *managerWindow) fyne.CanvasObject {
 					confirmDialog(u.window, u.t("devices.revoke"), u.t("devices.revokeConfirm", map[string]any{"Name": d.Name}), u.t("devices.revoke"), u.t("action.cancel"), func() {
 						go func() {
 							err := host.RevokeDevice(u.manager.Dir, d.ID)
-							fyne.Do(func() {
+							driver.DoFromGoroutine(func() {
 								if ctx.Err() != nil {
 									return
 								}
@@ -56,15 +57,41 @@ func devicePanel(u *managerWindow) fyne.CanvasObject {
 									u.notice(u.t("devices.revoked"))
 									refresh()
 								}
-							})
+							}, false)
 						}()
 					})
 				}))
 			}
-			cards.Add(surface(container.NewBorder(nil, nil, nil, actions, column(2, name, mutedLabel(state)))))
+			objects = append(objects, surface(container.NewBorder(nil, nil, nil, actions, column(2, name, mutedLabel(state)))))
 		}
+		cards.Objects = objects
 		cards.Refresh()
 	}
+	refresh = func() {
+		if ctx.Err() != nil {
+			return
+		}
+		if loading {
+			pending = true
+			return
+		}
+		loading = true
+		go func() {
+			devices, err := host.ListDevices(u.manager.Dir)
+			driver.DoFromGoroutine(func() {
+				if ctx.Err() != nil {
+					return
+				}
+				loading = false
+				render(devices, err)
+				if pending {
+					pending = false
+					refresh()
+				}
+			}, false)
+		}()
+	}
+
 	add := widget.NewButtonWithIcon(u.t("devices.add"), theme.ContentAddIcon(), func() {
 		name := widget.NewEntry()
 		name.SetPlaceHolder(u.t("devices.namePlaceholder"))
@@ -81,7 +108,7 @@ func devicePanel(u *managerWindow) fyne.CanvasObject {
 			value := name.Text
 			go func() {
 				device, err := host.CreateDevice(u.manager.Dir, value)
-				fyne.Do(func() {
+				driver.DoFromGoroutine(func() {
 					if ctx.Err() != nil {
 						return
 					}
@@ -91,7 +118,7 @@ func devicePanel(u *managerWindow) fyne.CanvasObject {
 					}
 					refresh()
 					u.showDevice(device)
-				})
+				}, false)
 			}()
 		}, u.window)
 		d.SetDismissText(u.t("action.cancel"))

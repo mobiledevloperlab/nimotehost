@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,7 +16,7 @@ import (
 )
 
 func TestDevicesShowNamesWithoutExposingIDsOnTheList(t *testing.T) {
-	a := test.NewApp()
+	a := newUITestApp()
 	defer a.Quit()
 	applyAppearance(a, "Light")
 	dir := filepath.Join(t.TempDir(), "host")
@@ -37,6 +38,7 @@ func TestDevicesShowNamesWithoutExposingIDsOnTheList(t *testing.T) {
 	defer cancel()
 	u := &managerWindow{app: a, window: w, manager: &desktop.Manager{Dir: dir}, messages: messages, ctx: ctx}
 	panel := devicePanel(u)
+	a.dispatchNext(t)
 	w.SetContent(panel)
 	labels := ""
 	var add *widget.Button
@@ -77,5 +79,57 @@ func TestDevicesShowNamesWithoutExposingIDsOnTheList(t *testing.T) {
 	name.SetText("A new phone")
 	if err := name.Validate(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDeviceRefreshQueuesChangesAndIgnoresCancelledWindow(t *testing.T) {
+	for _, cancelBeforeRender := range []bool{false, true} {
+		t.Run(fmt.Sprint(cancelBeforeRender), func(t *testing.T) {
+			a := newUITestApp()
+			defer a.Quit()
+			applyAppearance(a, "Light")
+			dir := filepath.Join(t.TempDir(), "host")
+			if _, err := host.CreateDevice(dir, "First device"); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			m, _ := newMessages("en")
+			u := &managerWindow{app: a, manager: &desktop.Manager{Dir: dir}, messages: m, ctx: ctx}
+			panel := devicePanel(u)
+			var refresh *widget.Button
+			visitObjects(panel, func(obj fyne.CanvasObject) {
+				if b, ok := obj.(*widget.Button); ok && b.Text == u.t("action.refresh") {
+					refresh = b
+				}
+			})
+			if refresh == nil {
+				t.Fatal("refresh missing")
+			}
+			test.Tap(refresh)
+			if _, err := host.CreateDevice(dir, "Second device"); err != nil {
+				t.Fatal(err)
+			}
+			if cancelBeforeRender {
+				cancel()
+			}
+			a.dispatchNext(t)
+			if !cancelBeforeRender {
+				a.dispatchNext(t)
+			}
+			labels := ""
+			visitObjects(panel, func(obj fyne.CanvasObject) {
+				if l, ok := obj.(*widget.Label); ok {
+					labels += l.Text + "\n"
+				}
+			})
+			if cancelBeforeRender {
+				if strings.Contains(labels, "First device") {
+					t.Fatal("cancelled window was updated")
+				}
+			} else if !strings.Contains(labels, "Second device") {
+				t.Fatal("refresh during load was lost")
+			}
+		})
 	}
 }

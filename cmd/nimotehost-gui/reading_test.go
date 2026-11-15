@@ -11,7 +11,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/mobiledevloperlab/nimotehost/internal/desktop"
@@ -19,7 +18,7 @@ import (
 )
 
 func TestReadingAreasAndAboutAcrossLanguages(t *testing.T) {
-	a := test.NewApp()
+	a := newUITestApp()
 	defer a.Quit()
 	w := a.NewWindow("Reading preview")
 	defer w.Close()
@@ -95,7 +94,7 @@ func TestReadingAreasAndAboutAcrossLanguages(t *testing.T) {
 }
 
 func TestPollingPreservesInputFocusAndLanguagePreservesSessionContext(t *testing.T) {
-	a := test.NewApp()
+	a := newUITestApp()
 	defer a.Quit()
 	w := a.NewWindow("Interaction")
 	defer w.Close()
@@ -126,7 +125,7 @@ func TestPollingPreservesInputFocusAndLanguagePreservesSessionContext(t *testing
 }
 
 func TestRoundedSurfaceFollowsLiveAppearance(t *testing.T) {
-	a := test.NewApp()
+	a := newUITestApp()
 	defer a.Quit()
 	applyAppearance(a, "Light")
 	panel := tintedSurface(widget.NewLabel("Content"), accentSurfaceColor, 12)
