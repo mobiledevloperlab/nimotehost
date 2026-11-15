@@ -9,14 +9,13 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/mobiledevloperlab/nimotehost/internal/desktop"
 	"github.com/mobiledevloperlab/nimotehost/internal/host"
 )
 
 func TestDesktopLayoutsAcrossLanguages(t *testing.T) {
-	a := test.NewApp()
+	a := newUITestApp()
 	defer a.Quit()
 	w := a.NewWindow("NimoteHost")
 	defer w.Close()
@@ -34,6 +33,7 @@ func TestDesktopLayoutsAcrossLanguages(t *testing.T) {
 		a.Preferences().SetString("theme", appearance)
 		for _, code := range languageCodes {
 			u.build(code, 0)
+			a.dispatchNext(t)
 			u.snapshot = desktop.Snapshot{Name: "My Mac", State: "Running", Version: "1.0.0-dev", Autostart: true}
 			u.updateSidebar(u.snapshot, nil)
 			u.overview.update(u.snapshot, sessions, nil, nil)

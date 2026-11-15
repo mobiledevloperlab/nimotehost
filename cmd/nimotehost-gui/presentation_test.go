@@ -60,7 +60,7 @@ func TestSessionFilteringPrioritizesApprovalWithoutChangingSource(t *testing.T) 
 }
 
 func TestOverviewDistinguishesStoppedFromUnavailableAndKeepsSafeActions(t *testing.T) {
-	a := test.NewApp()
+	a := newUITestApp()
 	defer a.Quit()
 	w := a.NewWindow("Preview")
 	defer w.Close()
@@ -94,7 +94,7 @@ func TestOverviewDistinguishesStoppedFromUnavailableAndKeepsSafeActions(t *testi
 }
 
 func TestSessionStatusFitsAfterListRowIsReused(t *testing.T) {
-	a := test.NewApp()
+	a := newUITestApp()
 	defer a.Quit()
 	w := a.NewWindow("Sessions")
 	defer w.Close()

@@ -54,8 +54,14 @@ func (u *managerWindow) navigate(index int) {
 			page.Hide()
 		}
 	}
+	// Container.Refresh walks every child, including hidden pages. Only attach
+	// the active page so navigation and resizing cannot relayout inactive trees.
+	u.content.Objects = []fyne.CanvasObject{u.pages[index]}
 	u.content.Refresh()
 	u.navigation.Select(index)
+	if index == 1 && u.sessions.tabs.SelectedIndex() == 2 {
+		u.sessions.inbox.refresh()
+	}
 	if index == 4 {
 		u.plugins.refresh()
 	}

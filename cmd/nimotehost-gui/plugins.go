@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,10 +18,11 @@ import (
 )
 
 type pluginsPanel struct {
-	ui      *managerWindow
-	root    fyne.CanvasObject
-	cards   *fyne.Container
-	loading bool
+	ui       *managerWindow
+	root     fyne.CanvasObject
+	cards    *fyne.Container
+	loading  bool
+	rendered []byte
 }
 
 func newPluginsPanel(u *managerWindow) *pluginsPanel {
@@ -63,14 +65,28 @@ func (p *pluginsPanel) refresh() {
 }
 func (p *pluginsPanel) render(plugins []desktop.PluginInfo, caps []desktop.PluginCapability, err error) {
 	u := p.ui
-	p.cards.Objects = nil
+	// Cache a value snapshot, not caller-owned slices that may be mutated.
+	var key []byte
+	if err == nil {
+		var encodeErr error
+		key, encodeErr = json.Marshal(struct {
+			Plugins []desktop.PluginInfo
+			Caps    []desktop.PluginCapability
+		}{plugins, caps})
+		if encodeErr == nil && bytes.Equal(key, p.rendered) {
+			return
+		}
+	}
+	p.rendered = key
+	objects := []fyne.CanvasObject{}
+	defer func() { p.cards.Objects = objects; p.cards.Refresh() }()
 	if err != nil {
-		p.cards.Add(wrappedLabel(u.t("plugins.unavailable")))
-		p.cards.Add(widget.NewButton(u.t("details.technical"), func() { u.showReader(u.t("nav.plugins"), err.Error()) }))
+		objects = append(objects, wrappedLabel(u.t("plugins.unavailable")))
+		objects = append(objects, widget.NewButton(u.t("details.technical"), func() { u.showReader(u.t("nav.plugins"), err.Error()) }))
 		return
 	}
 	if len(plugins) == 0 {
-		p.cards.Add(wrappedLabel(u.t("plugins.empty")))
+		objects = append(objects, wrappedLabel(u.t("plugins.empty")))
 	}
 	for _, item := range plugins {
 		plugin := item
@@ -100,9 +116,8 @@ func (p *pluginsPanel) render(plugins []desktop.PluginInfo, caps []desktop.Plugi
 			}
 			content.Add(container.NewBorder(nil, nil, nil, invoke, wrappedLabel(capability.Title+" · "+capability.Kind+" · "+capability.Version)))
 		}
-		p.cards.Add(widget.NewCard(plugin.ID+" · "+plugin.Manifest.Version, "", content))
+		objects = append(objects, widget.NewCard(plugin.ID+" · "+plugin.Manifest.Version, "", content))
 	}
-	p.cards.Refresh()
 }
 func (p *pluginsPanel) confirm(title, body string, req desktop.PluginRequest) {
 	d := dialog.NewCustomConfirm(title, title, p.ui.t("action.cancel"), container.NewVScroll(readOnlyText(body)), func(ok bool) {

@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/mobiledevloperlab/nimotehost/internal/desktop"
 	"github.com/mobiledevloperlab/nimotehost/internal/host"
@@ -39,7 +38,7 @@ type iconTrackingWindow struct {
 func (w *iconTrackingWindow) SetIcon(icon fyne.Resource) { w.app.windowIcon = icon }
 
 func TestWindowIconAssignedBeforeAndAfterCreation(t *testing.T) {
-	base := test.NewApp()
+	base := newUITestApp()
 	defer base.Quit()
 	a := &iconTrackingApp{App: base}
 	w, cleanup := newManagerWindow(a, &desktop.Manager{}, false)
@@ -99,7 +98,7 @@ func TestWindowCloseReopenAndQuitPreserveHostTask(t *testing.T) {
 	if err = json.Unmarshal(raw, &session); err != nil {
 		t.Fatal(err)
 	}
-	a := test.NewApp()
+	a := newUITestApp()
 	defer a.Quit()
 	first, cleanup := newManagerWindow(a, m, false)
 	first.Show()

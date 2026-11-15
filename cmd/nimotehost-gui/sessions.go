@@ -73,13 +73,21 @@ func newSessionsPanel(u *managerWindow) *sessionsPanel {
 	current := container.NewBorder(container.NewVBox(container.NewBorder(nil, nil, nil, p.filter, p.search), p.empty), nil, nil, nil, p.list)
 	p.inbox = newInboxPanel(u)
 	p.tabs = container.NewAppTabs(container.NewTabItem(u.t("sessions.current"), current), container.NewTabItem(u.t("history.title"), historyPanel(u)), container.NewTabItem(u.t("inbox.title"), p.inbox.root))
+	p.tabs.OnSelected = func(tab *container.TabItem) {
+		if tab == p.tabs.Items[2] {
+			p.inbox.refresh()
+		}
+	}
 	p.root = inset(container.NewBorder(pageHeading(u.t("nav.sessions"), u.t("sessions.intro")), nil, nil, nil, surface(p.tabs)), pagePadding)
 	return p
 }
 
 func (p *sessionsPanel) update(items []host.Session, statusErr, sessionErr error, state string) {
-	p.inbox.refresh()
+	if p.ui.currentPage == 1 && p.tabs.SelectedIndex() == 2 {
+		p.inbox.refresh()
+	}
 	p.source = append([]host.Session(nil), items...)
+	sortSessionRows(p.source)
 	p.applyFilter()
 	if statusErr != nil || sessionErr != nil {
 		p.empty.SetText(p.ui.t("sessions.unavailable"))
@@ -90,7 +98,7 @@ func (p *sessionsPanel) update(items []host.Session, statusErr, sessionErr error
 	}
 }
 func (p *sessionsPanel) applyFilter() {
-	rows := filterSessions(p.source, p.search.Text, p.filter.SelectedIndex())
+	rows := filterSortedSessions(p.source, p.search.Text, p.filter.SelectedIndex())
 	redraw := len(rows) != len(p.rows)
 	if !redraw {
 		for i, row := range rows {
@@ -114,6 +122,12 @@ func (p *sessionsPanel) applyFilter() {
 }
 
 func filterSessions(source []host.Session, query string, filter int) []host.Session {
+	rows := filterSortedSessions(source, query, filter)
+	sortSessionRows(rows)
+	return rows
+}
+
+func filterSortedSessions(source []host.Session, query string, filter int) []host.Session {
 	query = strings.ToLower(strings.TrimSpace(query))
 	rows := make([]host.Session, 0, len(source))
 	for _, s := range source {
@@ -130,6 +144,10 @@ func filterSessions(source []host.Session, query string, filter int) []host.Sess
 		}
 		rows = append(rows, s)
 	}
+	return rows
+}
+
+func sortSessionRows(rows []host.Session) {
 	sort.SliceStable(rows, func(i, j int) bool {
 		priority := func(s host.Session) int {
 			if s.State == "running" && s.AgentStatus == "needs_approval" {
@@ -149,7 +167,6 @@ func filterSessions(source []host.Session, query string, filter int) []host.Sess
 		}
 		return rows[i].ID < rows[j].ID
 	})
-	return rows
 }
 
 func sessionTitle(m *messages, s host.Session) string {

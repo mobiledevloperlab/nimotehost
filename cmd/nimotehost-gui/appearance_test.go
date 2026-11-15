@@ -8,14 +8,13 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
 	"github.com/mobiledevloperlab/nimotehost/internal/desktop"
 	"github.com/mobiledevloperlab/nimotehost/internal/host"
 )
 
 func TestPaletteTextContrastAndLiveAppearance(t *testing.T) {
-	a := test.NewApp()
+	a := newUITestApp()
 	defer a.Quit()
 	for _, mode := range []string{"Light", "Dark"} {
 		applyAppearance(a, mode)
@@ -57,7 +56,7 @@ func contrastRatio(a, b color.Color) float64 {
 }
 
 func TestOverviewReviewOpensCurrentApprovalList(t *testing.T) {
-	a := test.NewApp()
+	a := newUITestApp()
 	defer a.Quit()
 	w := a.NewWindow("Review")
 	defer w.Close()

@@ -63,8 +63,8 @@ func historyPanel(u *managerWindow) fyne.CanvasObject {
 	status := wrappedLabel(u.t("history.empty"))
 	title := widget.NewLabelWithStyle(u.t("history.select"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	title.Truncation = fyne.TextTruncateEllipsis
-	transcript := widget.NewRichTextWithText(u.t("history.selectHint"))
-	transcript.Wrapping = fyne.TextWrapWord
+	transcript := newTextPager()
+	transcript.setPages(textPages([]widget.RichTextSegment{&widget.TextSegment{Text: u.t("history.selectHint")}}), true)
 	var items []historyItem
 	var selected *historyItem
 	var listCursor, loadedAgent, loadedDirectory, readCursor string
@@ -124,6 +124,11 @@ func historyPanel(u *managerWindow) fyne.CanvasObject {
 		}
 		moreText.Disable()
 		status.SetText(u.t("action.loading"))
+		var prior []historyMessage
+		if next {
+			prior = append([]historyMessage(nil), messages...)
+		}
+		translations := u.messages
 		go func() {
 			defer cancel()
 			q := url.Values{"agent": {agent}, "directory": {dir}, "cursor": {cursor}}
@@ -131,6 +136,11 @@ func historyPanel(u *managerWindow) fyne.CanvasObject {
 			var page transcriptPage
 			if err == nil {
 				err = json.Unmarshal(raw, &page)
+			}
+			combined := append(prior, page.Items...)
+			var rendered [][]widget.RichTextSegment
+			if err == nil {
+				rendered = textPages(transcriptSegments(translations, combined))
 			}
 			fyne.Do(func() {
 				if ctx.Err() != nil || generation != version {
@@ -141,16 +151,12 @@ func historyPanel(u *managerWindow) fyne.CanvasObject {
 					status.SetText(u.t("history.loadError"))
 					return
 				}
-				if !next {
-					messages = nil
-				}
-				messages = append(messages, page.Items...)
+				messages = combined
 				readCursor = ""
 				if page.Next != nil {
 					readCursor = *page.Next
 				}
-				transcript.Segments = transcriptSegments(u.messages, messages)
-				transcript.Refresh()
+				transcript.setPages(rendered, !next)
 				details.Enable()
 				if readCursor != "" {
 					moreText.Show()
@@ -280,8 +286,7 @@ func historyPanel(u *managerWindow) fyne.CanvasObject {
 					details.Disable()
 					moreText.Hide()
 					title.SetText(u.t("history.select"))
-					transcript.Segments = []widget.RichTextSegment{&widget.TextSegment{Text: u.t("history.selectHint")}}
-					transcript.Refresh()
+					transcript.setPages(textPages([]widget.RichTextSegment{&widget.TextSegment{Text: u.t("history.selectHint")}}), true)
 					list.UnselectAll()
 				}
 				items = append(items, page.Items...)
@@ -353,7 +358,7 @@ func historyPanel(u *managerWindow) fyne.CanvasObject {
 		})
 	}
 	left := container.NewBorder(nil, more, nil, nil, list)
-	right := container.NewBorder(title, column(4, container.NewHBox(expand, details), container.NewHBox(moreText)), nil, nil, container.NewVScroll(inset(transcript, 8)))
+	right := container.NewBorder(title, column(4, container.NewHBox(expand, details), container.NewHBox(moreText)), nil, nil, transcript.root)
 	split := container.NewHSplit(left, right)
 	split.Offset = .28
 	search := container.NewBorder(nil, nil, provider, load, container.NewBorder(nil, nil, nil, browse, directory))

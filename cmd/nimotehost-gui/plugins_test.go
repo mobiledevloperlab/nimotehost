@@ -7,14 +7,13 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/mobiledevloperlab/nimotehost/internal/desktop"
 	sdk "github.com/mobiledevloperlab/nimotehost/pkg/pluginsdk"
 )
 
 func TestPluginPageDiscoveryGatesUnavailableCapabilities(t *testing.T) {
-	a := test.NewApp()
+	a := newUITestApp()
 	defer a.Quit()
 	w := a.NewWindow("plugins")
 	defer w.Close()
@@ -69,7 +68,7 @@ func TestPluginInputSeedsRequiredSchemaFields(t *testing.T) {
 }
 
 func TestPluginPageKeepsLocalAndCatalogInstallPaths(t *testing.T) {
-	a := test.NewApp()
+	a := newUITestApp()
 	defer a.Quit()
 	w := a.NewWindow("plugins")
 	defer w.Close()

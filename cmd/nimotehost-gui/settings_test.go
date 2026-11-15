@@ -7,12 +7,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"fyne.io/fyne/v2/test"
 	"github.com/mobiledevloperlab/nimotehost/internal/desktop"
 )
 
 func TestSettingsValidationDraftAndLifecycle(t *testing.T) {
-	a := test.NewApp()
+	a := newUITestApp()
 	defer a.Quit()
 	w := a.NewWindow("Settings")
 	defer w.Close()
@@ -69,7 +68,7 @@ func TestSettingsValidationDraftAndLifecycle(t *testing.T) {
 }
 
 func TestSettingsKeepConfigurationReadFailureVisible(t *testing.T) {
-	a := test.NewApp()
+	a := newUITestApp()
 	defer a.Quit()
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte("invalid JSON"), 0600); err != nil {

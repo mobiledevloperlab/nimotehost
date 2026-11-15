@@ -4,7 +4,9 @@ package main
 import (
 	"context"
 	"runtime"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -44,6 +46,9 @@ type managerWindow struct {
 	feedback                   *widget.Label
 	noticeID                   uint64
 	tray                       fynedesktop.App
+	trayState                  string
+	trayBusy                   bool
+	trayLanguage               string
 }
 
 func newManagerWindow(a fyne.App, m *desktop.Manager, poll bool) (fyne.Window, context.CancelFunc) {
@@ -96,7 +101,7 @@ func (u *managerWindow) build(code string, tab int) {
 	u.settings = newSettingsPanel(u)
 	u.plugins = newPluginsPanel(u)
 	u.pages = []fyne.CanvasObject{u.overview.root, u.sessions.root, devicePanel(u), u.settings.root, u.plugins.root}
-	u.content = container.NewStack(u.pages...)
+	u.content = container.NewStack()
 	sidebar := u.newSidebar()
 	u.currentPage = -1
 	u.navigate(tab)
@@ -186,6 +191,10 @@ func (u *managerWindow) updateTray() {
 	if u.tray == nil {
 		return
 	}
+	if u.trayState == u.snapshot.State && u.trayBusy == u.busy && u.trayLanguage == u.messages.code {
+		return
+	}
+	u.trayState, u.trayBusy, u.trayLanguage = u.snapshot.State, u.busy, u.messages.code
 	state := u.t("state.unknown")
 	if u.snapshot.State == "Running" {
 		state = u.t("state.running")
@@ -320,7 +329,14 @@ func (u *managerWindow) readerSize() fyne.Size {
 
 func (u *managerWindow) showReader(title, text string) {
 	copy := widget.NewButtonWithIcon(u.t("action.copy"), theme.ContentCopyIcon(), func() { u.window.Clipboard().SetContent(text) })
-	body := container.NewBorder(nil, container.NewHBox(copy), nil, nil, container.NewVScroll(readOnlyText(text)))
+	var reader fyne.CanvasObject
+	if utf8.RuneCountInString(text) > textPageRunes || strings.Count(text, "\n") > textPageLines {
+		pager := newPlainTextPager(text)
+		reader = pager.root
+	} else {
+		reader = container.NewVScroll(readOnlyText(text))
+	}
+	body := container.NewBorder(nil, container.NewHBox(copy), nil, nil, reader)
 	d := dialog.NewCustom(title, u.t("action.close"), body, u.window)
 	d.Resize(u.readerSize())
 	d.Show()
