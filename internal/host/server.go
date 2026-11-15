@@ -6,7 +6,9 @@ package host
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -200,6 +202,42 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if r.URL.Path == "/v1/inbox" || strings.HasPrefix(r.URL.Path, "/v1/inbox/") {
+		var allowed func(string) bool
+		if scoped {
+			allowed = func(id string) bool {
+				return device.allowsSession(id) && (device.Role != "session_controller" || s.manager.controllerSessionAllowed(device, id))
+			}
+		}
+		principal := ""
+		if !owner {
+			principal = "device/" + device.ID + "/"
+		}
+		s.serveInbox(w, r, allowed, principal)
+		return
+	}
+	if r.URL.Path == "/v1/conflicts" && r.Method == http.MethodGet {
+		var allowed func(string) bool
+		if scoped {
+			allowed = func(id string) bool {
+				return device.allowsSession(id) && (device.Role != "session_controller" || s.manager.controllerSessionAllowed(device, id))
+			}
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		respond(w, 200, map[string]any{"warnings": s.manager.Conflicts(ctx, allowed)})
+		return
+	}
+	if r.URL.Path == "/v1/github-tasks" || strings.HasPrefix(r.URL.Path, "/v1/github-tasks/") {
+		var allowed func(string) bool
+		if scoped {
+			allowed = func(id string) bool {
+				return device.allowsSession(id) && (device.Role != "session_controller" || s.manager.controllerSessionAllowed(device, id))
+			}
+		}
+		s.serveGitHubTasks(w, r, allowed)
+		return
+	}
 	operation := func(name string) string {
 		if !owner {
 			return "device/" + device.ID + "/" + name
@@ -382,6 +420,60 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if !errors.Is(err, os.ErrNotExist) {
 			fail(w, 500, "session activity is unavailable")
+			return
+		}
+	case action == "verification" && r.Method == http.MethodGet:
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		var report VerificationReport
+		report, err = s.manager.Verification(ctx, id)
+		if err == nil {
+			respond(w, 200, report)
+			return
+		}
+	case action == "verification-diff" && r.Method == http.MethodGet:
+		if _, err = s.manager.Get(id); err == nil {
+			var diff []byte
+			diff, err = readPrivateLimit(filepath.Join(s.manager.dir, id+".diff"), maxVerificationDiff)
+			if err == nil {
+				var report VerificationReport
+				data, e := readPrivateLimit(filepath.Join(s.manager.dir, id+".verification"), maxEvidenceBytes)
+				sum := sha256.Sum256(diff)
+				if e != nil || decodeJSON(data, &report) != nil || report.DiffSHA != hex.EncodeToString(sum[:]) {
+					fail(w, 409, "verification snapshot changed; refresh the report")
+					return
+				}
+				offset := 0
+				if raw := r.URL.Query().Get("offset"); raw != "" {
+					offset, e = strconv.Atoi(raw)
+					if e != nil || offset < 0 || offset > len(diff) {
+						fail(w, 400, "invalid diff offset")
+						return
+					}
+				}
+				next := min(offset+(64<<10), len(diff))
+				respond(w, 200, map[string]any{"diff": string(diff[offset:next]), "data": diff[offset:next], "start_offset": offset, "next_offset": next, "total_bytes": len(diff), "source": "host_git_snapshot", "diff_sha": report.DiffSHA})
+				return
+			}
+		}
+	case action == "verification" && r.Method == http.MethodPost:
+		var req struct {
+			RequestID string        `json:"request_id"`
+			Tests     []TestCommand `json:"tests"`
+		}
+		if !readJSON(w, r, &req) {
+			return
+		}
+		if req.RequestID == "" {
+			fail(w, 400, "request_id is required")
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		var report VerificationReport
+		report, err = runOnce(s.manager, req.RequestID, operation("verification/"+id), req, func() (VerificationReport, error) { return s.manager.StartVerification(ctx, id, req.Tests) })
+		if err == nil {
+			respond(w, 202, report)
 			return
 		}
 	case action == "agent-state" && r.Method == http.MethodGet:

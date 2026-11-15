@@ -29,6 +29,28 @@ func (s *Server) serveAgentHistory(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		agent := r.URL.Query().Get("agent")
+		if agent == "all" {
+			directory := r.URL.Query().Get("directory")
+			if directory != "" {
+				if !filepath.IsAbs(directory) {
+					fail(w, 400, "history directory must be absolute")
+					return
+				}
+				if info, e := os.Stat(directory); e != nil || !info.IsDir() {
+					fail(w, 400, "history directory is unavailable")
+					return
+				}
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), agentHistoryTimeout)
+			defer cancel()
+			page, err := aggregateHistory(ctx, directory, r.URL.Query().Get("cursor"), caps.Agents)
+			if err != nil {
+				fail(w, 400, "invalid aggregate history request")
+				return
+			}
+			respond(w, 200, page)
+			return
+		}
 		if agent == "" {
 			agent = "codex"
 			if !caps.Features["codex_history_v1"] {

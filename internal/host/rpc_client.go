@@ -91,6 +91,11 @@ func Call(ctx context.Context, dir string, req RPCRequest) ([]byte, error) {
 }
 
 func rpcHTTPClient(req RPCRequest) *http.Client {
+	if req.Method == "POST" && req.Path == "/v1/github-tasks" {
+		client := *loopbackClient
+		client.Timeout = 70 * time.Second
+		return &client
+	}
 	path, _, _ := strings.Cut(req.Path, "?")
 	if req.Method == http.MethodGet && (path == "/v1/agent-history" || strings.HasPrefix(path, "/v1/agent-history/")) {
 		client := *loopbackClient

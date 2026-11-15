@@ -18,6 +18,8 @@ import (
 )
 
 type historyItem struct {
+	Agent     string `json:"agent"`
+	Updated   string `json:"updated_at"`
 	ID        string `json:"conversation_id"`
 	Title     string `json:"title"`
 	Directory string `json:"directory"`
@@ -38,10 +40,10 @@ type transcriptPage struct {
 
 func historyPanel(u *managerWindow) fyne.CanvasObject {
 	ctx := u.ctx
-	provider := widget.NewSelect([]string{"Codex", "Claude Code", "OpenCode"}, nil)
+	provider := widget.NewSelect([]string{"Codex", "Claude Code", "OpenCode", u.t("history.all")}, nil)
 	provider.SetSelectedIndex(0)
 	fitSelect(provider)
-	agents := []string{"codex", "claude", "opencode"}
+	agents := []string{"codex", "claude", "opencode", "all"}
 	directory := widget.NewEntry()
 	directory.SetPlaceHolder(u.t("history.workspace"))
 	browse := widget.NewButtonWithIcon("", theme.FolderOpenIcon(), func() {
@@ -90,7 +92,7 @@ func historyPanel(u *managerWindow) fyne.CanvasObject {
 		first.SetText(name)
 		second := row.Objects[1].(*widget.Label)
 		second.Truncation = fyne.TextTruncateEllipsis
-		second.SetText(item.Directory)
+		second.SetText(agentName(item.Agent) + " · " + item.Directory + " · " + item.Updated)
 	})
 	read = func(next bool) {
 		if selected == nil {
@@ -98,6 +100,9 @@ func historyPanel(u *managerWindow) fyne.CanvasObject {
 		}
 		item := *selected
 		agent, dir := loadedAgent, item.Directory
+		if item.Agent != "" {
+			agent = item.Agent
+		}
 		if dir == "" {
 			dir = loadedDirectory
 		}
@@ -242,8 +247,9 @@ func historyPanel(u *managerWindow) fyne.CanvasObject {
 			q := url.Values{"agent": {agent}, "directory": {dir}, "cursor": {cursor}}
 			raw, err := host.Call(c, u.manager.Dir, host.RPCRequest{Method: "GET", Path: "/v1/agent-history?" + q.Encode()})
 			var page struct {
-				Items []historyItem `json:"items"`
-				Next  *string       `json:"next_cursor"`
+				Items     []historyItem     `json:"items"`
+				Next      *string           `json:"next_cursor"`
+				Providers map[string]string `json:"providers"`
 			}
 			if err == nil {
 				err = json.Unmarshal(raw, &page)
@@ -279,6 +285,11 @@ func historyPanel(u *managerWindow) fyne.CanvasObject {
 					list.UnselectAll()
 				}
 				items = append(items, page.Items...)
+				for name, state := range page.Providers {
+					if state == "unavailable_or_protocol_unsupported" {
+						u.notice(agentName(name) + ": " + u.t("history.providerUnavailable"))
+					}
+				}
 				loadedAgent, loadedDirectory = agent, dir
 				listCursor = ""
 				if page.Next != nil {
@@ -306,6 +317,9 @@ func historyPanel(u *managerWindow) fyne.CanvasObject {
 		}
 		item := *selected
 		agent, dir := loadedAgent, item.Directory
+		if item.Agent != "" {
+			agent = item.Agent
+		}
 		if dir == "" {
 			dir = loadedDirectory
 		}

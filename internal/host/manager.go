@@ -4,6 +4,7 @@
 package host
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -24,33 +25,43 @@ type processHandle interface {
 }
 
 type managed struct {
-	resourceError error
-	scope         *sessionScope
-	runtimeLimit  int64
-	activity      *activityJournal
-	userCanceled  bool
-	session       Session
-	process       processHandle
-	terminal      io.ReadWriteCloser
-	output        *outputWriter
-	done          chan struct{}
-	agent         *structuredAgent
+	edits          *observedEdits
+	summary        string
+	onTurnComplete func()
+	resourceError  error
+	scope          *sessionScope
+	runtimeLimit   int64
+	activity       *activityJournal
+	userCanceled   bool
+	session        Session
+	process        processHandle
+	terminal       io.ReadWriteCloser
+	output         *outputWriter
+	done           chan struct{}
+	agent          *structuredAgent
 }
 
 type Manager struct {
-	limits       ResourceLimits
-	monitorStop  chan struct{}
-	monitorDone  chan struct{}
-	monitorOnce  sync.Once
-	monitorStart sync.Once
-	requests     *requestLedger
-	mu           sync.Mutex
-	dir          string
-	sessions     map[string]*managed
-	revision     uint64
-	closed       bool
-	events       []Event
-	eventReset   uint64
+	workers          sync.WaitGroup
+	background       context.Context
+	cancelBackground context.CancelFunc
+	verificationMu   sync.Mutex
+	taskRuns         map[string]bool
+	verifying        map[string]bool
+	limits           ResourceLimits
+	monitorStop      chan struct{}
+	monitorDone      chan struct{}
+	monitorOnce      sync.Once
+	monitorStart     sync.Once
+	requests         *requestLedger
+	mu               sync.Mutex
+	resumeMu         sync.Mutex
+	dir              string
+	sessions         map[string]*managed
+	revision         uint64
+	closed           bool
+	events           []Event
+	eventReset       uint64
 }
 
 func NewManager(dir string) (*Manager, error) {
@@ -64,7 +75,8 @@ func NewManagerWithLimits(dir string, limits ResourceLimits) (*Manager, error) {
 	if err := privateDir(dir); err != nil {
 		return nil, err
 	}
-	m := &Manager{dir: dir, limits: limits, sessions: make(map[string]*managed), revision: uint64(time.Now().UnixNano()), monitorStop: make(chan struct{}), monitorDone: make(chan struct{})}
+	background, cancelBackground := context.WithCancel(context.Background())
+	m := &Manager{background: background, cancelBackground: cancelBackground, dir: dir, limits: limits, sessions: make(map[string]*managed), revision: uint64(time.Now().UnixNano()), monitorStop: make(chan struct{}), monitorDone: make(chan struct{})}
 	requests, err := newRequestLedger(filepath.Join(dir, "requests"))
 	if err != nil {
 		return nil, err
@@ -257,6 +269,13 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 	if err := resolveCommand(&req); err != nil {
 		return Session{}, err
 	}
+	if req.Kind == "agent" && req.baseCommit == "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		if b, e := gitEvidence(ctx, req.Directory, "rev-parse", "--verify", "HEAD"); e == nil {
+			req.baseCommit = strings.TrimSpace(string(b))
+		}
+		cancel()
+	}
 	if err := validateExecutionIdentity(req.Identity, req.Directory, m.limits); err != nil {
 		return Session{}, err
 	}
@@ -316,7 +335,7 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 	cmd := exec.Command(req.Command, req.Args...)
 	cmd.Dir = req.Directory
 	cmd.WaitDelay = 2 * time.Second
-	record := Session{ExecutionPolicy: req.ExecutionPolicy, CompatibilityFallback: req.fallbackReason, Interaction: req.Interaction, ID: id, ConversationID: resumeConversationID(req.Resume), Kind: req.Kind, Agent: req.Agent, Command: req.Command, Args: append([]string(nil), req.Args...), Directory: req.Directory, State: "running", Started: time.Now().UTC()}
+	record := Session{SourceDirectory: req.sourceDirectory, BaseCommit: req.baseCommit, ExecutionPolicy: req.ExecutionPolicy, CompatibilityFallback: req.fallbackReason, Interaction: req.Interaction, ID: id, ConversationID: resumeConversationID(req.Resume), Kind: req.Kind, Agent: req.Agent, Command: req.Command, Args: append([]string(nil), req.Args...), Directory: req.Directory, State: "running", Started: time.Now().UTC()}
 	m.revision++
 	record.Revision = m.revision
 	record.StartRequestID = req.RequestID
@@ -348,7 +367,9 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 		item.agent.executionPolicy = req.ExecutionPolicy
 		item.agent.onExecutionPolicy = func(policy string) error { return m.setExecutionPolicy(item, policy) }
 		item.agent.onConversationID = func(conversationID string) { m.setConversationID(item, conversationID) }
+		item.edits = &observedEdits{path: filepath.Join(m.dir, id+".edits"), directory: req.Directory}
 		item.agent.onActivity = item.agentActivity
+		item.onTurnComplete = func() { m.runBackground(func() { m.autoVerification(id) }) }
 		item.process, err = startStructuredAgent(cmd, item.agent, limits)
 	} else {
 		item.process, item.terminal, err = startProcess(cmd, req.Kind != "task", output, limits)
@@ -474,6 +495,9 @@ func (m *Manager) wait(item *managed) {
 	item.recordActivity("session_finished", item.session.State, "")
 	slog.Info("Host session finished", "id", item.session.ID, "state", item.session.State)
 	close(item.done)
+	if item.session.Kind == "agent" || item.session.Task != nil && !strings.HasPrefix(item.session.Task.ID, "verification/") {
+		m.startBackgroundLocked(func() { m.autoVerification(item.session.ID) })
+	}
 }
 
 func cloneSession(s Session) Session {
@@ -703,7 +727,7 @@ func (m *Manager) delete(id string, probeOnly bool) error {
 	item.session.Revision = m.revision
 	item.session.State = "deleted"
 	m.emit(item.session)
-	for _, ext := range []string{".ring", ".log", ".activity", ".scope"} {
+	for _, ext := range []string{".ring", ".log", ".activity", ".scope", ".review", ".verification", ".diff", ".edits", ".summary"} {
 		if err := os.Remove(filepath.Join(m.dir, id+ext)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
@@ -727,6 +751,9 @@ func (m *Manager) PrepareIdleShutdown() error {
 
 func (m *Manager) Close() {
 	m.mu.Lock()
+	if m.cancelBackground != nil {
+		m.cancelBackground()
+	}
 	m.closed = true
 	if m.monitorStop != nil {
 		// Starting and closing the monitor are serialized with session admission.
@@ -751,4 +778,19 @@ func (m *Manager) Close() {
 	for _, ch := range done {
 		<-ch
 	}
+	m.workers.Wait()
+}
+
+func (m *Manager) startBackgroundLocked(run func()) bool {
+	if m.closed {
+		return false
+	}
+	m.workers.Add(1)
+	go func() { defer m.workers.Done(); run() }()
+	return true
+}
+func (m *Manager) runBackground(run func()) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.startBackgroundLocked(run)
 }

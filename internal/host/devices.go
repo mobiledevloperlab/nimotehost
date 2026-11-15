@@ -273,6 +273,16 @@ func (d Device) allowsSession(id string) bool {
 }
 
 func (d Device) allows(method, path string) bool {
+	if path == "/v1/github-tasks" || strings.HasPrefix(path, "/v1/github-tasks/") {
+		return method == "GET"
+	}
+	if path == "/v1/inbox" {
+		return method == "GET"
+	}
+	if strings.HasPrefix(path, "/v1/inbox/") {
+		id := strings.TrimPrefix(path, "/v1/inbox/")
+		return validID(id) && d.allowsSession(id) && method == "POST" && (d.Role == "session_operator" || d.Role == "session_controller")
+	}
 	if observerAllowed(method, path) {
 		if strings.HasPrefix(path, "/v1/sessions/") {
 			return d.allowsSession(strings.Split(strings.TrimPrefix(path, "/v1/sessions/"), "/")[0])
@@ -299,11 +309,11 @@ func observerAllowed(method, path string) bool {
 	if method != "GET" {
 		return false
 	}
-	if path == "/v1/status" || path == "/v1/capabilities" || path == "/v1/sessions" || path == "/v1/events" {
+	if path == "/v1/status" || path == "/v1/capabilities" || path == "/v1/sessions" || path == "/v1/events" || path == "/v1/conflicts" {
 		return true
 	}
 	parts := strings.Split(strings.TrimPrefix(path, "/v1/sessions/"), "/")
-	return strings.HasPrefix(path, "/v1/sessions/") && len(parts) <= 2 && validID(parts[0]) && (len(parts) == 1 || parts[1] == "output" || parts[1] == "activity" || parts[1] == "agent-state")
+	return strings.HasPrefix(path, "/v1/sessions/") && len(parts) <= 2 && validID(parts[0]) && (len(parts) == 1 || parts[1] == "output" || parts[1] == "activity" || parts[1] == "agent-state" || parts[1] == "verification" || parts[1] == "verification-diff")
 }
 
 // DeviceSSHCommand generates the forced command only. Administrators bind it to

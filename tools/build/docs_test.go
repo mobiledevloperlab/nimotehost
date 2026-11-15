@@ -92,6 +92,9 @@ func TestImplementedRPCReference(t *testing.T) {
 		"POST /v1/sessions/{id}/agent-message", "GET /v1/sessions/{id}/activity?after=sequence",
 		"GET /v1/events?after=revision", "GET /v1/agent-history?agent=...&directory=...&cursor=...",
 		"GET /v1/agent-history/{conversation_id}?agent=...&directory=...&cursor=...",
+		"GET /v1/inbox?view=...", "POST /v1/inbox/{id}",
+		"GET /v1/sessions/{id}/verification", "POST /v1/sessions/{id}/verification", "GET /v1/sessions/{id}/verification-diff", "GET /v1/conflicts",
+		"GET /v1/github-tasks", "POST /v1/github-tasks", "GET /v1/github-tasks/{id}", "POST /v1/github-tasks/{id}/{action}",
 		"POST /v1/shutdown-if-idle", "POST /v1/shutdown",
 	}
 	if !reflect.DeepEqual(actual, expected) {

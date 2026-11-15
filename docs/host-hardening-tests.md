@@ -189,3 +189,24 @@ NIMOTE_TEST_ROOT_LIVE_AGENT=codex NIMOTE_TEST_ROOT_AGENT_PROFILE=<private-profil
 收尾：Linux 专用 scratch（含私有模型 profile）与 Windows 专用 scratch 均已删除，
 清理命令 exit 0；删除前确认没有正在执行该 Linux scratch 内的程序。只清理本轮自建目录，
 保留原环境、现有服务及本地 env.md。脱敏测试日志留在仓库外；文档检查与 git diff --check 通过。
+
+## 2026-11-14：Agent 任务闭环与手机接入回归
+
+本轮完成收件箱、验证卡、并发风险、历史发现/继续及 GitHub 任务编排的仓库实现，
+并接入相邻 NimoteCode 的现有 Host/SSH RPC 与共享 UI。实现范围和限制见
+[completed](completed.md)，真实环境待验收项见 [pending](pending.md)。
+
+本机验证结果：
+
+- `go test ./...` 通过；GUI 包测试通过（构建环境有既有的重复 `-lobjc` 链接警告）。
+- `GORACE=atexit_sleep_ms=0 go test -race ./internal/host -run 'Inbox|Verification|GitHubWorkflow|TaskPrompt|AgentSelfClaim|ResumeReuses|Conflicts|Worktree' -count=1` 通过。设置退出等待为零，避免重执行的测试辅助进程各自延迟一秒而触发协议就绪超时；未关闭竞态检测。
+- 追加定向测试通过：完成轮次的已处理状态跨 Host 重启保留；Agent 自述测试成功不能使验证通过；启动失败且原提示未发送时复用 worktree；提交 hook 改写代码必须重新验证且不重复提交。
+- Windows amd64、Linux arm64 的 Host 测试程序交叉编译通过，仅代表编译检查。
+- NimoteCode Host 与 UI 治理回归 301 项通过，默认跳过 3 项 opt-in/原生环境测试；相关静态分析通过，共享 UI 审计 770 个 Dart 文件、零违规。
+- 另外显式运行真实本地 Go Host 联调通过：Flutter 客户端经编码 RPC/认证 HTTP 使用 Host，检查收件箱、超过 64 KiB 的完整 Diff 与摘要校验、实际子进程测试证据、重复请求、过期及重启持久化。这不等于真实 SSH 或手机验收。
+- 另外显式运行真实字体/应用主题截图测试通过，覆盖中英文及明暗主题的收件箱、验证卡、派发界面；截图是界面测试产物。Android debug APK 构建成功。
+
+GitHub 编排测试使用协议夹具、临时 Git 仓库及本地 bare remote；没有创建真实 GitHub PR。
+Agent 协议夹具不是模型执行验收。ADB 当前没有连接设备，未执行 APK 安装或真机操作。
+真实测试 Issue、Host 上可用的 gh 授权以及隔离的真实 Agent 配置尚未提供，
+所以 Issue → 实际开发 → 验证 → PR → 手机审核及真实中断恢复仍保留为未验收项。

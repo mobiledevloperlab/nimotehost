@@ -114,6 +114,16 @@ Use encoded argv, not shell interpolation. Closing the RPC bridge only detaches 
 | GET /v1/events?after=revision | 最新 1024 条进程元数据事件 / process-state events |
 | GET /v1/agent-history?agent=...&directory=...&cursor=... | 原生对话列表 / native history |
 | GET /v1/agent-history/{conversation_id}?agent=...&directory=...&cursor=... | transcript 分页 / transcript pages |
+| GET /v1/inbox?view=... | 单 Host 收件箱及范围内计数 / scoped task inbox |
+| POST /v1/inbox/{id} | 版本绑定的处理、归档 / revision-bound review marker |
+| GET /v1/sessions/{id}/verification | 可信来源、版本及实际测试证据 / verification evidence |
+| POST /v1/sessions/{id}/verification | 全权限用户配置测试 / owner-configured test commands |
+| GET /v1/sessions/{id}/verification-diff | SHA 绑定的保留 Diff / digest-bound captured diff |
+| GET /v1/conflicts | 并发 worktree 与文件事件交集 / concurrent workspace risks |
+| GET /v1/github-tasks | 持久 Issue 任务 / durable Issue tasks |
+| POST /v1/github-tasks | 创建并派发 / create and dispatch |
+| GET /v1/github-tasks/{id} | 任务状态与恢复信息 / task and recovery state |
+| POST /v1/github-tasks/{id}/{action} | continue/verify/publish/refresh_pr，完整权限 / owner only |
 | POST /v1/shutdown-if-idle | 空闲时停止并拒绝新会话 / stop only if idle |
 | POST /v1/shutdown | 停止 Host / graceful shutdown |
 
@@ -462,3 +472,114 @@ Windows 临时 SSH 验收仍未通过，macOS SSH、独立 Linux OS 运维、系
 长期负载、磁盘硬配额、macOS 硬配额及 macOS/Windows 独立执行身份仍在 pending。
 重启任何机器必须等待用户单独明确批准；本轮未重启、未改现有 SSH 服务，临时目录及模型凭据已清理。
 These checked items do not establish full cross-platform acceptance or release readiness.
+
+
+## Agent task workflows — English (protocol 1, additive extensions)
+
+## Delivery status
+
+This repository contains Host and the Fyne desktop manager. NimoteCode phone UI is in the sibling repository and is now integrated through its existing Host panel. Existing SSH `rpc` and `rpc-stream` transport carries these endpoints without sending Host credentials to the phone. Existing protocol fields and endpoints remain compatible. New clients must negotiate feature flags.
+
+### 1. Single Host task inbox
+
+Reused: Session, TaskReference, AgentSnapshot, activity journal, atomic private snapshots, restart interruption, original approval controls and durable mutation ledger. Added: `agent_inbox_v1`, `GET /v1/inbox?view=approval|failed|review|running|handled|archived|all`, `POST /v1/inbox/{session_id}` with `request_id`, `revision` (opaque token from GET), `status` (`open`, `handled`, `archived`). Default excludes archives. Counts obey the same device scope as items. Each item includes full Session/task/workspace, update time, execution summary, and session link ID. Desktop Sessions → Task inbox shows counts, details, approval controls, handling and archiving.
+
+Handling is Host-wide metadata and persists in private `.review` snapshots. Mutations acknowledge an exact session revision/activity sequence. A completed turn that the user already handled remains handled when its idle protocol process disconnects or Host restarts; new prompts, approvals and outcomes reopen it. Active approvals cannot be hidden or archived. Approvals are read from current protocol state through the existing session endpoint; interruption never restores actionable approvals. Operators/controllers may mark authorized records; observers cannot mutate. Review retries reuse the existing receipt ledger and are namespaced by device. Failed writes do not advance the marker. Deleting a Session removes auxiliary inbox records.
+
+Tests: persistence, reopening on revision, stale writes, live approval hiding rejection, interruption and scoped counts/ACL. Real multi-provider Agent and phone interaction remain unaccepted.
+
+### 2. Verification cards
+
+Reused: TaskReference, Session process execution, exit/time metadata, output replay, resource limits, private storage and durable mutation ledger. Added: `task_verification_v1`, `GET /v1/sessions/{id}/verification`, `GET /v1/sessions/{id}/verification-diff`, owner-only `POST /v1/sessions/{id}/verification` with `request_id` and `tests: [{command, args}]`. Commands are executable/argv, not implicitly a shell. Desktop session details and inbox link to a card, captured diff, retained raw evidence, and explicit verification execution.
+
+Host captures Git HEAD, branch, dirty state, tracked diff/stat/file paths, and hashes untracked file contents. Unknown, unreadable or oversized evidence yields no trusted fingerprint. Pre/post snapshots must match; report reads compare the current version and activity. Agent completion/exit alone yields `not_run`, never `passed`. Each explicit test has a separate Host Session, timestamps, exit code, tested version and raw output link. Restarted in-flight verification is `interrupted`, never replayed automatically. User may explicitly launch a new verification; uncertain requests require inspection. Command output follows existing rolling retention, not an unlimited archive.
+
+The task goal is client supplied; execution result is a Host lifecycle observation, not proof of the goal. Git snapshots are actual Host observations and do not attribute changes in a shared worktree. Agent tool command text is not trusted Host test execution. PR URL is null until linked by a workflow. Missing repositories/commits and oversized evidence are explicitly unknown. Worktrees without an initial commit cannot be validated. Reports cover the current worktree against HEAD; committed implementation ranges need a workflow base revision (see later delivery notes). Only explicit configured tests are assessed, not test completeness or semantic correctness.
+
+Tests use real temporary Git repositories and local subprocesses for not-run/pass/fail, exit code, staleness and persisted evidence. They do not stand in for real coding Agent or phone acceptance.
+
+### 3. Concurrent workspace risks
+
+Reused: active Sessions and normalized provider tool events. Added `workspace_conflicts_v1`, `GET /v1/conflicts` and desktop inbox risk viewer. Canonical directories resolve symlinks; Git worktree root and common directory distinguish same directory, same worktree and independent worktrees in one repository. Independent worktrees are informational, not shared directory conflicts. Scope filtering precedes pair comparison and never reveals another device's hidden Session.
+
+`shared_directory` / `shared_worktree` mean possible risk. `observed_tool_overlap` requires both Sessions to report completed file-change tool events for an identical canonical path during overlapping lifetimes. Evidence is explicitly attributed to provider protocol events, not independently proven OS write authorship. Pending approvals, prose and a dirty Git status never establish authorship. Event retention is bounded to 256 paths per Session; absent evidence means attribution is unknown, not absence of risk. No process scanning, rollback, overwriting or conflict resolution occurs.
+
+`isolated_worktree_v1`: owner `POST /v1/sessions` accepts optional `worktree: {branch?, base?}` and a mandatory `request_id`. Host creates a new branch and worktree under its private state before launching the original adapter. Default base is committed HEAD; existing uncommitted files are not copied. Retry uses the original start receipt. Worktrees and branches survive failures/deletion for manual recovery. Resume and execution identity modes cannot be combined with this option. Workflow dispatch uses this execution mode; general Session creation remains an API operation.
+
+### 4. History discovery and continuation
+
+Reused: PATH detection, explicit version probes, Codex app-server history/resume, ACP history/list/load/resume, replay and startup handshake. Added `agent_history_aggregate_v1`, `GET /v1/agent-history?agent=all&directory=...&cursor=...`. Aggregate responses retain `items`/`next_cursor` and add per-provider status. Each row has provider, original conversation ID, title, workspace and update time. Errors remain per-provider; one failing adapter does not suppress successful results. Desktop history supports All agents and shows provider/workspace/update time.
+
+Capabilities separately expose `cli_discovered`/`cli_path`, adapter `installed`/`path`, history/resume requiring a successful protocol operation, and `live_attach=false` with reason. PATH/version success never asserts history or running-process attachment. Queries use the current OS user's provider protocol; no other users' stores are scanned. Installation flags are candidates, not promises that upstream supports a method.
+
+Resume keeps the original conversation ID. Concurrent resume requests reuse an active matching Host Session and reject a different workspace, policy or task binding. Original mutation receipts also protect retries across restart. Replay is presentation history and does not resubmit old prompts. Existing adapters start owned protocol processes; attaching arbitrary live CLI processes is explicitly unsupported.
+
+Tests cover capability separation, invalid aggregate cursors, unavailable providers and active conversation deduplication. Existing upstream protocol fixture tests continue to apply. Live installed CLI and phone acceptance is still required.
+
+## Phone integration checklist
+
+- Negotiate each feature flag; maintain old Session screens for older Hosts.
+- Add inbox views/counts, archived filter and opaque revision handling; refresh on conflict.
+- Fetch current `agent-state` before approving and use original `agent-message` with a fresh request ID. Preserve operator decline-only restrictions.
+- Show verification origin/unknown fields, expiry, code identity, raw output retention and null PR values. Never display lifecycle completion as validation success.
+- Show risk severity and evidence source, including separate worktrees as informational.
+- Support all-provider history cursor and partial provider errors. Use original conversation ID and keep the same start request ID for network retries.
+- Device observers remain read-only; no new same-user execution privilege is granted by these endpoints.
+
+## Acceptance still required
+
+Real Codex, Claude Code and OpenCode multi-Agent tasks, installed-provider history/resume, GUI interaction on supported operating systems, phone over SSH reconnection, and the real GitHub Issue → PR flow. Unit/protocol fixture tests are not claimed as these acceptances.
+
+
+### 5. GitHub Issue workflow — English
+
+`github_issue_tasks_v1` advertises persisted task reads; `github_issue_dispatch_v1` advertises the local Git/gh prerequisites. CLI presence does not prove account authorization. Host uses the existing local gh authorization and authenticated SSH owner channel; no new token storage or device execution permission is introduced. `POST /v1/github-tasks` accepts `request_id`, `issue_url` or `repository` + `issue_number`, absolute `directory`, `agent`, `execution_policy`, `dispatch_policy` and 1–8 `tests` (executable/argv). Default `manual` waits after passing verification; explicit `draft_pr_after_verification` permits commit/push/draft PR after validation. No merge endpoint exists.
+
+Issue title/body are fetched through gh; PR masquerading as Issue and mismatched local GitHub origin are rejected. The remote default branch is fetched and its exact SHA binds the new worktree. Stages are `queued`, `developing`, `needs_approval`, `verifying`, `verification_failed`, `ready_for_pr`, `review`, `completed`. Errors retain `failure_stage`, workspace, Session, commit/PR intent and explicit recovery operations. Completed means GitHub confirms merge; PR creation only means review. Reads never cause GitHub writes.
+
+`GET /v1/github-tasks` lists tasks; `GET /v1/github-tasks/{id}` reads one; owner-only `POST /v1/github-tasks/{id}/continue|verify|publish|refresh_pr` accepts a mandatory request ID. Session approval, verification, diff and raw output stay on existing/new Session endpoints. Scoped devices see only tasks whose Session is authorized; queued tasks are owner/global-observer only. Full SSH owner authority is required to dispatch, run tests or publish. Devices gain no same-user arbitrary command execution.
+
+Creation/start/prompt/test/action receipts deduplicate repeats. Workflow changes are staged in the isolated worktree before verification so newly created files retain the same fingerprint through publication. Branches derive from the durable task ID; a commit intent plus tree SHA and commit marker reconciles interrupted commit creation. Push repeats the same SHA without force. PR lookup by branch precedes creation; an uncertain create is not sent again when no existing PR can be confirmed. This deliberately stops for inspection instead of promising exactly-once remote effects. Startup does not silently resume agents or tests. Explicit continuation uses the original conversation ID and a new continuation prompt, never resubmits the old Issue prompt. Missing conversation identity, failed validation or uncertain operations retain work and explain the next inspection step.
+
+GitHub API contracts: [GitHub CLI API](https://cli.github.com/manual/gh_api) and [pull requests REST API](https://docs.github.com/en/rest/pulls/pulls). GitHub Enterprise hosts/forks/cross-repository PRs and automatic merge are outside this first implementation. Real Issue/Agent/phone acceptance remains pending; local protocol fixtures must not be called real GitHub acceptance.
+
+## Agent 任务工作流 — 简体中文
+
+1. **收件箱**：复用 Session、TaskReference、实时审批、事件、私有快照和幂等请求账本。新增 `/v1/inbox` 的待审批、失败、完成待审、运行中、已处理及归档视图与计数。处理标记绑定会话版本及活动序号并持久化；新活动重新打开记录，待审批项不能隐藏或归档。设备范围先过滤再计算计数；实际审批仍走原接口。桌面会话页新增统一入口。重启、过期请求、权限和状态转换有测试；真实多 Agent 与手机验收另列。
+2. **验证卡**：`/v1/sessions/{id}/verification` 返回任务目标、工作区、基线及当前提交、分支、未提交文件、Diff 统计、测试时间/退出码和证据链接。目标是客户端声明，Git 与测试进程信息是 Host 采集，未确认信息单独列出。正常退出或轮次完成只产生未运行报告。显式 POST 测试通过原 Session 后端执行；验证前后版本不一致、读取失败或超出证据预算均不信任。代码/任务活动变化标为过期，重启中的测试标为中断而不重跑。提交发布通过已测试 tree 与新提交树的对应证据关联，不能仅因 Agent 自述而通过。原始日志采用现有滚动保留范围。桌面已有查看与执行入口。真实 Git 临时仓库和本地进程测试不代表 Agent 或手机验收。
+3. **冲突预警**：`/v1/conflicts` 使用规范化工作目录、Git worktree 根及公共目录。共享目录/worktree 为可能风险，独立 worktree 只显示同仓库信息，不误报同目录冲突。重叠文件必须由两个任务在并发生命周期内的已完成修改工具事件支持；明确是上游协议事件，不能证明操作系统写入者。脏文件、待审批和文字描述不能建立归因。每会话最多保留 256 路径。`POST /v1/sessions` 可选 `worktree:{branch?,base?}`，必须提供请求 ID；从已提交版本创建分支及私有独立 worktree，不复制未提交文件、不覆盖、不回滚、不自动合并。失败和删除保留工作成果。暂不与恢复对话或执行身份隔离组合。
+4. **历史发现与继续**：复用 Codex app-server、Claude/OpenCode ACP 的历史列表、读取、恢复及回放。`agent=all` 聚合列表，单个提供方失败不会吞掉其他结果，并返回独立状态与游标。桌面可选择全部 Agent，显示提供方、目录和更新时间。能力分别标识 CLI 发现、适配器安装、历史查询/恢复需实际协议成功、活进程接管不支持及原因。只使用当前 OS 用户的上游协议，不扫描其他用户数据。恢复使用原 conversation ID；重复恢复复用活跃 Session，工作区/策略/任务不匹配则拒绝；回放不重新发送旧提示。
+5. **GitHub 闭环**：本机 Git 与 gh 已安装时开放能力标记；凭据沿用本机 gh，SSH 全权限用户可创建任务。支持 Issue HTTPS 链接或 owner/repo + 编号，核验 origin、读取标题正文、抓取默认分支版本，建立独立 worktree 与分支。阶段覆盖待执行、开发、待审批、验证、验证失败、待创建 PR、待审核、完成。默认等待手动确认提交、推送与草稿 PR；只有派发时显式选择才自动发布，永不自动合并。任务接口提供列表、详情和继续/验证/发布/刷新 PR。错误保留阶段、现场、原 Session 与提交/PR 意图。请求、启动、提示与验证复用持久幂等账本；提交通过树 SHA/任务标记核对，推送同 SHA，创建 PR 前按分支查询；远程结果不明时停止，不能以重试重复创建。恢复不会默认重跑上一次任务，继续使用原对话 ID 和新的继续指令。
+
+手机待接入：能力协商、五类计数、归档/处理、当前审批读取、版本冲突刷新、验证证据来源与过期状态、Diff/日志保留范围、风险等级、聚合历史部分失败、派发策略和任务恢复入口。手机 UI 在 NimoteCode 仓库，设备权限边界保持原定义。真实 Codex/Claude/OpenCode、GitHub 测试 Issue 到 PR、手机 SSH 断线恢复，以及各平台桌面交互均不得用单元测试替代验收。
+
+
+### Additional evidence boundaries / 补充证据边界
+
+English: reports reject untracked executable-mode changes, unverifiable submodule contents, and capture errors. Identity-isolated sessions do not expose Host-user Git snapshots or run verification commands as the Host identity; a separate test execution scope is not implemented. The original scoped Session output remains available under its existing ACL. Phone report views require Host process evidence, actual exit/timing, tested version and at least one configured test before displaying success.
+
+简体中文：版本指纹包含未跟踪文件的权限位；子模块内容未完整采集时不认可版本。身份隔离会话不会通过验证接口读取 Host 用户的仓库快照，也不会以 Host 身份执行测试；独立测试身份范围暂未实现，原会话输出仍遵守原 ACL。手机只有在 Host 进程证据、退出码、时间、版本及非空测试列表均匹配时才显示验证通过。
+
+
+## Delivery evidence and client integration / 本次交付与客户端接入（2026-11-14）
+
+| Stage / 阶段 | Reused / 复用 | Main modules / 主要模块 | Delivered gap / 已补齐缺口 |
+| --- | --- | --- | --- |
+| Inbox / 收件箱 | Session、activity、approval snapshot、device ACL、request ledger | `internal/host/inbox.go`, GUI `inbox.go`, client `host_task_hub.dart` | 五类计数、已处理/归档、过期版本拒绝、完成结果跨重启保留 |
+| Verification / 验证卡 | Session process backend、private atomic snapshots、output replay | `verification.go`, `server.go`, GUI `verification.go`, client models/view | 基线与当前 SHA、Agent 自述来源、实际测试进程证据、代码过期和完整有界 Diff |
+| Conflicts / 冲突 | normalized Codex/ACP tool events、Git、active Sessions | `conflicts.go`, `worktree.go`, client new-session form | 同目录/worktree 风险、可信工具路径交集、独立 worktree 选项 |
+| History / 历史 | original Codex/ACP history/resume and replay | `history_discovery.go`, `agent_adapter.go`, desktop/client history browser | 跨 provider 列表、部分失败、CLI 与 adapter 区分、活跃会话恢复去重 |
+| GitHub / 闭环 | adapters、approvals、Session/test evidence、SSH/RPC、existing local gh authorization | `github_tasks.go`, `host_client.dart`, client dispatch journal/hub | 持久阶段、独立分支、明确发布策略、失败继续和提交/PR 去重 |
+
+English: NimoteCode reuses `NimoteButton`, `NimoteListRow`, `NimoteFormField`, `NimoteSelectField`, `NimoteTabBar`, `AppModal` and `AppSheetScaffold` with existing theme/type/spacing tokens and six locale catalogs. Session approvals remain in the original conversation screen. General new tasks/Agents can opt into independent worktrees when negotiated; source workspace metadata keeps client Task filtering intact. The phone's existing GitHub OAuth store is unchanged and is not copied to Host. Background publication requires the existing local gh account on Host. Dispatch identities and configuration digests survive phone restarts; access denial after uncertain delivery never discards the original identity.
+
+简体中文：手机端在原 Host 入口接入任务中心、验证卡、风险和 GitHub 派发，沿用公共组件、主题、类型层级、间距和六语言文案。审批仍回到原会话。新建普通任务/Agent 可显式选择独立 worktree，Host 保存原工作区用于任务筛选。手机 GitHub OAuth 凭据不复制到 Host；后台操作复用 Host 本机 gh 授权。手机仅保存派发标识、配置摘要和确认后的任务 ID，不保存凭据或执行正文。交付不包含跨 Host 聚合、任意活 CLI 接管、自动合并、语义重复开发判断或新的设备执行权限。
+
+Important recovery behavior / 恢复边界：
+
+- A definitely unsent Issue prompt can be delivered once after adapter startup is repaired. Accepted prompt receipts are recovered; incomplete delivery reservations stop for inspection rather than resending. Resume uses the original conversation ID when it exists. / 明确未发送的提示可在修复 CLI 后首次发送；已接受回执可恢复，未知交付则停止，不重复发送原 Issue。已有对话优先使用原 ID。
+- A commit hook changing code invalidates prior evidence. An explicit fresh verification can adopt the same existing commit/tree for publication, without creating a second commit. A changed remote PR head marks the report stale when PR state is refreshed. / 提交钩子改动使旧报告过期；重新验证后发布已有提交，不重复提交。刷新 PR 时发现远端 SHA 变化则标记过期。
+- Full captured diffs are retained up to 4 MiB and delivered in 64 KiB byte pages with a SHA digest; raw output uses the original rolling retention and offsets. Other Git metadata and untracked-content budgets remain bounded. Oversized/unreadable evidence is unknown, never a validation pass. / Diff 最大保留 4 MiB，按 64 KiB 分页并校验 SHA；原始输出沿用滚动保留范围。超限或不可读的证据不会被算作验证通过。
+- Independent worktrees are not shared-directory conflicts. Completed tool edits to an identical external path can still produce a file-overlap warning, even across different worktrees. / 独立 worktree 不误报同目录冲突，但确实指向同一个外部路径的完成修改事件仍会提示交集。
+
+Validation is recorded in `docs/host-hardening-tests.md`. The sibling client's `docs/host/completed.md` records UI tests, real local Host protocol integration, rendered fixtures and the APK. These are not physical-device or real model/GitHub acceptance. / 验证范围见本仓库测试记录及客户端文档；本地服务、协议夹具和界面渲染不能替代真机、真实模型和真实 GitHub Issue 验收。

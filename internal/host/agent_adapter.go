@@ -57,12 +57,18 @@ func lookupAgentAdapter(provider string) (agentAdapter, bool) {
 var _ agentAdapter = cliAgentAdapter{}
 
 type AgentInstallation struct {
-	Path            string `json:"path,omitempty"`
-	Protocol        string `json:"protocol"`
-	ProtocolVersion int    `json:"protocol_version,omitempty"`
-	Installed       bool   `json:"installed"`
-	Version         string `json:"version,omitempty"`
-	ProbeStatus     string `json:"probe_status"`
+	CLIPath          string `json:"cli_path,omitempty"`
+	CLIDiscovered    bool   `json:"cli_discovered"`
+	History          string `json:"history"`
+	Resume           string `json:"resume"`
+	LiveAttach       bool   `json:"live_attach"`
+	LiveAttachReason string `json:"live_attach_reason"`
+	Path             string `json:"path,omitempty"`
+	Protocol         string `json:"protocol"`
+	ProtocolVersion  int    `json:"protocol_version,omitempty"`
+	Installed        bool   `json:"installed"`
+	Version          string `json:"version,omitempty"`
+	ProbeStatus      string `json:"probe_status"`
 }
 
 func installedAgents() map[string]AgentInstallation {
@@ -70,7 +76,8 @@ func installedAgents() map[string]AgentInstallation {
 	for _, name := range []string{"codex", "claude", "opencode"} {
 		d, _ := lookupAgentAdapter(name)
 		path, err := exec.LookPath(d.Executable())
-		result[name] = AgentInstallation{Path: path, Protocol: d.Protocol(), ProtocolVersion: d.ProtocolVersion(), Installed: err == nil, ProbeStatus: "not_probed"}
+		cliPath, cliErr := exec.LookPath(name)
+		result[name] = AgentInstallation{CLIPath: cliPath, CLIDiscovered: cliErr == nil, History: "requires_successful_protocol_query", Resume: "requires_successful_protocol_handshake", LiveAttachReason: "arbitrary process attachment is not supported by installed adapters", Path: path, Protocol: d.Protocol(), ProtocolVersion: d.ProtocolVersion(), Installed: err == nil, ProbeStatus: "not_probed"}
 	}
 	return result
 }
