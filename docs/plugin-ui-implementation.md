@@ -6,7 +6,7 @@
 
 - pkg/pluginsdk/plugin_ui.schema.json 为唯一机器可读规范；plugin_ui.go 复用已存在的 jsonschema-go，检查结构、命名空间、动作声明和资源预算。
 - Manifest.Validate 对 UI 元数据做附加验证，沿用安装/启用/发现路径自动发布 ui.contract，不创建数据执行或事件 endpoint。旧 ui.layout/result 保持兼容，新的 32 KiB 预算只约束带 contract 的 UI。
-- examples/http-inspector/manifest.ui.template.json 为可运行 Inspector 的可选复杂界面：表单、标签页、折叠、响应式表格和详情联动。原模板不变，不重新开发业务能力。
+- examples/system-monitor/manifest.template.json 为系统监测复杂界面：六个标签页、嵌套表单、折叠、响应式表格和详情联动，支持真实快照和模拟压力数据。
 - SDK 正反契约语料、预算与兼容测试；SDK 文档说明新增的 Schema 校验依赖。
 
 ## NimoteCode 的实际修改
@@ -31,7 +31,7 @@
 | flutter analyze 本次所有修改的 Dart 实现及测试 | 无问题 |
 | python3 tool/check_plugin_ui_contract.py --host ../nimotehost | pins 和 Host 字节一致 |
 | go test ./pkg/pluginsdk ./internal/plugins ./internal/host | 通过（Host 完整包约 71 秒） |
-| go test -race ./pkg/pluginsdk ./internal/plugins ./examples/http-inspector ./tools/pluginpack | 全部通过 |
+| go test -race ./pkg/pluginsdk ./internal/plugins ./examples/system-monitor ./tools/pluginpack | 全部通过 |
 | go vet ./pkg/pluginsdk ./internal/plugins ./internal/host | 通过 |
 | Host 实际进程与 RPC 集成、Inspector/打包工具测试 | 通过 |
 | python3 tool/host_plugins_acceptance.py --host-repo ../nimotehost --plugin-ui | 真实 Host + 插件进程通过；未启用 public-http |

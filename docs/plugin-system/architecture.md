@@ -29,8 +29,8 @@ with this repository, without importing internal Go packages.
   persisted enable/grant records, invocation receipts/events and process lifecycle.
 - `internal/host/plugins.go`: existing transport/ACL, process supervisor and ACP
   adaptation. It contains no HTTP Inspector logic.
-- `examples/http-inspector`: independent SDK consumer and security tests.
-- `examples/plugin-template`, `tools/pluginpack`: starter and reproducible bundle creation.
+- `examples/system-monitor`: read-only system snapshots, complex declarative UI and contract tests.
+- `tools/pluginpack`: reproducible platform-specific bundle creation.
 
 Each enabled plugin owns a serial work queue and independent supervisor worker.
 Different plugins execute concurrently. Initialization negotiates HCP 1.0;
