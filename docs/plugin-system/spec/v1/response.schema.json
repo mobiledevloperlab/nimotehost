@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nimote:hcp-response:1.0",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "protocol",
+        "result"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "1.0"
+        },
+        "result": {}
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "code"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "supported_protocols": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ]
+}

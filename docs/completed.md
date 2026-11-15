@@ -124,6 +124,7 @@ Use encoded argv, not shell interpolation. Closing the RPC bridge only detaches 
 | POST /v1/github-tasks | 创建并派发 / create and dispatch |
 | GET /v1/github-tasks/{id} | 任务状态与恢复信息 / task and recovery state |
 | POST /v1/github-tasks/{id}/{action} | continue/verify/publish/refresh_pr，完整权限 / owner only |
+| POST /v1/extensions | Owner-only HCP 1.0 plugin/capability operations; see [plugin system](plugin-system/protocol.md). / 仅所有者可用的统一插件能力协议。 |
 | POST /v1/shutdown-if-idle | 空闲时停止并拒绝新会话 / stop only if idle |
 | POST /v1/shutdown | 停止 Host / graceful shutdown |
 
@@ -217,7 +218,8 @@ there is no background/offline system push.
 ## MCP 与开发检查 / MCP and checks
 
 `nimotehost mcp` 使用 MCP `2025-11-25` stdio 生命周期，默认仅提供 host_capabilities、
-host_sessions、host_output；本地设置 `NIMOTEHOST_MCP_WRITE=1` 才提供 host_start、host_cancel。
+host_sessions、host_output、host_capability_query；本地设置 `NIMOTEHOST_MCP_WRITE=1` 才提供
+host_start、host_cancel、host_capability_invoke。通用 HCP 工具说明见[插件协议](plugin-system/protocol.md)。
 MCP 不启动 daemon，不自动打开端口。依赖及授权见[第三方声明](../THIRD_PARTY_NOTICES.md)。
 
 Agent 适配继续放在原 Go provider 分支，复用 SDK、认证、启动探测、输出/事件和生命周期；

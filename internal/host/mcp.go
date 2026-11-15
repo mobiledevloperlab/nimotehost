@@ -31,7 +31,9 @@ func mcpTools(write bool) []mcpTool {
 		{"host_sessions", "List durable Host sessions", empty},
 		{"host_output", "Read up to 64 KiB from a session byte offset", schema(map[string]any{"id": id, "offset": map[string]any{"type": "integer", "minimum": 0}}, "id")},
 	}
+	tools = append(tools, mcpTool{"host_capability_query", "Query plugin capabilities, results and event cursors through HCP 1.0", schema(map[string]any{"protocol": map[string]any{"type": "string", "enum": []string{"1.0"}}, "operation": map[string]any{"type": "string", "enum": []string{"capabilities.list", "capabilities.get", "capabilities.result", "capabilities.subscribe", "plugins.list"}}, "id": map[string]string{"type": "string"}, "epoch": map[string]string{"type": "string"}, "after": map[string]string{"type": "integer"}}, "protocol", "operation")})
 	if write {
+		tools = append(tools, mcpTool{"host_capability_invoke", "Invoke or cancel a plugin capability; sensitive calls require confirmation", schema(map[string]any{"protocol": map[string]any{"type": "string", "enum": []string{"1.0"}}, "operation": map[string]any{"type": "string", "enum": []string{"capabilities.invoke", "capabilities.cancel"}}, "id": map[string]string{"type": "string"}, "epoch": map[string]string{"type": "string"}, "request_id": map[string]string{"type": "string"}, "input": map[string]any{}, "confirmed": map[string]string{"type": "boolean"}}, "protocol", "operation", "id")})
 		tools = append(tools,
 			mcpTool{"host_start", "Start an authorized task, terminal or CLI agent", schema(map[string]any{"kind": map[string]any{"type": "string", "enum": []string{"task", "terminal", "agent"}}, "command": map[string]string{"type": "string"}, "args": map[string]any{"type": "array", "items": map[string]string{"type": "string"}}, "directory": map[string]string{"type": "string"}, "agent": map[string]any{"type": "string", "enum": []string{"codex", "claude", "opencode"}}}, "kind", "directory")},
 			mcpTool{"host_cancel", "Cancel a supervised session and its process tree", schema(map[string]any{"id": id}, "id")},
@@ -99,6 +101,19 @@ func newMCPServer(write bool, call func(context.Context, RPCRequest) ([]byte, er
 }
 func mcpRequest(name string, args json.RawMessage) (RPCRequest, error) {
 	switch name {
+	case "host_capability_query", "host_capability_invoke":
+		var request capabilityRequest
+		if err := decodeJSON(args, &request); err != nil {
+			return RPCRequest{}, err
+		}
+		allowed := request.Operation == "capabilities.list" || request.Operation == "capabilities.get" || request.Operation == "capabilities.result" || request.Operation == "capabilities.subscribe" || request.Operation == "plugins.list"
+		if name == "host_capability_invoke" {
+			allowed = request.Operation == "capabilities.invoke" || request.Operation == "capabilities.cancel"
+		}
+		if !allowed {
+			return RPCRequest{}, fmt.Errorf("operation not permitted by this MCP tool")
+		}
+		return RPCRequest{Method: "POST", Path: "/v1/extensions", Body: args}, nil
 	case "host_capabilities":
 		return RPCRequest{Method: "GET", Path: "/v1/capabilities"}, nil
 	case "host_sessions":

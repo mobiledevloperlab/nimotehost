@@ -194,3 +194,10 @@ GUI Devices 和 `nimotehost devices add <name>` 可注册独立只读设备，
 Observer identities use restricted SSH keys, not unrestricted same-user shell access.
 设备注册及绑定方法、安全边界见 [设备授权说明](docs/completed.md#只读设备授权历史与更新入口--observer-devices-history-and-updates)。
 Sessions → Past conversations 已接入原生历史查询/恢复；Settings 可查询最新官方版本并打开下载入口。
+
+## 社区插件
+
+参阅[插件平台](docs/plugin-system/architecture.md)、
+[公开 HCP 1.0 规范](docs/plugin-system/spec/v1/README.md)及
+[SDK / HTTP API Inspector 开发安装指南](docs/plugin-system/plugin-sdk.md)。
+插件默认禁用，需明确批准后启用；运行第三方程序前请阅读[安全边界](docs/plugin-system/security.md)。

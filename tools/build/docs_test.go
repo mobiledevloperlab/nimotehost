@@ -57,6 +57,9 @@ func TestFeatureDocumentationLayout(t *testing.T) {
 		if entry.Name() == "nimotehost.png" || entry.Name() == "nimotehost-rounded.png" {
 			continue
 		} // Original brand artwork, not a feature document.
+		if entry.IsDir() && entry.Name() == "plugin-system" {
+			continue
+		}
 		if entry.IsDir() {
 			t.Fatalf("unexpected documentation directory: %s", entry.Name())
 		}
@@ -95,7 +98,7 @@ func TestImplementedRPCReference(t *testing.T) {
 		"GET /v1/inbox?view=...", "POST /v1/inbox/{id}",
 		"GET /v1/sessions/{id}/verification", "POST /v1/sessions/{id}/verification", "GET /v1/sessions/{id}/verification-diff", "GET /v1/conflicts",
 		"GET /v1/github-tasks", "POST /v1/github-tasks", "GET /v1/github-tasks/{id}", "POST /v1/github-tasks/{id}/{action}",
-		"POST /v1/shutdown-if-idle", "POST /v1/shutdown",
+		"POST /v1/extensions", "POST /v1/shutdown-if-idle", "POST /v1/shutdown",
 	}
 	if !reflect.DeepEqual(actual, expected) {
 		t.Fatalf("RPC documentation differs: %v", actual)

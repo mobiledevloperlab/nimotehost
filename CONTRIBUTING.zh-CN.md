@@ -72,3 +72,11 @@ go-i18n 维护交互和国际化，不复制 SDK 内部实现。
 可执行 `NIMOTE_GUI_PREVIEW_DIR=/tmp/nimote-gui-preview go test -run TestDesktopLayoutsAcrossLanguages`
 生成六语言的浅色和深色预览。该命令需原生桌面构建依赖；不加 `ci` 才会扫描系统字体。
 截图只使用测试样本，不读取真实会话。无头测试不替代原生托盘、辅助功能或母语审校。
+
+## 社区插件
+
+从[公开 SDK 与插件模板](docs/plugin-system/plugin-sdk.md)开始，声明版本化输入输出
+Schema 和权限，针对[公开 HCP 规范](docs/plugin-system/spec/v1/README.md)进行兼容性
+测试，并说明来源、完整性、平台及真实的[安全边界](docs/plugin-system/security.md)。
+标准插件不得要求修改 Host 或客户端的插件专属代码；不得提交凭据或引入安装脚本。
+提交功能、取消、崩溃恢复、权限及平台测试，协议变更应包含兼容性测试。

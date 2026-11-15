@@ -239,3 +239,11 @@ startup, run `scripts\install.ps1` or `nimotehost setup` from the complete bundl
 Setup requires the complete distribution, not just an executable. Windows CLI targets
 are amd64 (x64), arm64, and 386 (32-bit x86). GUI distribution targets remain amd64
 and arm64 and require a native desktop toolchain.
+
+## Community plugins
+
+See the [plugin platform](docs/plugin-system/architecture.md),
+[public HCP 1.0 specification](docs/plugin-system/spec/v1/README.md) and
+[SDK / HTTP API Inspector guide](docs/plugin-system/plugin-sdk.md). Plugins are
+disabled until explicitly approved; review the [security boundary](docs/plugin-system/security.md)
+before running third-party executables.

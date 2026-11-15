@@ -23,6 +23,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mobiledevloperlab/nimotehost/internal/plugins"
 )
 
 const Address = "127.0.0.1:47831"
@@ -41,6 +43,7 @@ func decodeJSON(data []byte, target any) error {
 }
 
 type Server struct {
+	plugins    *plugins.Runtime
 	dir        string
 	manager    *Manager
 	token      string
@@ -101,6 +104,17 @@ func Serve(ctx context.Context, dir string, ready io.Writer) error {
 		return err
 	}
 	api := &Server{dir: dir, manager: manager, token: token, hostID: hostID, instanceID: instanceID, shutdown: cancel, requests: make(chan struct{}, 64), controls: make(chan struct{}, 16), helpers: make(chan struct{}, 4), admission: newRequestAdmission()}
+	extensionDir := filepath.Join(dir, "plugins")
+	api.plugins, err = plugins.New(extensionDir, instanceID, pluginLauncher(limits))
+	if err != nil {
+		return fmt.Errorf("load plugins: %w", err)
+	}
+	defer api.plugins.Close()
+	communityAdapters.Lock()
+	communityAdapters.runtime = api.plugins
+	communityAdapters.dir = extensionDir
+	communityAdapters.Unlock()
+	defer func() { communityAdapters.Lock(); communityAdapters.runtime = nil; communityAdapters.Unlock() }()
 	server := &http.Server{Handler: api, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
 	if runtime.GOOS == "windows" {
 		if err := publishExecutable(dir); err != nil {
@@ -192,6 +206,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			fail(w, 503, "Host request capacity reached")
 			return
 		}
+	}
+	if r.URL.Path == "/v1/extensions" {
+		if !owner {
+			fail(w, 403, "plugin operations require Host owner authorization")
+			return
+		}
+		s.servePlugins(w, r)
+		return
 	}
 	scoped := !owner && device.Role != "observer"
 	if device.Role == "session_controller" && strings.HasPrefix(r.URL.Path, "/v1/sessions/") {
