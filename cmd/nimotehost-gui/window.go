@@ -49,7 +49,6 @@ func newManagerWindow(a fyne.App, m *desktop.Manager, poll bool) (fyne.Window, c
 	a.SetIcon(applicationLogo)
 	w := a.NewWindow("NimoteHost")
 	w.SetIcon(applicationLogo)
-	w.Resize(fyne.NewSize(1180, 820))
 	ui := &managerWindow{app: a, window: w, manager: m, poll: poll}
 	trayEnabled := runtime.GOOS != "linux" || a.Preferences().Bool("linux-tray")
 	if tray, ok := a.(fynedesktop.App); ok && trayEnabled {
@@ -58,6 +57,9 @@ func newManagerWindow(a fyne.App, m *desktop.Manager, poll bool) (fyne.Window, c
 		w.SetCloseIntercept(w.Hide)
 	}
 	ui.build(a.Preferences().StringWithFallback("language", "en"), 0)
+	// Use the compact layout after content establishes its minimum size.
+	w.Resize(fyne.NewSize(960, 640))
+	w.CenterOnScreen()
 	return w, func() {
 		if ui.cancel != nil {
 			ui.cancel()
