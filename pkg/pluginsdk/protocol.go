@@ -94,11 +94,20 @@ func (m Manifest) Validate() error {
 		if !json.Valid(c.Input) || !json.Valid(c.Output) || len(bytes.TrimSpace(c.Input)) == 0 || bytes.TrimSpace(c.Input)[0] != '{' || bytes.TrimSpace(c.Output)[0] != '{' {
 			return errors.New("schemas required")
 		}
-		if len(c.UI) > 0 && bytes.TrimSpace(c.UI)[0] != '{' {
+		if len(c.UI) > 0 && (!json.Valid(c.UI) || len(bytes.TrimSpace(c.UI)) == 0 || bytes.TrimSpace(c.UI)[0] != '{') {
 			return errors.New("UI descriptor must be an object")
 		}
 		if c.ACP != 0 && (c.Kind != "agent" || (c.ACP != 1 && c.ACP != 2)) {
 			return errors.New("unsupported ACP adapter")
+		}
+	}
+	capabilities := map[string]bool{}
+	for _, c := range m.Capabilities {
+		capabilities[c.Name] = true
+	}
+	for _, c := range m.Capabilities {
+		if err := ValidatePluginUI(c.UI, m.ID, capabilities); err != nil {
+			return err
 		}
 	}
 	return nil

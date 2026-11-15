@@ -1,0 +1,616 @@
+[
+  {
+    "name": "workbench",
+    "valid": true,
+    "contract": {
+      "version": "1.0",
+      "state": {
+        "request": {
+          "method": "GET",
+          "url": "https://example.com"
+        },
+        "response": null,
+        "selected": null
+      },
+      "actions": {
+        "send": {
+          "capability": "http-inspector/request",
+          "result": "response",
+          "input": {
+            "method": {
+              "pointer": "/state/request/method"
+            },
+            "url": {
+              "pointer": "/state/request/url"
+            }
+          }
+        }
+      },
+      "root": {
+        "type": "column",
+        "children": [
+          {
+            "type": "text",
+            "text": "HTTP Inspector Workbench"
+          },
+          {
+            "type": "tabs",
+            "children": [
+              {
+                "type": "column",
+                "label": "Request",
+                "children": [
+                  {
+                    "type": "form",
+                    "label": "Send request",
+                    "action": "send"
+                  },
+                  {
+                    "type": "group",
+                    "label": "Example request",
+                    "children": [
+                      {
+                        "type": "detail",
+                        "source": "/state/request"
+                      },
+                      {
+                        "type": "button",
+                        "label": "Send example",
+                        "action": "send"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "responsive",
+                "label": "Response",
+                "children": [
+                  {
+                    "type": "table",
+                    "source": "/state/response/json",
+                    "columns": [
+                      "id",
+                      "title"
+                    ],
+                    "selection": "selected"
+                  },
+                  {
+                    "type": "detail",
+                    "label": "Selected row",
+                    "source": "/state/selected"
+                  },
+                  {
+                    "type": "detail",
+                    "source": "/state/response"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "version",
+    "valid": false,
+    "contract": {
+      "version": "2.0",
+      "state": {
+        "request": {
+          "method": "GET",
+          "url": "https://example.com"
+        },
+        "response": null,
+        "selected": null
+      },
+      "actions": {
+        "send": {
+          "capability": "http-inspector/request",
+          "result": "response",
+          "input": {
+            "method": {
+              "pointer": "/state/request/method"
+            },
+            "url": {
+              "pointer": "/state/request/url"
+            }
+          }
+        }
+      },
+      "root": {
+        "type": "column",
+        "children": [
+          {
+            "type": "text",
+            "text": "HTTP Inspector Workbench"
+          },
+          {
+            "type": "tabs",
+            "children": [
+              {
+                "type": "column",
+                "label": "Request",
+                "children": [
+                  {
+                    "type": "form",
+                    "label": "Send request",
+                    "action": "send"
+                  },
+                  {
+                    "type": "group",
+                    "label": "Example request",
+                    "children": [
+                      {
+                        "type": "detail",
+                        "source": "/state/request"
+                      },
+                      {
+                        "type": "button",
+                        "label": "Send example",
+                        "action": "send"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "responsive",
+                "label": "Response",
+                "children": [
+                  {
+                    "type": "table",
+                    "source": "/state/response/json",
+                    "columns": [
+                      "id",
+                      "title"
+                    ],
+                    "selection": "selected"
+                  },
+                  {
+                    "type": "detail",
+                    "label": "Selected row",
+                    "source": "/state/selected"
+                  },
+                  {
+                    "type": "detail",
+                    "source": "/state/response"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "cross-plugin",
+    "valid": false,
+    "contract": {
+      "version": "1.0",
+      "state": {
+        "request": {
+          "method": "GET",
+          "url": "https://example.com"
+        },
+        "response": null,
+        "selected": null
+      },
+      "actions": {
+        "send": {
+          "capability": "other/read",
+          "result": "response",
+          "input": {
+            "method": {
+              "pointer": "/state/request/method"
+            },
+            "url": {
+              "pointer": "/state/request/url"
+            }
+          }
+        }
+      },
+      "root": {
+        "type": "column",
+        "children": [
+          {
+            "type": "text",
+            "text": "HTTP Inspector Workbench"
+          },
+          {
+            "type": "tabs",
+            "children": [
+              {
+                "type": "column",
+                "label": "Request",
+                "children": [
+                  {
+                    "type": "form",
+                    "label": "Send request",
+                    "action": "send"
+                  },
+                  {
+                    "type": "group",
+                    "label": "Example request",
+                    "children": [
+                      {
+                        "type": "detail",
+                        "source": "/state/request"
+                      },
+                      {
+                        "type": "button",
+                        "label": "Send example",
+                        "action": "send"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "responsive",
+                "label": "Response",
+                "children": [
+                  {
+                    "type": "table",
+                    "source": "/state/response/json",
+                    "columns": [
+                      "id",
+                      "title"
+                    ],
+                    "selection": "selected"
+                  },
+                  {
+                    "type": "detail",
+                    "label": "Selected row",
+                    "source": "/state/selected"
+                  },
+                  {
+                    "type": "detail",
+                    "source": "/state/response"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "unknown-action",
+    "valid": false,
+    "contract": {
+      "version": "1.0",
+      "state": {
+        "request": {
+          "method": "GET",
+          "url": "https://example.com"
+        },
+        "response": null,
+        "selected": null
+      },
+      "actions": {
+        "send": {
+          "capability": "http-inspector/request",
+          "result": "response",
+          "input": {
+            "method": {
+              "pointer": "/state/request/method"
+            },
+            "url": {
+              "pointer": "/state/request/url"
+            }
+          }
+        }
+      },
+      "root": {
+        "type": "column",
+        "children": [
+          {
+            "type": "text",
+            "text": "HTTP Inspector Workbench"
+          },
+          {
+            "type": "tabs",
+            "children": [
+              {
+                "type": "column",
+                "label": "Request",
+                "children": [
+                  {
+                    "type": "form",
+                    "label": "Send request",
+                    "action": "send"
+                  },
+                  {
+                    "type": "group",
+                    "label": "Example request",
+                    "children": [
+                      {
+                        "type": "detail",
+                        "source": "/state/request"
+                      },
+                      {
+                        "type": "button",
+                        "label": "Send example",
+                        "action": "send"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "responsive",
+                "label": "Response",
+                "children": [
+                  {
+                    "type": "table",
+                    "source": "/state/response/json",
+                    "columns": [
+                      "id",
+                      "title"
+                    ],
+                    "selection": "selected"
+                  },
+                  {
+                    "type": "detail",
+                    "label": "Selected row",
+                    "source": "/state/selected"
+                  },
+                  {
+                    "type": "detail",
+                    "source": "/state/response"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "button",
+            "action": "steal"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "bad-pointer",
+    "valid": false,
+    "contract": {
+      "version": "1.0",
+      "state": {
+        "request": {
+          "method": "GET",
+          "url": "https://example.com"
+        },
+        "response": null,
+        "selected": null
+      },
+      "actions": {
+        "send": {
+          "capability": "http-inspector/request",
+          "result": "response",
+          "input": {
+            "method": {
+              "pointer": "/state/request/method"
+            },
+            "url": {
+              "pointer": "/state/~2"
+            }
+          }
+        }
+      },
+      "root": {
+        "type": "column",
+        "children": [
+          {
+            "type": "text",
+            "text": "HTTP Inspector Workbench"
+          },
+          {
+            "type": "tabs",
+            "children": [
+              {
+                "type": "column",
+                "label": "Request",
+                "children": [
+                  {
+                    "type": "form",
+                    "label": "Send request",
+                    "action": "send"
+                  },
+                  {
+                    "type": "group",
+                    "label": "Example request",
+                    "children": [
+                      {
+                        "type": "detail",
+                        "source": "/state/request"
+                      },
+                      {
+                        "type": "button",
+                        "label": "Send example",
+                        "action": "send"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "responsive",
+                "label": "Response",
+                "children": [
+                  {
+                    "type": "table",
+                    "source": "/state/response/json",
+                    "columns": [
+                      "id",
+                      "title"
+                    ],
+                    "selection": "selected"
+                  },
+                  {
+                    "type": "detail",
+                    "label": "Selected row",
+                    "source": "/state/selected"
+                  },
+                  {
+                    "type": "detail",
+                    "source": "/state/response"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "extra-field",
+    "valid": false,
+    "contract": {
+      "version": "1.0",
+      "state": {
+        "request": {
+          "method": "GET",
+          "url": "https://example.com"
+        },
+        "response": null,
+        "selected": null
+      },
+      "actions": {
+        "send": {
+          "capability": "http-inspector/request",
+          "result": "response",
+          "input": {
+            "method": {
+              "pointer": "/state/request/method"
+            },
+            "url": {
+              "pointer": "/state/request/url"
+            }
+          }
+        }
+      },
+      "root": {
+        "type": "column",
+        "children": [
+          {
+            "type": "text",
+            "text": "HTTP Inspector Workbench"
+          },
+          {
+            "type": "tabs",
+            "children": [
+              {
+                "type": "column",
+                "label": "Request",
+                "children": [
+                  {
+                    "type": "form",
+                    "label": "Send request",
+                    "action": "send"
+                  },
+                  {
+                    "type": "group",
+                    "label": "Example request",
+                    "children": [
+                      {
+                        "type": "detail",
+                        "source": "/state/request"
+                      },
+                      {
+                        "type": "button",
+                        "label": "Send example",
+                        "action": "send"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "responsive",
+                "label": "Response",
+                "children": [
+                  {
+                    "type": "table",
+                    "source": "/state/response/json",
+                    "columns": [
+                      "id",
+                      "title"
+                    ],
+                    "selection": "selected"
+                  },
+                  {
+                    "type": "detail",
+                    "label": "Selected row",
+                    "source": "/state/selected"
+                  },
+                  {
+                    "type": "detail",
+                    "source": "/state/response"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "script": "eval()"
+    }
+  },
+  {
+    "name": "empty-table",
+    "valid": false,
+    "contract": {
+      "version": "1.0",
+      "state": {
+        "request": {
+          "method": "GET",
+          "url": "https://example.com"
+        },
+        "response": null,
+        "selected": null
+      },
+      "actions": {
+        "send": {
+          "capability": "http-inspector/request",
+          "result": "response",
+          "input": {
+            "method": {
+              "pointer": "/state/request/method"
+            },
+            "url": {
+              "pointer": "/state/request/url"
+            }
+          }
+        }
+      },
+      "root": {
+        "type": "table",
+        "columns": []
+      }
+    }
+  },
+  {
+    "name": "unknown-node",
+    "valid": true,
+    "contract": {
+      "version": "1.0",
+      "state": {},
+      "actions": {},
+      "root": {
+        "type": "future-widget",
+        "children": [
+          {
+            "type": "text",
+            "text": "must not render"
+          }
+        ]
+      }
+    }
+  }
+]
