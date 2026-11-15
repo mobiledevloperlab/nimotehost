@@ -1,68 +1,53 @@
 # Plugin SDK — English / 简体中文
 
-`github.com/mobiledevloperlab/nimotehost/pkg/pluginsdk` is an independently
-importable public Go package with no internal Host imports. UI contract validation reuses the pinned
-`github.com/google/jsonschema-go` dependency. An external repository can `go mod init`, then
-`go get github.com/mobiledevloperlab/nimotehost/pkg/pluginsdk@<published-host-tag>`.
-Use a local Go module `replace` during development before this change is released.
-A separate SDK module/release cadence is a future packaging option, not a
-requirement to import Host internals. Other languages can implement the public
-[NDJSON contract](spec/v1/README.md).
+`github.com/mobiledevloperlab/nimotehost/pkg/pluginsdk` is the public Go SDK.
+External plugins import it without depending on Host internals. Other languages
+can implement the [NDJSON contract](spec/v1/README.md).
 
-Copy `examples/plugin-template/main.go` and its Manifest template. Implement
-`pluginsdk.Handler`, declare schemas, version and permissions, and use
-`pluginsdk.Serve(ctx, stdin, stdout, handler)`. Do not print logs to stdout. The
-handler can emit numeric progress. Host serializes work within one plugin;
-independent plugins run concurrently. SDK suppresses handler error details.
-Use context deadlines for your own network operations and expect process termination.
+Use `pluginsdk.Serve(ctx, stdin, stdout, handler)` and declare capabilities,
+schemas, permissions and version in a Manifest. Stdout is reserved for the wire
+protocol. Progress values are between 0 and 1. Host serializes calls within each
+plugin and terminates the process on cancellation; handlers should also observe
+context cancellation. Errors returned to Host are sanitized.
 
-From the Host source checkout, build the HTTP example on the target platform:
+The runnable example is [System Monitor](../../examples/system-monitor/README.md).
+It exercises UI Contract 1.0 with read-only system snapshots and simulated data.
+The previous Echo and HTTP Inspector demos have been replaced by this example.
+
+Build and package on the target platform:
 
 ```sh
-go build -o /tmp/http-inspector ./examples/http-inspector
-go run ./tools/pluginpack -binary /tmp/http-inspector \
-  -manifest examples/http-inspector/manifest.template.json \
-  -out /tmp/http-inspector-bundle
+go build -o /tmp/system-monitor ./examples/system-monitor
+go run ./tools/pluginpack -binary /tmp/system-monitor \
+  -manifest examples/system-monitor/manifest.template.json \
+  -out /tmp/system-monitor-bundle
 ```
 
-Windows: use an absolute local temporary path and `.exe` for `-o`/`-binary`.
-`pluginpack` writes the correct executable name, platform and executable digest,
-then prints `manifest_sha256=...`. Output directory must be new. It describes the
-running packaging platform; cross-built binaries must be packaged on their target
-platform or have their Manifest platform edited/reviewed before installation.
-Nothing in this build step changes the running Host.
+The output directory must be new. Windows uses an absolute temporary path and
+`.exe` for the build output. The packager pins the executable hash, platform,
+and entrypoint, then prints the Manifest SHA256. Cross-built binaries must be
+packaged on their target platform. Templates containing zero hashes are not
+installation bundles.
 
-After reviewing the two files, send these JSON envelopes via SSH to `nimotehost rpc`
-(or the equivalent existing local RPC command). Replace paths and digests yourself:
+After reviewing the executable and Manifest, use the existing authenticated RPC:
 
 ```json
-{"method":"POST","path":"/v1/extensions","body":{"protocol":"1.0","operation":"plugins.install","source":"/absolute/http-inspector-bundle","sha256":"MANIFEST_SHA256","confirmed":true}}
-{"method":"POST","path":"/v1/extensions","body":{"protocol":"1.0","operation":"plugins.enable","id":"http-inspector","grants":["process.same-user","network.public"],"confirmed":true}}
+{"method":"POST","path":"/v1/extensions","body":{"protocol":"1.0","operation":"plugins.install","source":"/absolute/system-monitor-bundle","sha256":"MANIFEST_SHA256","confirmed":true}}
+{"method":"POST","path":"/v1/extensions","body":{"protocol":"1.0","operation":"plugins.enable","id":"system-monitor","grants":["process.same-user"],"confirmed":true}}
 {"method":"POST","path":"/v1/extensions","body":{"protocol":"1.0","operation":"capabilities.list"}}
 {"method":"POST","path":"/v1/extensions","body":{"protocol":"1.0","operation":"capabilities.subscribe"}}
 ```
 
-Wait for ready. Use the returned epoch and a fresh cryptographically random
-64-hex request ID to invoke:
+Wait for ready, then invoke `system-monitor/snapshot` with input `{}`, the current
+epoch, and a fresh random 64-hex `request_id`. Query `capabilities.result` with the
+invocation ID; use `capabilities.cancel` to cancel. The UI uses the same execution
+and authorization path. No automatic calls or timer refresh are defined by
+[UI Contract 1.0](../plugin-ui-protocol.md).
 
-```json
-{"method":"POST","path":"/v1/extensions","body":{"protocol":"1.0","operation":"capabilities.invoke","id":"http-inspector/request","epoch":"CURRENT_EPOCH","request_id":"64_LOWERCASE_HEX_DIGITS","confirmed":true,"input":{"method":"GET","url":"https://example.com","timeout_ms":5000}}}
-```
+For distribution, build and verify each supported platform and follow the
+[metadata-only catalog workflow](catalog.md). The local demo does not publish a
+catalog entry or change the running Host during packaging.
 
-Poll `capabilities.result` with the returned invocation ID. Cancel with
-`capabilities.cancel`; subscribe using epoch and cursor. Debug failed plugins by
-running their binary manually against NDJSON fixtures in a disposable account.
-Host records sanitized metadata, not arbitrary child stderr. Never debug with
-production credentials. To publish, run tests, build one bundle per platform,
-verify the Manifest against the public schema, distribute it and the Manifest
-digest through a trusted channel, document privileges and tag your source.
-There are no install scripts and no Host-specific provider switch to edit.
-For searchable GitHub distribution, use [the metadata-only catalog workflow](catalog.md):
-publish code/releases in your own repository and submit only the generated JSON
-record to the public index. Local offline installation remains supported.
-
-简体中文：示例、模板和打包工具均可直接使用。第三方仓库只依赖公开 SDK 或公开
-NDJSON 协议。安装、启用、调用均走既有认证通道；发布前需要来源审查、安全测试及
-按目标平台构建，Host 不自动下载或信任社区二进制。
-
-Optional versioned UI metadata: see [Plugin UI Contract](../plugin-ui-protocol.md) and the opt-in `examples/http-inspector/manifest.ui.template.json`.
+简体中文：复制系统监测示例，通过公开 SDK 实现能力。打包后可在 GUI 手动选择
+`manifest.json` 安装并启用。插件以当前用户权限运行，需授予 `process.same-user`；
+系统监测示例不需要网络访问授权，不执行写入系统配置或结束进程的操作。

@@ -22,7 +22,7 @@ func TestReleasePackagingKeepsCodeOutOfCatalog(t *testing.T) {
 	}
 	output := filepath.Join(root, "bundle")
 	release := filepath.Join(root, "release")
-	cmd := exec.Command("go", "run", ".", "-binary", binary, "-manifest", "../../examples/plugin-template/manifest.template.json", "-out", output, "-repository", "developer/my-plugin", "-tag", "v1.0.0", "-release-out", release)
+	cmd := exec.Command("go", "run", ".", "-binary", binary, "-manifest", "../../examples/system-monitor/manifest.template.json", "-out", output, "-repository", "developer/my-plugin", "-tag", "v1.0.0", "-release-out", release)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("%v %s", err, out)
 	}

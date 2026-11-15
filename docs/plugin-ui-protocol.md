@@ -40,17 +40,17 @@
 ```json
 {
   "version":"1.0",
-  "state":{"request":{"method":"GET","url":"https://example.com"},"response":null,"selected":null},
-  "actions":{"send":{"capability":"http-inspector/request","result":"response","input":{"method":{"pointer":"/state/request/method"},"url":{"pointer":"/state/request/url"}}}},
+  "state":{"snapshot":null,"selected":null},
+  "actions":{"sample":{"capability":"system-monitor/snapshot","result":"snapshot"}},
   "root":{"type":"responsive","children":[
-    {"type":"form","label":"Send request","action":"send"},
-    {"type":"table","source":"/state/response/json","columns":["id","title"],"selection":"selected"},
+    {"type":"button","label":"采集本机快照","action":"sample"},
+    {"type":"table","source":"/state/snapshot/processes","columns":["pid","name","cpu"],"selection":"selected"},
     {"type":"detail","source":"/state/selected"}
   ]}
 }
 ```
 
-完整独立示例：NimoteHost/examples/http-inspector/manifest.ui.template.json。使用已存在的 Inspector 可执行程序，两个标签页包含请求表单、折叠详情、样例请求按钮、响应表格和选择详情。请求返回 JSON 数组时填充表格；其他响应可在原始详情查看。普通 manifest.template.json 不变；UI 模板不是含零摘要即可安装的包，须用 pluginpack 固定平台和真实摘要。
+完整独立示例：`examples/system-monitor/manifest.template.json`。系统监测工作台包含六个标签页、嵌套采样表单、折叠详情、响应式表格和行选择联动。本机模式读取只读快照，模拟模式提供 500 行进程和 60 条趋势样本。须使用 pluginpack 写入目标平台及真实摘要后安装。
 
 ## 执行、事件与安全
 

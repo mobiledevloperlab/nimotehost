@@ -338,7 +338,7 @@ func TestPublicManifestCompatibility(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"http-inspector", "plugin-template"} {
+	for _, name := range []string{"system-monitor"} {
 		raw, err = os.ReadFile("../../examples/" + name + "/manifest.template.json")
 		if err != nil {
 			t.Fatal(err)
