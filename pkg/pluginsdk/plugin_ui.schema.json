@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nimote:plugin-ui:1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "state",
+    "actions",
+    "root"
+  ],
+  "properties": {
+    "version": {
+      "const": "1.0"
+    },
+    "state": {
+      "type": "object",
+      "maxProperties": 64
+    },
+    "actions": {
+      "type": "object",
+      "maxProperties": 32,
+      "additionalProperties": {
+        "$ref": "#/$defs/action"
+      }
+    },
+    "root": {
+      "$ref": "#/$defs/node"
+    }
+  },
+  "$defs": {
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "result"
+      ],
+      "properties": {
+        "capability": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,62}/[a-z][a-z0-9-]{0,62}$"
+        },
+        "result": {
+          "type": "string",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+        },
+        "input": {
+          "type": "object",
+          "maxProperties": 64,
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "pointer"
+            ],
+            "properties": {
+              "pointer": {
+                "type": "string",
+                "maxLength": 512,
+                "pattern": "^(/([^~]|~[01])*)*$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "source": {
+          "type": "string",
+          "maxLength": 512,
+          "pattern": "^(/([^~]|~[01])*)*$"
+        },
+        "visible": {
+          "type": "string",
+          "maxLength": 512,
+          "pattern": "^(/([^~]|~[01])*)*$"
+        },
+        "action": {
+          "type": "string",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+        },
+        "selection": {
+          "type": "string",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+        },
+        "columns": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "children": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/node"
+          }
+        }
+      }
+    }
+  }
+}

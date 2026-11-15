@@ -1,0 +1,203 @@
+{
+  "protocol": "1.0",
+  "id": "http-inspector",
+  "version": "1.0.0",
+  "publisher": "Nimote contributors (example; review before use)",
+  "source": "https://github.com/mobiledevloperlab/nimotehost/tree/main/examples/http-inspector",
+  "entrypoint": "plugin",
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "platforms": [
+    "darwin/arm64"
+  ],
+  "permissions": [
+    "process.same-user",
+    "network.public"
+  ],
+  "capabilities": [
+    {
+      "name": "request",
+      "kind": "tool",
+      "version": "1.0.0",
+      "title": "HTTP API Inspector",
+      "description": "Send a bounded request to a public HTTP API. Credential headers and redirects are forbidden.",
+      "sensitive": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "DELETE"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 8192
+          },
+          "query": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 65536
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20000
+          }
+        },
+        "required": [
+          "method",
+          "url"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "integer"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "elapsed_ms": {
+            "type": "integer"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "text",
+              "json"
+            ]
+          },
+          "body": {
+            "type": "string"
+          },
+          "json": {}
+        },
+        "required": [
+          "status",
+          "headers",
+          "elapsed_ms",
+          "format",
+          "body"
+        ],
+        "additionalProperties": false
+      },
+      "ui": {
+        "layout": "form",
+        "result": "json-or-text",
+        "description": "Always confirm destination, method and body before sending. Render all returned content as escaped text.",
+        "contract": {
+          "version": "1.0",
+          "state": {
+            "request": {
+              "method": "GET",
+              "url": "https://example.com"
+            },
+            "response": null,
+            "selected": null
+          },
+          "actions": {
+            "send": {
+              "capability": "http-inspector/request",
+              "result": "response",
+              "input": {
+                "method": {
+                  "pointer": "/state/request/method"
+                },
+                "url": {
+                  "pointer": "/state/request/url"
+                }
+              }
+            }
+          },
+          "root": {
+            "type": "column",
+            "children": [
+              {
+                "type": "text",
+                "text": "HTTP Inspector Workbench"
+              },
+              {
+                "type": "tabs",
+                "children": [
+                  {
+                    "type": "column",
+                    "label": "Request",
+                    "children": [
+                      {
+                        "type": "form",
+                        "label": "Send request",
+                        "action": "send"
+                      },
+                      {
+                        "type": "group",
+                        "label": "Example request",
+                        "children": [
+                          {
+                            "type": "detail",
+                            "source": "/state/request"
+                          },
+                          {
+                            "type": "button",
+                            "label": "Send example",
+                            "action": "send"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "responsive",
+                    "label": "Response",
+                    "children": [
+                      {
+                        "type": "table",
+                        "source": "/state/response/json",
+                        "columns": [
+                          "id",
+                          "title"
+                        ],
+                        "selection": "selected"
+                      },
+                      {
+                        "type": "detail",
+                        "label": "Selected row",
+                        "source": "/state/selected"
+                      },
+                      {
+                        "type": "detail",
+                        "source": "/state/response"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

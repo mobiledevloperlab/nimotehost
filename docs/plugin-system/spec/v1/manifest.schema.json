@@ -113,7 +113,8 @@
             "type": "object"
           },
           "ui": {
-            "type": "object"
+            "type": "object",
+            "$comment": "Optional contract is validated against pkg/pluginsdk/plugin_ui.schema.json; UI 1.0 is versioned independently of HCP."
           },
           "sensitive": {
             "type": "boolean"

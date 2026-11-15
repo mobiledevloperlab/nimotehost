@@ -1,8 +1,8 @@
 # Plugin SDK — English / 简体中文
 
 `github.com/mobiledevloperlab/nimotehost/pkg/pluginsdk` is an independently
-importable public Go package with no internal Host imports or third-party
-requirements of its own. An external repository can `go mod init`, then
+importable public Go package with no internal Host imports. UI contract validation reuses the pinned
+`github.com/google/jsonschema-go` dependency. An external repository can `go mod init`, then
 `go get github.com/mobiledevloperlab/nimotehost/pkg/pluginsdk@<published-host-tag>`.
 Use a local Go module `replace` during development before this change is released.
 A separate SDK module/release cadence is a future packaging option, not a
@@ -64,3 +64,5 @@ record to the public index. Local offline installation remains supported.
 简体中文：示例、模板和打包工具均可直接使用。第三方仓库只依赖公开 SDK 或公开
 NDJSON 协议。安装、启用、调用均走既有认证通道；发布前需要来源审查、安全测试及
 按目标平台构建，Host 不自动下载或信任社区二进制。
+
+Optional versioned UI metadata: see [Plugin UI Contract](../plugin-ui-protocol.md) and the opt-in `examples/http-inspector/manifest.ui.template.json`.
