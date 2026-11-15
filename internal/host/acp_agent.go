@@ -18,7 +18,10 @@ type acpState struct {
 }
 
 func (a *structuredAgent) initializeACP() error {
-	adapter, _ := lookupAgentAdapter(a.provider)
+	adapter, ok := lookupAgentAdapter(a.provider)
+	if !ok {
+		return errors.New("agent adapter unavailable")
+	}
 	version := adapter.ProtocolVersion()
 	a.acp.version = version
 	return a.send(map[string]any{"id": "host-init", "method": "initialize", "params": acpInitializeParams(version, "nimotehost")})

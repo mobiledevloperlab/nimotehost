@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nimote:host-capability-request:1.0",
+  "type": "object",
+  "required": [
+    "protocol",
+    "operation"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "protocol": {
+      "const": "1.0"
+    },
+    "operation": {
+      "enum": [
+        "capabilities.list",
+        "capabilities.get",
+        "capabilities.invoke",
+        "capabilities.cancel",
+        "capabilities.result",
+        "capabilities.subscribe",
+        "plugins.list",
+        "plugins.install",
+        "plugins.update",
+        "plugins.enable",
+        "plugins.disable",
+        "plugins.uninstall"
+      ]
+    },
+    "id": {
+      "type": "string"
+    },
+    "input": {},
+    "confirmed": {
+      "type": "boolean"
+    },
+    "grants": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "source": {
+      "type": "string"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "epoch": {
+      "type": "string"
+    },
+    "after": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

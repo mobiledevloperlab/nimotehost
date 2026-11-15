@@ -50,7 +50,7 @@ func lookupAgentAdapter(provider string) (agentAdapter, bool) {
 	case "claude":
 		return cliAgentAdapter{"claude-agent-acp", "acp", 2, nil}, true
 	default:
-		return nil, false
+		return communityAdapter(provider)
 	}
 }
 

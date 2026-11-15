@@ -93,3 +93,14 @@ Use `NIMOTE_GUI_PREVIEW_DIR=/tmp/nimote-gui-preview go test -run TestDesktopLayo
 to render six-language previews in both light and dark appearance. This requires native desktop build dependencies;
 omitting `ci` enables system font scanning. Previews use fixtures, not real session
 contents. Headless tests do not replace native tray, accessibility or native-speaker review.
+
+## Community plugins
+
+Start with the [public plugin SDK and template](docs/plugin-system/plugin-sdk.md).
+Declare versioned input/output schemas and permissions, test against the
+[public HCP specification](docs/plugin-system/spec/v1/README.md), and document
+source/integrity, supported platforms and the actual
+[security boundary](docs/plugin-system/security.md). A standard plugin must run
+without provider-specific Host/client code. Do not submit executable credentials
+or introduce install hooks. Include functional, cancellation, crash, permission
+and platform coverage; protocol changes need compatibility tests.

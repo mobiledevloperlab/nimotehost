@@ -91,9 +91,9 @@ func TestMCPReadOnlyAndLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expected := 3
+			expected := 4
 			if write {
-				expected = 5
+				expected = 7
 			}
 			if len(tools.Tools) != expected {
 				t.Fatalf("got %d tools, want %d", len(tools.Tools), expected)

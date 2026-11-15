@@ -243,7 +243,10 @@ func resolveCommand(req *StartRequest) error {
 		case "codex", "claude", "opencode":
 			req.Command = req.Agent
 		default:
-			return errors.New("unknown agent adapter")
+			if !supportsStructuredAgent(req.Agent) || req.Interaction != "structured" {
+				return errors.New("unknown agent adapter")
+			}
+			req.Command = req.Agent
 		}
 	default:
 		return errors.New("kind must be task, terminal, or agent")
