@@ -137,3 +137,14 @@ These remaining items prevent claiming that all P0/P1 release goals are complete
 
 上述项目均未被视为已接受风险或正式发布通过。已完成项及实际命令见
 [completed](completed.md) 与 [测试记录](host-hardening-tests.md)。
+
+
+## Agent workflows acceptance / Agent 工作流待验收（2026-11-14）
+
+Repository implementation and sibling NimoteCode integration are documented in [completed functionality](completed.md). Remaining acceptance is explicit:
+
+- [ ] Physical phone/tablet over actual SSH, foreground/background, network interruption and reconnect. ADB device discovery returned an empty list during this delivery. / ADB 未发现设备；手机实际连接、后台和断网重连未验收。
+- [ ] A user-approved real test Issue, installed/authenticated gh account on Host, and a real configured Agent completing development, tests and PR creation. No test Issue was supplied and gh was absent locally. / 尚无指定测试 Issue，本机没有 gh，不能将本地 Git/协议夹具称为真实闭环。
+- [ ] Installed Codex, Claude Code/ACP and OpenCode versions: history query, continued conversation, real approvals and attributable edit events. CLI discovery and fixture tests alone do not prove upstream runtime support. / 三类真实 CLI 与模型交互矩阵另行验收。
+- [ ] Native Windows/Linux runtime for all new workflow behavior; compiling another target is not native acceptance. / 新功能的跨平台原生运行未由编译替代。
+- [ ] Cross-host aggregation, semantic duplicate-development detection, identity-isolated test execution scope, larger evidence retention and advanced fork/Enterprise publication remain outside this first version. / 跨主机、语义重复识别、独立测试身份、扩展保留范围及 fork/Enterprise 另行增强。

@@ -16,6 +16,7 @@ import (
 )
 
 type sessionsPanel struct {
+	inbox        *inboxPanel
 	root         fyne.CanvasObject
 	tabs         *container.AppTabs
 	ui           *managerWindow
@@ -70,12 +71,14 @@ func newSessionsPanel(u *managerWindow) *sessionsPanel {
 	p.search.OnChanged = func(string) { p.applyFilter() }
 	p.filter.OnChanged = func(string) { p.applyFilter() }
 	current := container.NewBorder(container.NewVBox(container.NewBorder(nil, nil, nil, p.filter, p.search), p.empty), nil, nil, nil, p.list)
-	p.tabs = container.NewAppTabs(container.NewTabItem(u.t("sessions.current"), current), container.NewTabItem(u.t("history.title"), historyPanel(u)))
+	p.inbox = newInboxPanel(u)
+	p.tabs = container.NewAppTabs(container.NewTabItem(u.t("sessions.current"), current), container.NewTabItem(u.t("history.title"), historyPanel(u)), container.NewTabItem(u.t("inbox.title"), p.inbox.root))
 	p.root = inset(container.NewBorder(pageHeading(u.t("nav.sessions"), u.t("sessions.intro")), nil, nil, nil, surface(p.tabs)), pagePadding)
 	return p
 }
 
 func (p *sessionsPanel) update(items []host.Session, statusErr, sessionErr error, state string) {
+	p.inbox.refresh()
 	p.source = append([]host.Session(nil), items...)
 	p.applyFilter()
 	if statusErr != nil || sessionErr != nil {
@@ -206,6 +209,7 @@ func (u *managerWindow) showSession(s host.Session) {
 	if s.Kind == "agent" && s.Interaction == "structured" && s.State == "running" {
 		content.Add(widget.NewButtonWithIcon(u.t("approval.open"), theme.VisibilityIcon(), func() { inspectAgent(u, s.ID) }))
 	}
+	content.Add(widget.NewButton(u.t("verification.title"), func() { u.showVerification(s.ID) }))
 	if s.Error != "" {
 		content.Add(wrappedLabel(u.t("session.problem")))
 	}

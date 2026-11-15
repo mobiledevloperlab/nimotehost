@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -188,6 +189,28 @@ func (item *managed) recordActivity(kind, state, reference string) {
 }
 
 func (item *managed) agentActivity(kind string, data any) {
+	if kind == "turn_started" {
+		item.summary = ""
+	}
+	if value, ok := data.(map[string]string); ok && kind == "text_delta" && len(item.summary) < 8192 {
+		item.summary += value["text"]
+		if len(item.summary) > 8192 {
+			item.summary = item.summary[:8192]
+		}
+	}
+	if value, ok := data.(map[string]string); ok && kind == "message_completed" && value["text"] != "" {
+		item.summary = value["text"]
+		if len(item.summary) > 8192 {
+			item.summary = item.summary[:8192]
+		}
+	}
+	if kind == "turn_completed" && item.edits != nil {
+		_ = saveJSON(strings.TrimSuffix(item.edits.path, ".edits")+".summary", map[string]string{"text": item.summary, "source": "agent_self_report"})
+	}
+
+	if kind == "tool" && item.edits != nil {
+		item.edits.record(data)
+	}
 	state, reference := "", ""
 	if value, ok := data.(map[string]string); ok {
 		state, reference = value["status"], value["id"]
@@ -226,4 +249,7 @@ func (item *managed) agentActivity(kind string, data any) {
 		return // Text, tool output, configuration and diagnostics stay in the log.
 	}
 	item.recordActivity(kind, state, reference)
+	if kind == "turn_completed" && item.onTurnComplete != nil {
+		item.onTurnComplete()
+	}
 }

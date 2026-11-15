@@ -26,7 +26,25 @@ func (a *structuredAgent) completeStartup(err error) {
 // during probing, and running turns are never retried through another adapter.
 func (m *Manager) Start(req StartRequest) (Session, error) {
 	return runOnce(m, req.RequestID, "session.start", req, func() (Session, error) {
-		return m.startRequest(req)
+		if req.Resume != nil {
+			check := req
+			if check.Interaction == "auto" {
+				check.Interaction = "structured"
+			}
+			if err := resolveCommand(&check); err != nil {
+				return Session{}, err
+			}
+			m.resumeMu.Lock()
+			defer m.resumeMu.Unlock()
+			if existing, ok, err := m.resumeExisting(req); err != nil || ok {
+				return existing, err
+			}
+		}
+		prepared, err := m.prepareWorktree(req)
+		if err != nil {
+			return Session{}, err
+		}
+		return m.startRequest(prepared)
 	})
 }
 
