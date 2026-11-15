@@ -24,7 +24,17 @@
         "plugins.update",
         "plugins.enable",
         "plugins.disable",
-        "plugins.uninstall"
+        "plugins.uninstall",
+        "plugins.catalog.sources",
+        "plugins.catalog.add",
+        "plugins.catalog.remove",
+        "plugins.catalog.search",
+        "plugins.catalog.get",
+        "plugins.install_remote",
+        "plugins.update_remote",
+        "plugins.install.status",
+        "plugins.install.jobs",
+        "plugins.install.cancel"
       ]
     },
     "id": {
@@ -57,6 +67,10 @@
     "request_id": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "query": {
+      "type": "string",
+      "maxLength": 256
     }
   }
 }

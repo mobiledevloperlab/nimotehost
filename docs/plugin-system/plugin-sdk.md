@@ -57,6 +57,9 @@ production credentials. To publish, run tests, build one bundle per platform,
 verify the Manifest against the public schema, distribute it and the Manifest
 digest through a trusted channel, document privileges and tag your source.
 There are no install scripts and no Host-specific provider switch to edit.
+For searchable GitHub distribution, use [the metadata-only catalog workflow](catalog.md):
+publish code/releases in your own repository and submit only the generated JSON
+record to the public index. Local offline installation remains supported.
 
 简体中文：示例、模板和打包工具均可直接使用。第三方仓库只依赖公开 SDK 或公开
 NDJSON 协议。安装、启用、调用均走既有认证通道；发布前需要来源审查、安全测试及

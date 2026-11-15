@@ -104,3 +104,7 @@ source/integrity, supported platforms and the actual
 without provider-specific Host/client code. Do not submit executable credentials
 or introduce install hooks. Include functional, cancellation, crash, permission
 and platform coverage; protocol changes need compatibility tests.
+
+Catalog registration accepts **metadata only**, using the [public index format](docs/plugin-system/catalog.md).
+Keep plugin source and Release assets in your own repository; submit only the
+JSON listing to the public directory. Host/client provider-specific code is unnecessary.

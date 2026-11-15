@@ -24,7 +24,8 @@ Host-side safeguards:
   Already-sent network requests or completed effects cannot be recalled.
 - Source and binary are regular bounded files; namespaces and fixed entrypoints
   prevent traversal. No archive extraction, shell command concatenation, install
-  hooks or untrusted argv are used. SHA256 is checked at install, enable, restart
+  hooks or untrusted argv are used. Online catalog installs use the same installer
+  after bounded GitHub-only downloads and digest/identity/platform validation. SHA256 is checked at install, enable, restart
   and ACP launch. A digest establishes integrity relative to the reviewed package,
   not publisher authenticity. Same-account filesystem mutation/TOCTOU is outside
   the available boundary. Updates clear grants and require explicit re-enablement.
@@ -58,3 +59,17 @@ compromise require external network isolation, not an application URL checker.
 简体中文：默认禁用、明确授权、完整性校验、进程监管和应用层 SSRF 防护均已实现；
 权限声明不是 OS 沙箱。恶意同账户插件仍可读取账户文件，必须在外部隔离环境中运行。
 撤销阻止后续调用并发出终止请求，无法撤回已经完成或已发送的副作用。
+
+
+## Online catalog boundary
+
+The [catalog workflow](catalog.md) adds explicit source trust and Manifest review,
+not implicit trust in a GitHub listing. Search/download run only on user request;
+source metadata never executes. No GitHub token, owner token, proxy environment,
+cookies or arbitrary authentication headers are sent to GitHub/CDN hosts. HTTPS
+and public DNS/IP pinning apply across a small redirect allowlist. Rate limits,
+missing releases and rejected redirects return sanitized failures. Only a validated,
+hash-matched executable is published, and remains disabled. No archive extraction
+or install script runs. Source removal cancels pre-commit downloads, while already
+committed installations and external effects are not rolled back. Sources/indexes
+can be malicious; checksums establish byte integrity rather than publisher safety.

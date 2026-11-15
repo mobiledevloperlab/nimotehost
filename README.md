@@ -247,3 +247,7 @@ See the [plugin platform](docs/plugin-system/architecture.md),
 [SDK / HTTP API Inspector guide](docs/plugin-system/plugin-sdk.md). Plugins are
 disabled until explicitly approved; review the [security boundary](docs/plugin-system/security.md)
 before running third-party executables.
+
+Both offline local bundles and searchable GitHub Release installation are supported.
+For public registration, submit [catalog metadata only](docs/plugin-system/catalog.md);
+keep plugin code and releases in your own repository.

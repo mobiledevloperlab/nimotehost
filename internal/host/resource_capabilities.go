@@ -24,5 +24,6 @@ func (s *Server) hostCapabilities() Capabilities {
 	caps.Features["isolated_execution_v1"] = enforcement.IndependentIdentity
 	caps.Features["process_supervision_v1"] = true
 	caps.Features["host_capability_protocol_v1"] = s.plugins != nil
+	caps.Features["plugin_catalog_v1"] = s.catalog != nil
 	return caps
 }

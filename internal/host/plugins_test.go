@@ -217,3 +217,61 @@ func TestPluginEnvironmentAndMCPBoundary(t *testing.T) {
 		t.Fatal("MCP installation allowed")
 	}
 }
+
+func TestPluginCatalogManagementReusesOwnerAuthorization(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := plugins.NewCatalog(filepath.Join(dir, "catalogs.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer catalog.Close()
+	r, err := plugins.New(filepath.Join(dir, "plugins"), "catalog-test", pluginLauncher(DefaultResourceLimits()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	device, err := CreateDevice(dir, "catalog-observer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	credential, _, err := deviceCredential(DeviceContext(context.Background(), device.ID), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{dir: dir, token: "owner", plugins: r, catalog: catalog}
+	call := func(auth string, request capabilityRequest) *httptest.ResponseRecorder {
+		raw, _ := json.Marshal(request)
+		req := httptest.NewRequest("POST", "/v1/extensions", bytes.NewReader(raw))
+		req.Header.Set("Authorization", "Bearer "+auth)
+		req.Header.Set("Nimote-Host-Protocol", "1")
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+		return w
+	}
+	for _, op := range []string{"plugins.catalog.sources", "plugins.catalog.search", "plugins.catalog.add", "plugins.install_remote", "plugins.install.jobs"} {
+		if w := call(credential, capabilityRequest{Protocol: "1.0", Operation: op}); w.Code != 403 {
+			t.Fatal("device catalog access", op, w.Code)
+		}
+	}
+	req := capabilityRequest{Protocol: "1.0", Operation: "plugins.catalog.add", ID: "custom", Source: "https://github.com/author/catalog/blob/main/index.json"}
+	if w := call("owner", req); w.Code != 403 {
+		t.Fatal("source confirmation bypass", w.Code, w.Body)
+	}
+	req.Confirmed = true
+	if w := call("owner", req); w.Code != 200 {
+		t.Fatal(w.Code, w.Body)
+	}
+	if w := call("owner", capabilityRequest{Protocol: "1.0", Operation: "plugins.catalog.sources"}); w.Code != 200 || !strings.Contains(w.Body.String(), "raw.githubusercontent.com/author/catalog/main/index.json") {
+		t.Fatal(w.Code, w.Body)
+	}
+	if w := call("owner", capabilityRequest{Protocol: "1.0", Operation: "plugins.install_remote", Source: "custom", ID: "example", SHA256: strings.Repeat("a", 64)}); w.Code != 403 {
+		t.Fatal("remote confirmation bypass", w.Code)
+	}
+	if w := call("owner", capabilityRequest{Protocol: "1.0", Operation: "plugins.catalog.search", Query: strings.Repeat("q", 257)}); w.Code != 400 {
+		t.Fatal("unbounded search", w.Code)
+	}
+}

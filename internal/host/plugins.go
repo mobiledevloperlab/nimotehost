@@ -77,6 +77,7 @@ type capabilityRequest struct {
 	Source    string          `json:"source,omitempty"`
 	SHA256    string          `json:"sha256,omitempty"`
 	Epoch     string          `json:"epoch,omitempty"`
+	Query     string          `json:"query,omitempty"`
 	After     uint64          `json:"after,omitempty"`
 }
 
@@ -95,6 +96,10 @@ func (s *Server) servePlugins(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Protocol != sdk.Protocol {
 		respond(w, 426, map[string]any{"code": "incompatible_protocol", "supported_protocols": []string{sdk.Protocol}})
+		return
+	}
+	if strings.HasPrefix(req.Operation, "plugins.catalog.") || req.Operation == "plugins.install_remote" || req.Operation == "plugins.update_remote" || strings.HasPrefix(req.Operation, "plugins.install.") {
+		s.serveCatalog(w, r, req)
 		return
 	}
 	var result any
@@ -237,4 +242,68 @@ func (a communityCLIAdapter) ConfigureCommand(cmd *exec.Cmd) error {
 	}
 	cmd.Env = pluginEnvironment(a.dir)
 	return nil
+}
+
+func (s *Server) serveCatalog(w http.ResponseWriter, r *http.Request, req capabilityRequest) {
+	if s.catalog == nil {
+		fail(w, 503, "plugin catalogs unavailable")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 6*time.Second)
+	defer cancel()
+	var result any
+	var err error
+	switch req.Operation {
+	case "plugins.catalog.sources":
+		result = s.catalog.Sources()
+	case "plugins.catalog.add":
+		if !req.Confirmed {
+			fail(w, 403, "catalog source confirmation required")
+			return
+		}
+		err = s.catalog.AddSource(req.ID, req.Source, req.Confirmed)
+	case "plugins.catalog.remove":
+		if !req.Confirmed {
+			fail(w, 403, "source removal confirmation required")
+			return
+		}
+		err = s.catalog.RemoveSource(req.ID)
+	case "plugins.catalog.search":
+		if len(req.Query) > 256 {
+			fail(w, 400, "search query too long")
+			return
+		}
+		result = s.catalog.Search(ctx, req.Query)
+	case "plugins.catalog.get":
+		result, err = s.catalog.Offer(ctx, req.Source, req.ID)
+	case "plugins.install_remote", "plugins.update_remote":
+		if !req.Confirmed {
+			fail(w, 403, "source review confirmation required")
+			return
+		}
+		if s.manager != nil {
+			if err = s.manager.checkDisk(); err != nil {
+				fail(w, 429, "insufficient free disk")
+				return
+			}
+		}
+		result, err = s.catalog.StartInstall(s.plugins, req.Source, req.ID, req.SHA256, req.Operation == "plugins.update_remote", req.Confirmed)
+	case "plugins.install.status":
+		result, err = s.catalog.Job(req.ID)
+	case "plugins.install.jobs":
+		result = s.catalog.Jobs()
+	case "plugins.install.cancel":
+		err = s.catalog.CancelInstall(req.ID)
+	default:
+		fail(w, 400, "unknown catalog operation")
+		return
+	}
+	if err != nil {
+		fail(w, 400, err.Error())
+		return
+	}
+	if result == nil {
+		result = map[string]bool{"ok": true}
+	}
+	respond(w, 200, map[string]any{"protocol": sdk.Protocol, "result": result})
 }

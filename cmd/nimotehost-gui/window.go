@@ -39,6 +39,7 @@ type managerWindow struct {
 	overview                   *overviewPanel
 	sessions                   *sessionsPanel
 	settings                   *settingsPanel
+	plugins                    *pluginsPanel
 	feedbackArea               *fyne.Container
 	feedback                   *widget.Label
 	noticeID                   uint64
@@ -93,7 +94,8 @@ func (u *managerWindow) build(code string, tab int) {
 	u.overview = newOverviewPanel(u)
 	u.sessions = newSessionsPanel(u)
 	u.settings = newSettingsPanel(u)
-	u.pages = []fyne.CanvasObject{u.overview.root, u.sessions.root, devicePanel(u), u.settings.root}
+	u.plugins = newPluginsPanel(u)
+	u.pages = []fyne.CanvasObject{u.overview.root, u.sessions.root, devicePanel(u), u.settings.root, u.plugins.root}
 	u.content = container.NewStack(u.pages...)
 	sidebar := u.newSidebar()
 	u.currentPage = -1
@@ -174,6 +176,9 @@ func (u *managerWindow) readSnapshot(ctx context.Context) {
 		u.settings.update(snapshot, err, u.busy)
 		u.updateTray()
 		u.updateSidebar(snapshot, err)
+		if u.currentPage == 4 {
+			u.plugins.refresh()
+		}
 	})
 }
 

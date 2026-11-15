@@ -13,10 +13,10 @@ import (
 	"github.com/mobiledevloperlab/nimotehost/internal/host"
 )
 
-var navigationKeys = []string{"nav.overview", "nav.sessions", "nav.devices", "nav.settings"}
+var navigationKeys = []string{"nav.overview", "nav.sessions", "nav.devices", "nav.settings", "nav.plugins"}
 
 func (u *managerWindow) newSidebar() fyne.CanvasObject {
-	icons := []fyne.Resource{theme.HomeIcon(), theme.ListIcon(), theme.ComputerIcon(), theme.SettingsIcon()}
+	icons := []fyne.Resource{theme.HomeIcon(), theme.ListIcon(), theme.ComputerIcon(), theme.SettingsIcon(), theme.GridIcon()}
 	u.navigation = widget.NewList(func() int { return len(navigationKeys) }, func() fyne.CanvasObject {
 		return inset(container.NewBorder(nil, nil, widget.NewIcon(theme.HomeIcon()), nil, widget.NewLabel("")), 5)
 	}, func(id widget.ListItemID, obj fyne.CanvasObject) {
@@ -56,6 +56,9 @@ func (u *managerWindow) navigate(index int) {
 	}
 	u.content.Refresh()
 	u.navigation.Select(index)
+	if index == 4 {
+		u.plugins.refresh()
+	}
 }
 
 func (u *managerWindow) updateSidebar(snapshot desktop.Snapshot, err error) {

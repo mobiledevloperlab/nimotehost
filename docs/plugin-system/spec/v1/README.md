@@ -12,6 +12,7 @@ Host transport remains protocol 1; no legacy endpoint changes semantics.
 - [Request schema](request.schema.json): logical operations over authenticated
   `POST /v1/extensions` inside the existing SSH RPC envelope.
 - [Response schema](response.schema.json): successful envelopes and errors.
+- [Catalog schema](catalog.schema.json): metadata-only GitHub listings, optional `plugin_catalog_v1` extension.
 - [Manifest schema](manifest.schema.json): discovery metadata and executable policy.
 - [Plugin wire schema](plugin-wire.schema.json): private stdin/stdout transport;
   language-independent, so plugins need not be written in Go.

@@ -43,6 +43,7 @@ func decodeJSON(data []byte, target any) error {
 }
 
 type Server struct {
+	catalog    *plugins.Catalog
 	plugins    *plugins.Runtime
 	dir        string
 	manager    *Manager
@@ -110,6 +111,13 @@ func Serve(ctx context.Context, dir string, ready io.Writer) error {
 		return fmt.Errorf("load plugins: %w", err)
 	}
 	defer api.plugins.Close()
+	api.catalog, err = plugins.NewCatalog(filepath.Join(dir, "plugin-catalogs.json"))
+	if err != nil {
+		slog.Warn("plugin catalogs unavailable", "code", "invalid_catalog_configuration")
+	} else {
+		defer api.catalog.Close()
+	}
+
 	communityAdapters.Lock()
 	communityAdapters.runtime = api.plugins
 	communityAdapters.dir = extensionDir

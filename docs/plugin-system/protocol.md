@@ -63,7 +63,9 @@ available through normal Session start; no new Agent prompt/approval protocol ex
 
 MCP exposes `host_capability_query` for read operations and
 `host_capability_invoke` only when the existing MCP write option is enabled.
-Plugin management is not exposed to MCP. Manifest tools/tasks/events map through
+Plugin management is not exposed to MCP.
+Online catalog/search/download operations are additive HCP 1.0 operations documented
+in [the catalog specification](catalog.md), gated by `plugin_catalog_v1`. Manifest tools/tasks/events map through
 the same generic invoke/query operations. Event capabilities return schema-defined
 snapshots/batches on invoke; arbitrary unsolicited child notifications are not
 supported in v1.
