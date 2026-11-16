@@ -1,6 +1,7 @@
 /nimotehost
 /nimotehost.exe
 /dist/
+/release/
 *.test
 *.test.exe
 *.prof

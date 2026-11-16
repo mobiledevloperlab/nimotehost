@@ -26,12 +26,13 @@ func validateGUITarget(targetOS, arch string) error {
 	return nil
 }
 
-// GUI builds are native by design. CLI cross compilation remains CGO-free.
+// GUI builds require native desktop SDKs. macOS SDKs support both CPU targets.
+// CLI cross compilation remains CGO-free.
 func buildGUI(targetOS, arch, version string) error {
 	if err := validateGUITarget(targetOS, arch); err != nil {
 		return err
 	}
-	if targetOS != runtime.GOOS || arch != runtime.GOARCH {
+	if targetOS != runtime.GOOS || (arch != runtime.GOARCH && targetOS != "darwin") {
 		return fmt.Errorf("GUI requires a native %s/%s runner with C compiler and desktop SDK; CLI cross-build succeeded separately", targetOS, arch)
 	}
 	source := filepath.Join("dist", targetOS+"-"+arch)
@@ -83,6 +84,7 @@ func buildGUI(targetOS, arch, version string) error {
 		flags += " -H=windowsgui"
 	}
 	cmd := guiCommand("build", "-mod=readonly", "-trimpath", "-buildvcs=false", "-ldflags", flags, "-o", filepath.Join(absolute, name), ".")
+	cmd.Env = append(cmd.Env, "GOOS="+targetOS, "GOARCH="+arch)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err = cmd.Run(); err != nil {
 		return fmt.Errorf("build Fyne GUI (native C SDK required): %w", err)

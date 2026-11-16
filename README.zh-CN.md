@@ -66,6 +66,34 @@ sh scripts/install.sh
 
 ## 构建与运行
 
+一键生成当前系统的 x64（amd64）、ARM64 CLI 和 GUI，以及 Linux/Windows 的
+32 位 x86 CLI，输出到项目根目录 `release/`：
+
+```sh
+./scripts/build-release.sh
+# 或 make release VERSION=2.4.0
+# Windows：python scripts/build-release.py --arch amd64
+```
+
+需要 Go、Python 3 和目标系统的 C 编译器/桌面 SDK。macOS 可同时编译两种架构；
+Linux、Windows 的 GUI 请分别在对应架构的机器上运行 `--arch amd64` 或 `--arch arm64`。
+每个版本/系统/架构/版本类型各有独立目录，包含实际二进制、相邻 `.sha1` 文件和
+覆盖分发文件的 `SHA1SUMS`，同时保留原有许可证、文档和 SHA256 清单。
+相同目标版本重建会替换该目录，其他已有发布目录保留。全部构建成功后才写入发布目录。
+
+```sh
+# 三平台 CLI：32 位 x86、x64、ARM64（macOS 自动跳过 386）
+./scripts/build-release.sh --cli-only --os all --arch 386,amd64,arm64
+# 指定版本
+./scripts/build-release.sh --version 2.4.0
+# 在具体分发目录内验证
+shasum -a 1 -c SHA1SUMS
+```
+
+32 位 x86（386）仅提供 Linux/Windows CLI，GUI 支持 x64 和 ARM64。
+`--os` 可选 `darwin`、`linux`、`windows`、`all`，其中 `all` 用于 CLI 构建。
+
+
 安装 Go 1.26.5 或更高版本，克隆本仓库后，在仓库根目录执行：
 
 ```sh
