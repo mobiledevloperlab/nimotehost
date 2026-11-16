@@ -60,6 +60,8 @@ Deleted historical reports are available in Git history and do not establish cur
 
 ## 桌面版本剩余验收 / Desktop follow-up
 
+- [ ] 将 macOS 13+、Windows 11 和 Ubuntu 22.04 作为候选最低环境，在各架构的干净系统完成安装、升级、重启和卸载测试；固定正式发行的 Go 版本后再公布最低要求。Linux GUI 的 glibc 2.35 检查不能代替显卡驱动、桌面库及其他发行版的兼容性验收。
+  Candidate minimum environments and the Linux glibc ceiling require clean-system acceptance before publication; pin the release Go version.
 - [ ] 只读设备的真实连接遥测，以及 SSH 密钥自动安装/移除和 Windows forced-command 原生验收。
   已有设备注册/列表/持久撤销和 GUI；SSH key 绑定目前由管理员配置，连接状态明确 unknown。
 - [ ] Windows/macOS/Linux 真实桌面托盘、窗口、主题切换、登录/系统重启服务验收；

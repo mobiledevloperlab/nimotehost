@@ -331,13 +331,16 @@ go run ./tools/build -gui -version 1.0.0-dev
 
 - Linux amd64：gcc、pkg-config、libgl1-mesa-dev、xorg-dev、libxkbcommon-dev、libwayland-dev、wayland-protocols（native build dependencies）；运行需要兼容
   OpenGL/X11（Wayland 可通过 XWayland）的桌面环境。CLI 服务器不需要这些依赖。
+  Linux GUI CI 使用 Ubuntu 22.04 原生架构容器构建，并检查 glibc 符号不高于 2.35；
+  这是候选构建基线，仍需在目标发行版和实际桌面完成安装与运行验收。
+  Linux GUI CI builds on Ubuntu 22.04 and checks a glibc 2.35 ceiling; distribution and desktop acceptance remain pending.
 - macOS amd64/arm64：Xcode Command Line Tools；生成包含 GUI 与 CLI 的 `.app`。
   发布包目前未签名/公证；开发者正式分发须使用自己的 Developer ID 对内部 CLI、GUI、
   app 依次 codesign，再 notarize/staple，重新生成校验和与归档。不得声称已完成签名。
 - Windows amd64：原生 Go + MinGW-w64 gcc（CI 使用 msys64/mingw64/bin）；生成无控制台
   GUI 与 CLI zip。沿用用户安装脚本，无需管理员权限，不提供 MSI/Authenticode 签名。
-- Windows arm64、Linux arm64 CLI 保留。GUI 可在对应原生桌面/SDK 下执行相同构建命令，
-  但当前 GUI CI 已配置 Linux arm64 原生构建，但尚未执行验收；Windows arm64 GUI 未配置，不能当作已支持的 GUI 发布产物。
+- Windows arm64、Linux arm64 GUI 均已配置原生架构 CI；实际运行验收仍待完成。
+  Windows arm64 and Linux arm64 GUI have native CI configurations; runtime acceptance is pending.
 
 `dist/gui-<os>-<arch>` 和 `nimotehost-gui-<version>-<os>-<arch>` 为桌面完整分发；
 原 CLI 名称不变。现有脚本可安装完整 GUI 包，保留整个固定安装目录。
