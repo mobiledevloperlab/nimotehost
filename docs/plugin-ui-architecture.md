@@ -1,5 +1,13 @@
 # Plugin UI 架构决策
 
+## English summary / 简体中文正文见下文
+
+UI Contract 1.0 extends HCP capability metadata with a bounded declarative component tree, in-memory page state and same-plugin actions. The Host SDK owns the schema; the client renders precompiled components and dispatches through the existing Executor, approval and signature checks. Missing or incompatible contracts use the legacy form. Closing a page releases its state without replaying accepted work.
+
+Web/MCP Apps remain an evaluation: the existing browser is not an isolated plugin container. Resource integrity, navigation restrictions, CSP, instance-bound messages, permissions and lifecycle tests are prerequisites. Arbitrary native views and downloaded client code are outside UI 1.0. Store acceptance and complete MCP Apps support have not been established.
+
+## 简体中文
+
 采用最小侵入扩展：HCP 1.0 的 capability.ui.contract 承载独立 UI 1.0；不存在 contract 时继续旧表单。业务 Schema 和 UI 树解耦。Host 不依赖 Flutter 组件；客户端只注册预编译组件。
 
 数据流：Manifest → SDK 验证 → HCP 发现 → 有预算 Contract 解析 → Renderer → 动作 ID → Runtime → 现有 Executor → 原审批与签名复检 → HCP invoke → 事件/结果 → 页面状态 → Renderer。页面关闭释放监听和状态，远端已提交任务留在既有任务中心，不自动取消或重放。

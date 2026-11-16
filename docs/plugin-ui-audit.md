@@ -1,5 +1,13 @@
 # 插件 UI 审计与决策（2026-11-14）
 
+## English summary / 简体中文正文见下文
+
+The audit preserves Host installation, grants, process supervision, bounded events and authenticated HCP RPC, together with the client's discovery, approval, signature verification and task recovery. The separate local panel system is not merged. UI Contract 1.0 adds bounded declarative components and page state while retaining legacy forms as fallback; it introduces no execution bypass.
+
+Same-user plugin processes retain account privileges, hashes are not publisher signatures, and client schema support is a limited subset. UI actions cannot cross plugin namespaces, invoke implicitly or replay on reconnect. WebView isolation and MCP Apps hosting remain unimplemented. Publish the Host-owned schema and shared fixtures before synchronizing client pins and testing lifecycle and hostile inputs.
+
+## 简体中文
+
 审阅范围：NimoteCode lib/host/host_capability_{models,client,schema,executor}.dart、host_plugin_workspace.dart，lib/extensions/{host_plugin_view,host_capability_form,plugin_runtime,capability_gateway,plugin_manifest,plugin_table_data}.dart，相关 test/host、test/extensions、UI 目录；NimoteHost pkg/pluginsdk、internal/plugins/{runtime,schema,catalog}.go、internal/host/plugins.go、协议规范、HTTP Inspector 示例与测试。两个 Host 路径 realpath 相同，基线 a6f28bde0973c2050277b432c6a19d1f7779fcf2。实施前两个仓库工作区干净。
 
 ## 已实现 / 保留

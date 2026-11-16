@@ -1,5 +1,13 @@
 # Plugin UI Contract 1.0
 
+## English summary / 简体中文正文见下文
+
+The authoritative definition is pkg/pluginsdk/plugin_ui.schema.json. HCP 1.0 discovery carries optional ui.contract metadata with an exact 1.0 version, initial state, declared same-plugin actions and a precompiled component tree. JSON Pointer bindings connect state, tables and details. Unsupported contracts fall back to legacy forms; unknown components do not execute their subtrees. There are no new execution endpoints or automatic invokes.
+
+The existing Executor retains schema checks, approval, signature and epoch verification, cancellation and result recovery. Reconnects never replay accepted work. UI metadata, JSON, component trees, forms and state have explicit budgets detailed below. Tables use bounded snapshots and client-side pagination. Web/native containers are not registered in UI 1.0. Schema changes must originate in the Host and synchronize immutable hashes and shared fixtures with the client.
+
+## 简体中文
+
 规范所有者：**NimoteHost/pkg/pluginsdk/plugin_ui.schema.json**（JSON Schema 2020-12）。本文件说明其语义，不是第二套独立定义。NimoteCode 的 test/host/fixtures/plugin-ui-1.0 是固定字节的测试镜像，lock.json 固定 SHA256 和 Host 基线；禁止在客户端独立修改。UI 与 HCP 的版本互不替代。
 
 ## 发现与兼容

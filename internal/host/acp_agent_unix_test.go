@@ -99,6 +99,21 @@ func TestOpenCodeAutoProtocolAndTerminalFallback(t *testing.T) {
 				if session.Interaction != "terminal" || !strings.Contains(session.CompatibilityFallback, "opencode") {
 					t.Fatal(session)
 				}
+				// Wait for the terminal fixture to start before sending its input.
+				deadline := time.Now().Add(5 * time.Second)
+				for {
+					output, _, err := m.Output(session.ID, 0)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if strings.Contains(string(output), "OPENCODE_TERMINAL_READY") {
+						break
+					}
+					if time.Now().After(deadline) {
+						t.Fatal("terminal fallback did not become ready")
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
 				if err = m.Input(session.ID, []byte("exit\n")); err != nil {
 					t.Fatal(err)
 				}

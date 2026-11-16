@@ -62,6 +62,12 @@ func runProcessSupervisor(args []string) int {
 	child.Args = append([]string(nil), args[2:]...)
 	child.Stdin, child.Stdout, child.Stderr = os.Stdin, os.Stdout, os.Stderr
 	child.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if policy.Interactive {
+		// Assign the foreground group before exec: a fast child can otherwise
+		// reach read(2) first and stop itself with SIGTTIN.
+		child.SysProcAttr.Foreground = true
+		child.SysProcAttr.Ctty = int(os.Stdin.Fd())
+	}
 	if err := configureIdentityChild(child, policy.Identity); err != nil {
 		_ = encoder.Encode(supervisorReport{Code: -1, Error: err.Error()})
 		return 125
@@ -97,12 +103,6 @@ func runProcessSupervisor(args []string) int {
 	}
 	err := child.Start()
 	alive = err == nil
-	if err == nil && policy.Interactive {
-		err = unix.IoctlSetPointerInt(int(os.Stdin.Fd()), unix.TIOCSPGRP, child.Process.Pid)
-		if err != nil {
-			_ = killOwned()
-		}
-	}
 	// Do not keep the target's stdin reader alive: native Agent tests and real
 	// providers must observe EPIPE when the target closes its input.
 	_ = os.Stdin.Close()

@@ -1,5 +1,13 @@
 # Plugin UI 实施记录
 
+## English summary / 简体中文正文见下文
+
+The recorded implementation adds Host-owned UI schema validation, compatibility and budget tests, and a system-monitor example. The client adds bounded parsing, in-memory state, same-plugin action dispatch through the existing Executor, precompiled rendering and optional structured forms. Legacy forms, approvals, task recovery and native terminal/editor components remain available.
+
+The evidence below records the local checks performed on 2026-11-14; it is not a new deployment or physical-device acceptance result. Web/MCP Apps, arbitrary native views, remote pagination and persistent/shared plugin state remain outside the implementation. Complex forms fall back to JSON. Same-user execution is not an OS sandbox, and mobile store review, real SSH network disruption and full-application end-to-end behavior were not validated. Removing ui.contract restores legacy presentation.
+
+## 简体中文
+
 状态：两个可访问仓库已分别实施 Schema UI 1.0 增量升级；未发布或部署。先完成审计和架构决策再修改代码，未重写插件管理器、Executor、SSH 或原生核心组件。Web/MCP Apps 仍处评估阶段，不能将本次交付称为完整三层平台或真机验收。
 
 ## NimoteHost 的实际修改
