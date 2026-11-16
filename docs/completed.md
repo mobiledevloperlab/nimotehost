@@ -329,7 +329,7 @@ Fyne 正式构建使用系统字体回退，Linux 应提供中日韩字体；`ci
 go run ./tools/build -gui -version 1.0.0-dev
 ```
 
-- Linux amd64：gcc、libgl1-mesa-dev、xorg-dev、libxkbcommon-dev；运行需要兼容
+- Linux amd64：gcc、pkg-config、libgl1-mesa-dev、xorg-dev、libxkbcommon-dev、libwayland-dev、wayland-protocols（native build dependencies）；运行需要兼容
   OpenGL/X11（Wayland 可通过 XWayland）的桌面环境。CLI 服务器不需要这些依赖。
 - macOS amd64/arm64：Xcode Command Line Tools；生成包含 GUI 与 CLI 的 `.app`。
   发布包目前未签名/公证；开发者正式分发须使用自己的 Developer ID 对内部 CLI、GUI、

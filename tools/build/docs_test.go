@@ -72,7 +72,7 @@ func TestFeatureDocumentationLayout(t *testing.T) {
 			t.Fatalf("%s must document the current state in both languages", entry.Name())
 		}
 	}
-	if !reflect.DeepEqual(names, []string{"completed.md", "host-hardening-tests.md", "host-hardening.md", "pending.md"}) {
+	if !reflect.DeepEqual(names, []string{"completed.md", "host-hardening-tests.md", "host-hardening.md", "pending.md", "plugin-ui-architecture.md", "plugin-ui-audit.md", "plugin-ui-implementation.md", "plugin-ui-protocol.md"}) {
 		t.Fatalf("docs must contain the maintained functionality and hardening documents: %v", names)
 	}
 }

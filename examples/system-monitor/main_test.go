@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -19,6 +20,11 @@ func TestManifestAndSnapshotContract(t *testing.T) {
 	var m sdk.Manifest
 	if err = json.Unmarshal(raw, &m); err != nil {
 		t.Fatal(err)
+	}
+	// The packager specializes the template for the native build before validation.
+	m.Platforms = []string{runtime.GOOS + "/" + runtime.GOARCH}
+	if runtime.GOOS == "windows" {
+		m.Entrypoint = "plugin.exe"
 	}
 	if err = m.Validate(); err != nil {
 		t.Fatal(err)

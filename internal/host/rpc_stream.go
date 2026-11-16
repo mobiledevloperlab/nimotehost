@@ -19,7 +19,7 @@ func ServeRPCStream(ctx context.Context, dir string, input io.Reader, output io.
 	return serveRPCStream(ctx, input, output, func(ctx context.Context, request RPCRequest) ([]byte, error) { return Call(ctx, dir, request) })
 }
 
-func serveRPCStream(ctx context.Context, input io.Reader, output io.Writer, call func(context.Context, RPCRequest) ([]byte, error)) error {
+func serveRPCStream(ctx context.Context, input io.Reader, output io.Writer, call func(context.Context, RPCRequest) ([]byte, error)) (resultErr error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	// SSH stdout can fill if the reader disappears without closing stdin.
@@ -60,7 +60,17 @@ func serveRPCStream(ctx context.Context, input io.Reader, output io.Writer, call
 	var workers sync.WaitGroup
 	// On malformed input or cancellation, stop calls before joining them.
 	// A clean EOF still drains accepted calls below.
-	defer func() { cancel(); workers.Wait() }()
+	defer func() {
+		cancel()
+		workers.Wait()
+		mu.Lock()
+		defer mu.Unlock()
+		// A failed response cancels the stream. Preserve the original write
+		// failure even when cancellation wins a race with the input loop.
+		if writeErr != nil && !errors.Is(resultErr, writeErr) {
+			resultErr = errors.Join(resultErr, writeErr)
+		}
+	}()
 	for scanner.Scan() {
 		var frame struct {
 			ID uint64 `json:"id"`
