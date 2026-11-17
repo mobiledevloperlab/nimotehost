@@ -18,3 +18,6 @@ coverage.out
 __pycache__/
 *.pyc
 env.md
+
+# Local Host task/session state
+/.nimote/

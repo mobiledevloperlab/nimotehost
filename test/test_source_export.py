@@ -18,11 +18,11 @@ class HostExportTests(unittest.TestCase):
         self.host = self.root
         for name in ['README.zh-CN.md', 'CONTRIBUTING.zh-CN.md', 'SECURITY.zh-CN.md',
                      'CHANGELOG.zh-CN.md', 'THIRD_PARTY_NOTICES.zh-CN.md',
-                     'README.md', 'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md',
+                     'README.md', 'OPEN_SOURCE_REVIEW.md', 'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md',
                      'CONTRIBUTING.md', 'SECURITY.md', 'CHANGELOG.md', 'Makefile',
                      '.gitignore', 'go.mod', 'go.sum']:
             (self.host / name).write_text('fixture\n')
-        for name in ['.github', 'cmd', 'internal', 'scripts', 'docs', 'tools', 'third_party', 'test']:
+        for name in ['.github', 'cmd', 'internal', 'scripts', 'docs', 'tools', 'third_party', 'test', 'pkg', 'examples', 'plugin-catalog']:
             (self.host / name).mkdir(exist_ok=True)
             (self.host / name / 'fixture.txt').write_text('public\n')
         self.archive = self.root / 'dist/public/nimotehost-source.tar.gz'
@@ -49,6 +49,8 @@ class HostExportTests(unittest.TestCase):
             self.assertFalse(any('__pycache__' in n or n.endswith('.pyc') for n in names))
             self.assertIn('README.zh-CN.md', names)
             self.assertIn('internal/fixture.txt', names)
+            for directory in ('pkg', 'examples', 'plugin-catalog'):
+                self.assertIn(directory + '/fixture.txt', names)
             self.assertFalse(any('private' in n or n.startswith(('.git/', 'dist/', '../', '/')) for n in names))
             self.assertTrue(all(m.isfile() for m in archive.getmembers()))
 

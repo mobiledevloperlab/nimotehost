@@ -25,7 +25,7 @@ import (
 	"github.com/mobiledevloperlab/nimotehost/pkg/pluginsdk/publichttp"
 )
 
-const DefaultCatalogURL = "https://raw.githubusercontent.com/mobiledevloperlab/nimotehost/main/plugin-catalog/index.json"
+const DefaultCatalogURL = "https://raw.githubusercontent.com/mobiledevloperlab/nimotehost/master/plugin-catalog/index.json"
 
 var githubPart = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$`)
 var assetName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}$`)

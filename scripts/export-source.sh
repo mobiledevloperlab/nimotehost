@@ -8,10 +8,10 @@ root = pathlib.Path(sys.argv[1]); source = root
 # Explicit top-level allowlist excludes build outputs and all parent files.
 entries = ['README.zh-CN.md', 'CONTRIBUTING.zh-CN.md', 'SECURITY.zh-CN.md',
            'CHANGELOG.zh-CN.md', 'THIRD_PARTY_NOTICES.zh-CN.md',
-           'README.md', 'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md',
+           'README.md', 'OPEN_SOURCE_REVIEW.md', 'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md',
            'CONTRIBUTING.md', 'SECURITY.md', 'CHANGELOG.md', 'Makefile',
            '.gitignore', '.github', 'go.mod', 'go.sum', 'cmd', 'internal',
-           'scripts', 'docs', 'tools', 'third_party', 'test']
+           'scripts', 'docs', 'tools', 'third_party', 'test', 'pkg', 'examples', 'plugin-catalog']
 files = []
 secret = re.compile(rb'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}')
 for entry in entries:

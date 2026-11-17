@@ -12,7 +12,7 @@ func TestCodexHistoryPageFitsRPCWithEscapedTextAndNestedTools(t *testing.T) {
 	rows := make([]any, maxHistoryPage)
 	for i := range rows {
 		rows[i] = map[string]any{"item": map[string]any{
-			"id": "item", "type": "agentMessage", "text": strings.Repeat("\x00界", 8<<10),
+			"id": "item", "type": "agentMessage", "text": strings.Repeat("\x00\u754c", 8<<10),
 			"result": map[string]any{"nested": strings.Repeat("large", 4<<10)},
 		}}
 	}
@@ -65,7 +65,7 @@ func TestBoundHistoryItemKeepsSmallToolDetails(t *testing.T) {
 		t.Fatal(item)
 	}
 	for _, n := range []int{0, 1, 2, 3, 4, 5} {
-		if text := boundedHistoryText("中文字符", n); !utf8.ValidString(text) {
+		if text := boundedHistoryText("\u4e2d\u6587\u5b57\u7b26", n); !utf8.ValidString(text) {
 			t.Fatalf("limit %d split UTF-8", n)
 		}
 	}

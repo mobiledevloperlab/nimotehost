@@ -4,6 +4,7 @@ package main
 import (
 	"crypto/sha256"
 	"debug/buildinfo"
+	"debug/macho"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -79,11 +80,12 @@ func buildGUI(targetOS, arch, version string) error {
 	if targetOS == "windows" {
 		name += ".exe"
 	}
-	flags := "-X " + modulePath + "/internal/host.Version=" + version
+	flags := "-s -w -X " + modulePath + "/internal/host.Version=" + version
 	if targetOS == "windows" {
 		flags += " -H=windowsgui"
 	}
 	cmd := guiCommand("build", "-mod=readonly", "-trimpath", "-buildvcs=false", "-ldflags", flags, "-o", filepath.Join(absolute, name), ".")
+	obfuscateBuild(cmd)
 	cmd.Env = append(cmd.Env, "GOOS="+targetOS, "GOARCH="+arch)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err = cmd.Run(); err != nil {
@@ -220,6 +222,23 @@ func verifyGUITarget(path, targetOS, arch string) error {
 	settings := make(map[string]string)
 	for _, setting := range info.Settings {
 		settings[setting.Key] = setting.Value
+	}
+	// Garble removes Go build settings. Validate the Mach-O CPU directly in that
+	// case; the GUI build itself explicitly enables CGO and targets macOS.
+	if os.Getenv("NIMOTE_OBFUSCATE") == "1" && targetOS == "darwin" && len(settings) == 0 {
+		f, err := macho.Open(path)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		want := macho.CpuAmd64
+		if arch == "arm64" {
+			want = macho.CpuArm64
+		}
+		if f.Cpu != want {
+			return fmt.Errorf("GUI Mach-O CPU mismatch: got %v, want %v", f.Cpu, want)
+		}
+		return nil
 	}
 	if settings["GOOS"] != targetOS || settings["GOARCH"] != arch || settings["CGO_ENABLED"] != "1" {
 		return fmt.Errorf("GUI target mismatch: got %s/%s CGO=%s, want %s/%s CGO=1", settings["GOOS"], settings["GOARCH"], settings["CGO_ENABLED"], targetOS, arch)

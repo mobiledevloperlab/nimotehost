@@ -85,6 +85,18 @@ func command(args ...string) *exec.Cmd {
 	cmd.Env = append(cmd.Env, "GOWORK=off", "CGO_ENABLED=0")
 	return cmd
 }
+
+// Obfuscation is opt-in so ordinary development and existing CI remain unchanged.
+// Only project packages are targeted; the tool fails closed if garble is missing.
+func obfuscateBuild(cmd *exec.Cmd) {
+	if os.Getenv("NIMOTE_OBFUSCATE") != "1" {
+		return
+	}
+	cmd.Path, cmd.Err = exec.LookPath("garble")
+	cmd.Args = append([]string{"garble", "-literals"}, cmd.Args[1:]...)
+	cmd.Env = append(cmd.Env, "GOGARBLE="+modulePath)
+}
+
 func inspectModules(data []byte, expected []dependency) error {
 	decoder := json.NewDecoder(strings.NewReader(string(data)))
 	pending := map[string]string{}
@@ -198,7 +210,8 @@ func build(targetOS, arch, version string) error {
 		name += ".exe"
 	}
 	binary := filepath.Join(output, name)
-	cmd := command("build", "-mod=readonly", "-trimpath", "-buildvcs=false", "-ldflags", "-X "+modulePath+"/internal/host.Version="+version, "-o", binary, "./cmd/nimotehost")
+	cmd := command("build", "-mod=readonly", "-trimpath", "-buildvcs=false", "-ldflags", "-s -w -X "+modulePath+"/internal/host.Version="+version, "-o", binary, "./cmd/nimotehost")
+	obfuscateBuild(cmd)
 	cmd.Env = append(cmd.Env, "GOOS="+targetOS, "GOARCH="+arch)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {

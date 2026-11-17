@@ -13,7 +13,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 mkdir -p "$check_dir/source" "$check_dir/modules" "$check_dir/cache"
 # Copy only the standalone source contract, never installed binaries or state.
-(cd "$source_root" && tar -cf - .github .gitignore README* CONTRIBUTING* SECURITY* CHANGELOG* THIRD_PARTY_NOTICES* LICENSE NOTICE Makefile go.mod go.sum cmd internal scripts docs tools third_party test) |
+(cd "$source_root" && tar -cf - .github .gitignore README* CONTRIBUTING* SECURITY* CHANGELOG* THIRD_PARTY_NOTICES* LICENSE NOTICE OPEN_SOURCE_REVIEW.md Makefile go.mod go.sum cmd internal scripts docs tools third_party test pkg examples plugin-catalog) |
     (cd "$check_dir/source" && tar -xf -)
 cd "$check_dir/source"
 export GOWORK=off GOTOOLCHAIN=local GOFLAGS=-mod=readonly

@@ -12,6 +12,21 @@ NimoteHost 是通过既有认证 SSH 使用的独立 Go 服务，可托管持久
 功能状态见[已完成功能](docs/completed.md)和[未完成功能](docs/pending.md)；
 加固决策与验证见[加固审计](docs/host-hardening.md)和[测试记录](docs/host-hardening-tests.md)。
 
+## GitHub 自动构建
+
+[Host CI](.github/workflows/ci.yml) 在 push、PR 和手动触发时编译，可从运行页面的
+**Artifacts** 下载。推送 `v*` 标签后，全部必要检查通过才会发布到 GitHub Releases。
+
+| 系统 | CLI | 桌面包 |
+| --- | --- | --- |
+| macOS | x64、ARM64 | x64、ARM64 |
+| Linux | x86（386）、x64、ARM64 | x64、ARM64 |
+| Windows | x86（386）、x64、ARM64 | x64、ARM64 |
+
+桌面版使用原生 runner，附 CLI、依赖许可证和 SHA-256 校验值。Linux 桌面版要求
+至少 glibc 2.35。ARM 指 ARM64，暂不提供 32 位 ARM 或 32 位桌面包。
+macOS 包尚未签名或公证。发布前参阅[开源检查记录](OPEN_SOURCE_REVIEW.md)。
+
 ## Agent 上游监测
 
 [兼容性监测工作流](.github/workflows/agent-compatibility.yml)每 6 小时运行一次
@@ -20,7 +35,7 @@ Codex、OpenCode、Claude ACP 适配器和 Claude Code，检查真实结构化�
 运行 Host 现有 Agent/协议/审批回归测试，并导出 Codex JSON Schema；不发送 prompt、不调用模型。
 同时监测 Claude Agent SDK、ACP SDK 和 ACP Go SDK 的最新发布，但不会自动升级项目依赖。
 
-推送到 GitHub 私有库的默认分支后，开启 Actions 和 Issues，在 Actions 中手动运行
+推送到 GitHub 仓库的默认分支后，开启 Actions 和 Issues，在 Actions 中手动运行
 `Agent compatibility monitor` 建立基线，然后订阅自动创建的 Issue。
 后续版本变化和检查结果会以评论通知；邮件由 GitHub 通知设置决定。
 失败的同一组版本自动重试一次，之后可手动勾选 `force` 重跑。普通无变化轮询不安装 CLI 或运行测试。

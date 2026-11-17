@@ -136,38 +136,38 @@ func collect(ctx context.Context, o options) snapshot {
 					cpu += r["cpu"].(float64)
 					mem += r["memory"].(float64)
 				}
-				s.Metrics = append(s.Metrics, row{"metric": "进程 CPU 合计", "value": cpu, "unit": "%（可超过 100）", "scope": "ps 平均值，非瞬时整机使用率"}, row{"metric": "进程内存占比合计", "value": mem, "unit": "%", "scope": "可能包含共享页，非物理内存使用率"})
+				s.Metrics = append(s.Metrics, row{"metric": "Process CPU total", "value": cpu, "unit": "% (may exceed 100)", "scope": "ps averages, not instantaneous system utilization"}, row{"metric": "Process memory percentage total", "value": mem, "unit": "%", "scope": "May include shared pages; not physical memory utilization"})
 				if o.Sections.Processes {
 					s.Processes = rows
 				}
 			} else {
-				s.Warnings = append(s.Warnings, "进程采集不可用：ps 失败或输出超限")
+				s.Warnings = append(s.Warnings, "Process collection unavailable: ps failed or output exceeded limits")
 			}
 			if raw, err := command(ctx, "df", "-Pk", "/"); err == nil {
 				lines := strings.Split(strings.TrimSpace(raw), "\n")
 				if len(lines) > 1 {
 					f := strings.Fields(lines[len(lines)-1])
 					if len(f) >= 6 {
-						s.Metrics = append(s.Metrics, row{"metric": "根文件系统容量", "value": f[1], "unit": "KiB", "scope": f[len(f)-1]}, row{"metric": "根文件系统可用", "value": f[3], "unit": "KiB", "scope": f[4] + " 已用"})
+						s.Metrics = append(s.Metrics, row{"metric": "Root filesystem capacity", "value": f[1], "unit": "KiB", "scope": f[len(f)-1]}, row{"metric": "Root filesystem available", "value": f[3], "unit": "KiB", "scope": f[4] + " used"})
 					}
 				}
 			} else {
-				s.Warnings = append(s.Warnings, "磁盘容量采集不可用")
+				s.Warnings = append(s.Warnings, "Disk capacity collection unavailable")
 			}
 		} else {
-			s.Warnings = append(s.Warnings, "此平台仅提供系统身份和网络接口；进程及磁盘采集尚未实现")
+			s.Warnings = append(s.Warnings, "This platform provides system identity and network interfaces only; process and disk collection is not implemented")
 		}
 		if o.Sections.Network {
 			interfaces, err := net.Interfaces()
 			if err != nil {
-				s.Warnings = append(s.Warnings, "网络接口采集不可用")
+				s.Warnings = append(s.Warnings, "Network interface collection unavailable")
 			} else {
 				for _, n := range interfaces[:min(len(interfaces), 1000)] {
 					s.Network = append(s.Network, row{"name": n.Name, "index": n.Index, "mtu": n.MTU, "flags": n.Flags.String()})
 				}
 			}
 		}
-		s.Warnings = append(s.Warnings, "实时模式按按钮手动采样；历史趋势仅在模拟模式提供。网络表为接口信息，不包含吞吐率。")
+		s.Warnings = append(s.Warnings, "Live mode samples manually on request. Historical trends are demo-only. Network rows describe interfaces, not throughput.")
 	}
 	filtered := []row{}
 	for _, r := range s.Processes {
@@ -175,7 +175,7 @@ func collect(ctx context.Context, o options) snapshot {
 			filtered = append(filtered, r)
 		}
 		if len(s.Alerts) < 500 && (r["cpu"].(float64) >= o.Thresholds.CPU || r["memory"].(float64) >= o.Thresholds.Memory) {
-			s.Alerts = append(s.Alerts, row{"severity": "warning", "source": r["name"], "message": "进程超过 CPU / 内存阈值", "pid": r["pid"]})
+			s.Alerts = append(s.Alerts, row{"severity": "warning", "source": r["name"], "message": "Process exceeds CPU / memory thresholds", "pid": r["pid"]})
 		}
 	}
 	sort.SliceStable(filtered, func(i, j int) bool { return filtered[i][o.Sort].(float64) > filtered[j][o.Sort].(float64) })
@@ -190,21 +190,21 @@ func collect(ctx context.Context, o options) snapshot {
 	return s
 }
 func demo(s *snapshot, o options) {
-	s.Summary["hostname"] = "demo-workstation（模拟）"
+	s.Summary["hostname"] = "demo-workstation (simulated)"
 	s.Summary["logical_cpus"] = 16
-	s.Warnings = append(s.Warnings, "模拟数据：用于 UI 测试，与当前设备负载无关。包含长文本、Unicode、空值和 500 行分页数据。")
-	s.Metrics = []row{{"metric": "CPU 使用率", "value": 67.4, "unit": "%", "scope": "模拟整机"}, {"metric": "内存使用率", "value": 82.1, "unit": "%", "scope": "模拟 32 GiB"}, {"metric": "磁盘使用率", "value": 71.8, "unit": "%", "scope": "模拟 1 TiB"}, {"metric": "网络接收", "value": 128.5, "unit": "MiB/s", "scope": "模拟接口"}}
+	s.Warnings = append(s.Warnings, "Simulated data for UI tests, unrelated to current device load. Includes long text, Unicode, nulls and 500 paginated rows.")
+	s.Metrics = []row{{"metric": "CPU utilization", "value": 67.4, "unit": "%", "scope": "Simulated system"}, {"metric": "Memory utilization", "value": 82.1, "unit": "%", "scope": "Simulated 32 GiB"}, {"metric": "Disk utilization", "value": 71.8, "unit": "%", "scope": "Simulated 1 TiB"}, {"metric": "Network receive", "value": 128.5, "unit": "MiB/s", "scope": "Simulated interface"}}
 	if o.Sections.Processes {
 		for i := 0; i < 500; i++ {
-			name := []string{"WindowServer", "编译工作进程 / build-worker", "数据库 · analytics", "renderer-with-a-very-long-name-to-test-narrow-layout", "idle-service"}[i%5]
+			name := []string{"WindowServer", "build-worker", "database - analytics", "renderer-with-a-very-long-name-to-test-narrow-layout", "idle-service"}[i%5]
 			s.Processes = append(s.Processes, row{"pid": 1000 + i, "name": fmt.Sprintf("%s-%03d", name, i), "cpu": float64((i*37)%1000) / 10, "memory": float64((i*13)%950) / 10, "rss_mib": float64((i * 71) % 8192), "owner": "demo", "note": nil})
 		}
 	}
 	if o.Sections.Network {
-		s.Network = []row{{"name": "en0 · 模拟", "index": 1, "mtu": 1500, "flags": "up|broadcast|multicast"}, {"name": "lo0 · 模拟", "index": 2, "mtu": 16384, "flags": "up|loopback"}}
+		s.Network = []row{{"name": "en0 - simulated", "index": 1, "mtu": 1500, "flags": "up|broadcast|multicast"}, {"name": "lo0 - simulated", "index": 2, "mtu": 16384, "flags": "up|loopback"}}
 	}
 	for i := 0; i < 60; i++ {
-		s.History = append(s.History, row{"sample": i + 1, "cpu": float64(30 + (i*17)%65), "memory": float64(55 + (i*7)%40), "rx_mib_s": float64((i * 23) % 150), "source": "模拟趋势"})
+		s.History = append(s.History, row{"sample": i + 1, "cpu": float64(30 + (i*17)%65), "memory": float64(55 + (i*7)%40), "rx_mib_s": float64((i * 23) % 150), "source": "Simulated trend"})
 	}
 }
 func handle(ctx context.Context, name string, raw json.RawMessage, progress func(float64)) (any, error) {

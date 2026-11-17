@@ -90,7 +90,7 @@ func TestWindowsStructuredPipesAndJobLifecycle(t *testing.T) {
 			if err != nil || session.Interaction != "structured" {
 				t.Fatalf("%+v %v", session, err)
 			}
-			text := strings.Repeat("你好 Windows quote\" \n", 2000)
+			text := strings.Repeat("\u4f60\u597d Windows quote\" \n", 2000)
 			if err = m.AgentMessage(session.ID, AgentMessage{Action: "prompt", RequestID: "windows-prompt", Text: text}); err != nil {
 				t.Fatal(err)
 			}

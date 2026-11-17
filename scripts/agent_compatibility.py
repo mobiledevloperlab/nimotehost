@@ -246,8 +246,8 @@ def make_report(snapshot, results, job_result, run_url):
               "Authentication, installation and network failures also require investigation; they do not prove a protocol break.",
               "Claude SDK, ACP SDK and ACP Go SDK latest versions are watch signals; checks use the adapter's resolved dependencies and this repository's pinned Go SDK.",
               "Codex JSON Schema is exported as an artifact; semantic schema diffing is not performed.",
-              "", "首次运行建立基线；后续每 6 小时检测版本变化，有变化才运行检查。失败的同一版本自动重试一次，之后可手动 force。",
-              "订阅此 Issue 接收更新；邮件取决于你的 GitHub 通知设置。不要删除正文末尾的状态标记。",
+              "", "\u9996\u6b21\u8fd0\u884c\u5efa\u7acb\u57fa\u7ebf；\u540e\u7eed\u6bcf 6 \u5c0f\u65f6\u68c0\u6d4b\u7248\u672c\u53d8\u5316，\u6709\u53d8\u5316\u624d\u8fd0\u884c\u68c0\u67e5。\u5931\u8d25\u7684\u540c\u4e00\u7248\u672c\u81ea\u52a8\u91cd\u8bd5\u4e00\u6b21，\u4e4b\u540e\u53ef\u624b\u52a8 force。",
+              "\u8ba2\u9605\u6b64 Issue \u63a5\u6536\u66f4\u65b0；\u90ae\u4ef6\u53d6\u51b3\u4e8e\u4f60\u7684 GitHub \u901a\u77e5\u8bbe\u7f6e。\u4e0d\u8981\u5220\u9664\u6b63\u6587\u672b\u5c3e\u7684\u72b6\u6001\u6807\u8bb0。",
               "", f"<!-- nimote-agent-state:{json.dumps(state, separators=(',', ':'))} -->"]
     return "\n".join(lines), status
 

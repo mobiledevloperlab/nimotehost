@@ -148,12 +148,12 @@ func TestCodexInputQueueBoundsAndTurnErrors(t *testing.T) {
 func TestCodexJSONLFraming(t *testing.T) {
 	out := &bytes.Buffer{}
 	w := &agentLines{writer: out}
-	for _, chunk := range []string{`{"method":"item/agentMessage/`, "delta\",\"params\":{\"delta\":\"你好\"}}\n{\"method\":\"turn/completed\",\"params\":{}}\n"} {
+	for _, chunk := range []string{`{"method":"item/agentMessage/`, "delta\",\"params\":{\"delta\":\"\u4f60\u597d\"}}\n{\"method\":\"turn/completed\",\"params\":{}}\n"} {
 		if _, err := io.WriteString(w, chunk); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if bytes.Count(out.Bytes(), []byte("\n")) != 2 || !strings.Contains(out.String(), "你好") {
+	if bytes.Count(out.Bytes(), []byte("\n")) != 2 || !strings.Contains(out.String(), "\u4f60\u597d") {
 		t.Fatal(out.String())
 	}
 	if _, err := w.Write(bytes.Repeat([]byte("a"), (2<<20)+1)); err == nil {

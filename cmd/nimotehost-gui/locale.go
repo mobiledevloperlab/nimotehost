@@ -43,7 +43,7 @@ var translationBundle = sync.OnceValues(func() (*i18n.Bundle, error) {
 
 // Match NimoteCode: English, Simplified Chinese, Spanish, Japanese, Korean, Russian.
 var languageCodes = []string{"en", "zh-Hans", "es", "ja", "ko", "ru"}
-var languageNames = []string{"English", "简体中文", "Español", "日本語", "한국어", "Русский"}
+var languageNames = []string{"English", "\u7b80\u4f53\u4e2d\u6587", "Español", "\u65e5\u672c\u8a9e", "한국어", "Русский"}
 
 type messages struct {
 	code      string
