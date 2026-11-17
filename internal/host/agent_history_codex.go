@@ -50,14 +50,30 @@ func decodeCodexCursor(cursor string) (string, error) {
 // shell), negotiates the stable JSONL protocol, performs one bounded request,
 // then stops the short-lived query process.
 func codexRPC(ctx context.Context, cwd, method string, params any) (json.RawMessage, error) {
+	return codexRPCWithAttachment(ctx, cwd, method, params, nil)
+}
+
+func codexRPCWithAttachment(ctx context.Context, cwd, method string, params any, attachment *ExternalAttachment) (json.RawMessage, error) {
 	adapter, _ := lookupAgentAdapter("codex")
 	cmd := exec.CommandContext(ctx, adapter.Executable())
-	if err := adapter.ConfigureCommand(cmd); err != nil {
-		return nil, errors.New("Codex is not installed")
-	}
 	cmd.Dir = cwd
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
-	stdin, stdout, cleanup, err := startAgentQuery(ctx, cmd)
+	var stdin io.WriteCloser
+	var stdout io.ReadCloser
+	var cleanup func()
+	var err error
+	if attachment != nil {
+		var socket *codexControlSocket
+		socket, err = dialCodexControl(ctx, *attachment)
+		if err == nil {
+			stdin, stdout = socket, socket
+			cleanup = func() { _ = socket.Close() }
+		}
+	} else {
+		if err = adapter.ConfigureCommand(cmd); err == nil {
+			stdin, stdout, cleanup, err = startAgentQuery(ctx, cmd)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -112,6 +128,10 @@ func listCodexHistory(ctx context.Context, cwd, cursor string) (codexHistoryPage
 	if err != nil {
 		return codexHistoryPage{}, err
 	}
+	return projectCodexSessions(result)
+}
+
+func projectCodexSessions(result json.RawMessage) (codexHistoryPage, error) {
 	var response struct {
 		Data []struct {
 			ID        string `json:"id"`
@@ -129,8 +149,14 @@ func listCodexHistory(ctx context.Context, cwd, cursor string) (codexHistoryPage
 	if len(response.Data) > maxHistoryPage || len(response.NextCursor) > 4096 {
 		return codexHistoryPage{}, errors.New("Codex returned an invalid history page")
 	}
+	if response.Data == nil {
+		return codexHistoryPage{}, errors.New("Codex history response is missing threads")
+	}
 	page := codexHistoryPage{Items: make([]map[string]any, 0, len(response.Data))}
 	for _, thread := range response.Data {
+		if !validExternalConversationID(thread.ID) {
+			return codexHistoryPage{}, errors.New("Codex returned an invalid conversation ID")
+		}
 		title := strings.TrimSpace(thread.Name)
 		if title == "" {
 			title = strings.TrimSpace(thread.Preview)

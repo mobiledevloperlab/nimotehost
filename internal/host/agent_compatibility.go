@@ -25,6 +25,10 @@ func (a *structuredAgent) completeStartup(err error) {
 // upgrade-incompatible CLI cannot freeze other terminals. No user turn is sent
 // during probing, and running turns are never retried through another adapter.
 func (m *Manager) Start(req StartRequest) (Session, error) {
+	if req.Attach != nil {
+		connection := *req.Attach
+		req.Attach = &connection
+	}
 	return runOnce(m, req.RequestID, "session.start", req, func() (Session, error) {
 		if req.Resume != nil {
 			check := req
@@ -155,6 +159,9 @@ func (m *Manager) startAuto(req StartRequest, timeout time.Duration) (Session, e
 // Resolve maintained adapters at session creation, never with npx/latest or
 // automatic installation. Upgrades are checked by the live ACP handshake.
 func configureStructuredCommand(cmd *exec.Cmd, a *structuredAgent) error {
+	if a.attachment != nil {
+		return errors.New("external attachments require a non-owning transport")
+	}
 	adapter, ok := lookupAgentAdapter(a.provider)
 	if !ok {
 		return errors.New("unknown Agent adapter")

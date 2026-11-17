@@ -31,7 +31,11 @@ func (a *structuredAgent) startProtocolIO() {
 	a.rpc.cancel = cancel
 	reader := &rpcConfiguredReader{Reader: a.rpc.reader, configured: make(chan struct{})}
 	writer := &agentRPCInputWriter{agent: a, sent: make(chan struct{}, 1)}
-	a.rpc.peer = acp.NewConnection(a.handleAgentRPC, writer, reader)
+	var inputReader io.Reader = reader
+	if a.attachment != nil && a.provider == "codex" {
+		inputReader = newCodexAttachmentReader(reader)
+	}
+	a.rpc.peer = acp.NewConnection(a.handleAgentRPC, writer, inputReader)
 	a.rpc.peer.SetLogger(slog.New(slog.DiscardHandler))
 	close(reader.configured)
 	go a.writeAgentRPC(ctx, writer.sent)
@@ -118,6 +122,12 @@ func (a *structuredAgent) handleAgentRPC(ctx context.Context, method string, par
 	}
 	if a.acp == nil {
 		if method != "item/commandExecution/requestApproval" && method != "item/fileChange/requestApproval" {
+			if a.attachment != nil {
+				var fields map[string]json.RawMessage
+				if json.Unmarshal(params, &fields) == nil && len(fields["_nimote_native_request_id"]) > 0 {
+					return a.waitForDesktopRequest(ctx, string(fields["_nimote_native_request_id"]))
+				}
+			}
 			a.receiveCodexLocked(codexFrame{Method: method, Params: params})
 			a.mu.Unlock()
 			return nil, acp.NewMethodNotFound(method)
@@ -138,8 +148,26 @@ func (a *structuredAgent) handleAgentRPC(ctx context.Context, method string, par
 			return nil, acp.NewInvalidParams(map[string]string{"error": err.Error()})
 		}
 	}
+	if a.attachment != nil && a.acp == nil && a.busy && a.turn == "" {
+		// thread/read metadata can omit turns, and replay handlers may run
+		// before the resume response consumer. The authenticated native
+		// request supplies the turn only after matching the selected thread.
+		var native struct {
+			ThreadID string `json:"threadId"`
+			TurnID   string `json:"turnId"`
+		}
+		if json.Unmarshal(params, &native) == nil && native.ThreadID == a.thread && native.TurnID != "" {
+			a.turn = native.TurnID
+		}
+	}
 	if !a.validPermissionContext(params) {
 		a.mu.Unlock()
+		if a.attachment != nil && a.stopProcess != nil {
+			// A stale/foreign replay must never decline another desktop task.
+			// Close this subscription before the SDK can send any reply.
+			_ = a.stopProcess()
+			return nil, acp.NewRequestCancelled(nil)
+		}
 		return nil, acp.NewInvalidParams(map[string]string{"error": "permission does not belong to the active session/turn"})
 	}
 	if result, approved := a.automaticApproval(method, params); approved {
@@ -149,6 +177,10 @@ func (a *structuredAgent) handleAgentRPC(ctx context.Context, method string, par
 	// Local approval handles are deliberately independent of remote wire IDs.
 	if len(a.rpc.permissions) >= 64 {
 		a.mu.Unlock()
+		if a.attachment != nil && a.stopProcess != nil {
+			_ = a.stopProcess()
+			return nil, acp.NewRequestCancelled(nil)
+		}
 		if a.acp == nil {
 			return map[string]string{"decision": "decline"}, nil
 		}
@@ -156,7 +188,17 @@ func (a *structuredAgent) handleAgentRPC(ctx context.Context, method string, par
 	}
 	a.rpc.nextPermission++
 	id, _ := json.Marshal(fmt.Sprintf("permission-%d", a.rpc.nextPermission))
+	if a.attachment != nil && a.provider == "codex" {
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(params, &fields) == nil && len(fields["_nimote_native_request_id"]) > 0 {
+			id = fields["_nimote_native_request_id"]
+		}
+	}
 	key := string(id)
+	if a.attachment != nil && a.attachmentResolved[key] {
+		a.mu.Unlock()
+		return nil, acp.NewRequestCancelled(nil)
+	}
 	reply := make(chan agentRPCReply, 1)
 	a.rpc.permissions[key] = reply
 	if a.acp != nil {
@@ -190,6 +232,33 @@ func (a *structuredAgent) handleAgentRPC(ctx context.Context, method string, par
 	case <-a.done:
 		return nil, acp.NewRequestCancelled(nil)
 	}
+}
+
+// Caller holds a.mu. Unimplemented native questions stay owned by the desktop;
+// sending MethodNotFound here would incorrectly fail the original Agent tool.
+func (a *structuredAgent) waitForDesktopRequest(ctx context.Context, key string) (any, *acp.RequestError) {
+	if a.attachmentResolved[key] {
+		a.mu.Unlock()
+		return nil, acp.NewRequestCancelled(nil)
+	}
+	if len(a.rpc.permissions) >= 64 {
+		a.mu.Unlock()
+		if a.stopProcess != nil {
+			_ = a.stopProcess()
+		}
+		return nil, acp.NewRequestCancelled(nil)
+	}
+	reply := make(chan agentRPCReply, 1)
+	a.rpc.permissions[key] = reply
+	a.emit("error", "This native request is unsupported by Host; complete it on the desktop")
+	a.mu.Unlock()
+	defer func() { a.mu.Lock(); delete(a.rpc.permissions, key); a.mu.Unlock() }()
+	select {
+	case <-reply:
+	case <-ctx.Done():
+	case <-a.done:
+	}
+	return nil, acp.NewRequestCancelled(nil)
 }
 
 // The SDK writes requests synchronously before waiting for responses. Observe

@@ -29,6 +29,9 @@ func (a *structuredAgent) receiveCodexLocked(f codexFrame) {
 		return
 	}
 	if f.Method != "" {
+		if a.attachment != nil && (f.Method == "turn/started" || f.Method == "turn/completed") {
+			a.attachmentStateObserved = true
+		}
 		if len(f.ID) > 0 {
 			key := string(f.ID)
 			switch f.Method {
@@ -113,7 +116,7 @@ func (a *structuredAgent) receiveCodexLocked(f codexFrame) {
 			a.loadingModels = false
 			a.modelPage = nil
 		}
-		if id == "host-init" || id == "host-thread" || id == "host-history" {
+		if id == "host-init" || id == "host-thread" || id == "host-history" || id == "host-attach-check" {
 			a.completeStartup(fmt.Errorf("app-server handshake rejected: %s", f.Error))
 		}
 		if a.pending[id] == "prompt" || a.pending[id] == "compact" {
@@ -144,8 +147,24 @@ func (a *structuredAgent) receiveCodexLocked(f codexFrame) {
 			method = "thread/resume"
 			params["threadId"] = a.resumeConversation
 		}
+		if a.attachment != nil {
+			// Read before subscribing: never cold-start a different saved thread
+			// or override the live desktop thread's cwd or safety configuration.
+			if err := a.send(map[string]any{"id": "host-attach-check", "method": "thread/read", "params": map[string]any{"threadId": a.resumeConversation, "includeTurns": false}}); err != nil {
+				a.completeStartup(err)
+			}
+			return
+		}
 		if err := a.send(map[string]any{"id": "host-thread", "method": method, "params": params}); err != nil {
 			a.emit("error", err.Error())
+		}
+	case "host-attach-check":
+		if err := a.checkCodexAttachment(f.Result); err != nil {
+			a.completeStartup(err)
+			return
+		}
+		if err := a.send(map[string]any{"id": "host-thread", "method": "thread/resume", "params": map[string]any{"threadId": a.resumeConversation}}); err != nil {
+			a.completeStartup(err)
 		}
 	case "host-thread":
 		var result struct {
@@ -162,6 +181,18 @@ func (a *structuredAgent) receiveCodexLocked(f codexFrame) {
 			a.emit("error", "app-server did not return a thread ID")
 		} else {
 			if a.resumeConversation != "" {
+				if result.Thread.ID != a.resumeConversation {
+					err := errors.New("app-server resumed a different conversation")
+					a.completeStartup(err)
+					a.emit("error", err.Error())
+					return
+				}
+				if a.attachment != nil {
+					if err := a.checkCodexAttachment(f.Result); err != nil {
+						a.completeStartup(err)
+						return
+					}
+				}
 				// Resume restores model context, but does not replay the transcript.
 				// Persist history in the new Host log before accepting new turns.
 				a.historyThread = result.Thread.ID
@@ -193,6 +224,9 @@ func (a *structuredAgent) receiveCodexLocked(f codexFrame) {
 	}
 }
 func (a *structuredAgent) message(req AgentMessage) error {
+	if a.openCode != nil {
+		return a.openCode.message(req)
+	}
 	if a.acp != nil {
 		return a.messageACP(req)
 	}
@@ -200,6 +234,9 @@ func (a *structuredAgent) message(req AgentMessage) error {
 	defer a.mu.Unlock()
 	if a.closed {
 		return errors.New("agent has stopped")
+	}
+	if a.attachment != nil && !a.attachmentReady && req.Action != "approval" && req.Action != "interrupt" {
+		return errors.New("external attachment is synchronizing")
 	}
 	if req.RequestID == "" || len(req.RequestID) > 128 {
 		return errors.New("request_id is required (maximum 128 bytes)")

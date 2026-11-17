@@ -1,6 +1,6 @@
 # 未完成功能 / Pending functionality
 
-English / 简体中文 · `2.4.0` · 更新 / Updated: 2026-11-14
+English / 简体中文 · `2.4.0` · 更新 / Updated: 2026-11-17
 
 当前源码已实现的功能、使用方式和协议只维护在[已完成功能](completed.md)。
 本页以清单跟踪功能与验收：已完成子项标记 `[x]`，未完成、部分完成或待批准项标记 `[ ]`。
@@ -8,6 +8,10 @@ English / 简体中文 · `2.4.0` · 更新 / Updated: 2026-11-14
 Implemented behavior lives in [completed functionality](completed.md). Checked items are complete within their stated scope; unchecked items remain open.
 
 ## 功能 / Features
+
+- [x] 外部服务的可用接入路径（2026-11-17）：Codex 原控制 socket、OpenCode v2 原 HTTP 服务、原生 pending、状态校准和重连均已实现；Codex 真实 CLI＋本地模型夹具验证通过。详见[实施状态](external-agent-sessions.md)。
+- [ ] 外部接管剩余验收：真实 OpenCode v1/v2、Claude 模型/工具流程、Linux/Windows 原生及手机/SSH 网络矩阵。OpenCode v1 HTTP 与 Windows Codex socket 只读验证代码已补齐，Windows 原生测试尚未执行。Claude 独立活进程的结构化接管尚未实现，官方终端入口可能重启停止的会话；Antigravity 尚未实现，不以历史恢复冒充接管。详见[测试边界](external-agent-sessions-tests.md)。
+- [x] Claude 官方 JSON 原生发现；本机 Claude 2.1.311 / ACP 0.107.3 隔离初始化；ACP v2 历史显式回放。`claude attach` 是官方终端入口，但可能重启停止的 session，尚不能作为安全的结构化接管入口。此前“缺少本地入口”应按此更精确的边界理解。
 
 - [ ] 统一 AI Session Dashboard：在现有 AI 模式按主机/工作区聚合会话、搜索与状态筛选；
   保存带观察时间的离线摘要，不将缓存伪装成实时状态。

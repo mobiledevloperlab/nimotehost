@@ -192,6 +192,16 @@ func validID(id string) bool {
 // Terminal adapters preserve the installed CLI interface. Structured Codex
 // sessions use app-server and explicit semantic operations instead of PTY I/O.
 func resolveCommand(req *StartRequest) error {
+	if req.Attach != nil {
+		if err := req.Attach.validate(req.Agent); err != nil {
+			return err
+		}
+		if req.Kind != "agent" || req.Resume == nil || req.Identity != nil || req.Worktree != nil ||
+			(req.Interaction != "auto" && req.Interaction != "structured") ||
+			(req.ExecutionPolicy != "" && req.ExecutionPolicy != "confirm") {
+			return errors.New("external attachment requires an original session ID, structured mode and confirm policy without execution identity or worktree")
+		}
+	}
 	if req.ExecutionPolicy != "" && !validExecutionPolicy(req.ExecutionPolicy) {
 		return errors.New("unsupported execution policy")
 	}
@@ -265,6 +275,13 @@ func resolveCommand(req *StartRequest) error {
 }
 
 func (m *Manager) start(req StartRequest) (Session, error) {
+	if req.Attach != nil {
+		copied := *req.Attach
+		req.Attach = &copied
+		if m.nativeConstraints() {
+			return Session{}, errors.New("Host process quotas cannot constrain an independently running Agent")
+		}
+	}
 	if req.Identity != nil {
 		identity := *req.Identity
 		req.Identity = &identity
@@ -339,6 +356,10 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 	cmd.Dir = req.Directory
 	cmd.WaitDelay = 2 * time.Second
 	record := Session{SourceDirectory: req.sourceDirectory, BaseCommit: req.baseCommit, ExecutionPolicy: req.ExecutionPolicy, CompatibilityFallback: req.fallbackReason, Interaction: req.Interaction, ID: id, ConversationID: resumeConversationID(req.Resume), Kind: req.Kind, Agent: req.Agent, Command: req.Command, Args: append([]string(nil), req.Args...), Directory: req.Directory, State: "running", Started: time.Now().UTC()}
+	if req.Attach != nil {
+		connection := req.Attach.ExternalConnection
+		record.External = &connection
+	}
 	m.revision++
 	record.Revision = m.revision
 	record.StartRequestID = req.RequestID
@@ -367,13 +388,25 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 	}
 	if req.Interaction == "structured" {
 		item.agent = newStructuredAgent(req.Agent, output, req.Directory, record.ConversationID)
+		item.agent.attachment = req.Attach
 		item.agent.executionPolicy = req.ExecutionPolicy
 		item.agent.onExecutionPolicy = func(policy string) error { return m.setExecutionPolicy(item, policy) }
 		item.agent.onConversationID = func(conversationID string) { m.setConversationID(item, conversationID) }
 		item.edits = &observedEdits{path: filepath.Join(m.dir, id+".edits"), directory: req.Directory}
 		item.agent.onActivity = item.agentActivity
-		item.onTurnComplete = func() { m.runBackground(func() { m.autoVerification(id) }) }
-		item.process, err = startStructuredAgent(cmd, item.agent, limits)
+		if req.Attach == nil {
+			item.onTurnComplete = func() { m.runBackground(func() { m.autoVerification(id) }) }
+		}
+		if req.Attach != nil {
+			adapter, _ := lookupExternalSessionAdapter(req.Agent)
+			if live, ok := adapter.(externalLiveSessionAdapter); ok {
+				item.process, err = live.AttachSession(item.agent, *req.Attach)
+			} else {
+				err = errors.New("external live attachment is unsupported")
+			}
+		} else {
+			item.process, err = startStructuredAgent(cmd, item.agent, limits)
+		}
 	} else {
 		item.process, item.terminal, err = startProcess(cmd, req.Kind != "task", output, limits)
 	}
@@ -498,12 +531,16 @@ func (m *Manager) wait(item *managed) {
 	item.recordActivity("session_finished", item.session.State, "")
 	slog.Info("Host session finished", "id", item.session.ID, "state", item.session.State)
 	close(item.done)
-	if item.session.Kind == "agent" || item.session.Task != nil && !strings.HasPrefix(item.session.Task.ID, "verification/") {
+	if item.session.External == nil && (item.session.Kind == "agent" || item.session.Task != nil && !strings.HasPrefix(item.session.Task.ID, "verification/")) {
 		m.startBackgroundLocked(func() { m.autoVerification(item.session.ID) })
 	}
 }
 
 func cloneSession(s Session) Session {
+	if s.External != nil {
+		connection := *s.External
+		s.External = &connection
+	}
 	if s.Task != nil {
 		task := *s.Task
 		s.Task = &task

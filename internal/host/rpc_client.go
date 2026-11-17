@@ -97,7 +97,7 @@ func rpcHTTPClient(req RPCRequest) *http.Client {
 		return &client
 	}
 	path, _, _ := strings.Cut(req.Path, "?")
-	if req.Method == http.MethodGet && (path == "/v1/agent-history" || strings.HasPrefix(path, "/v1/agent-history/")) {
+	if (req.Method == http.MethodGet || req.Method == http.MethodPost) && (path == "/v1/agent-history" || strings.HasPrefix(path, "/v1/agent-history/")) {
 		client := *loopbackClient
 		client.Timeout = agentHistoryRPCTimeout
 		return &client

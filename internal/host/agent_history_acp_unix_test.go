@@ -27,6 +27,9 @@ func TestACPHistorySDKChild(t *testing.T) {
 			Method string `json:"method"`
 			Params struct {
 				ProtocolVersion int `json:"protocolVersion"`
+				ReplayFrom      struct {
+					Type string `json:"type"`
+				} `json:"replayFrom"`
 			} `json:"params"`
 		}
 		if err := json.Unmarshal(scanner.Bytes(), &req); err != nil {
@@ -46,14 +49,26 @@ func TestACPHistorySDKChild(t *testing.T) {
 			}
 			result = map[string]any{"sessions": []map[string]any{{"sessionId": "conversation", "cwd": "/workspace", "title": "Saved task"}}}
 		case "session/load", "session/resume":
+			if req.Method == "session/resume" && req.Params.ReplayFrom.Type != "start" {
+				os.Exit(4)
+			}
+			variant := os.Getenv("NIMOTE_ACP_HISTORY_VARIANT")
 			count := 3
 			if os.Getenv("NIMOTE_ACP_HISTORY_VARIANT") == "large-replay" {
 				count = maxHistoryUpdates + 1
 			}
 			for i := 0; i < count; i++ {
-				_ = encoder.Encode(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": "conversation", "update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": fmt.Sprint(i)}}}})
+				sessionID := "conversation"
+				if variant == "foreign-replay" {
+					sessionID = "other"
+				}
+				_ = encoder.Encode(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": sessionID, "update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": fmt.Sprint(i)}}}})
 			}
+			_ = encoder.Encode(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": "conversation", "update": map[string]string{"sessionUpdate": "replay_complete"}}})
 			result = map[string]any{}
+			if variant == "foreign-ack" {
+				result = map[string]any{"sessionId": "other"}
+			}
 		default:
 			continue
 		}
@@ -122,4 +137,14 @@ func TestACPHistoryUsesSDKAndDrainsReplay(t *testing.T) {
 			t.Fatal("canceled query succeeded")
 		}
 	})
+	for _, variant := range []string{"foreign-replay", "foreign-ack"} {
+		t.Run(variant, func(t *testing.T) {
+			t.Setenv("NIMOTE_ACP_HISTORY_VARIANT", variant)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if page, err := readACPHistory(ctx, "opencode", "conversation", dir); err == nil || page != nil {
+				t.Fatal("foreign conversation exposed", page, err)
+			}
+		})
+	}
 }
