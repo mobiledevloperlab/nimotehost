@@ -4,7 +4,7 @@ go 1.26.5
 
 require (
 	github.com/coder/acp-go-sdk v0.13.5
-	github.com/coder/websocket v1.8.14
+	github.com/coder/websocket v1.8.15
 	github.com/creack/pty v1.1.24
 	github.com/google/jsonschema-go v0.4.3
 	github.com/modelcontextprotocol/go-sdk v1.8.0
