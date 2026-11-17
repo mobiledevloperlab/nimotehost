@@ -759,6 +759,13 @@ func (m *Manager) delete(id string, probeOnly bool) error {
 	if item.process != nil {
 		return errors.New("cancel and await session completion before deletion")
 	}
+	// Keep the session addressable across retries and restarts until its files
+	// have been cleaned up. A retry skips files already removed.
+	for _, ext := range []string{".ring", ".log", ".activity", ".review", ".verification", ".diff", ".edits", ".summary", ".scope"} {
+		if err := os.Remove(filepath.Join(m.dir, id+ext)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
 	if err := os.Remove(filepath.Join(m.dir, id+".json")); err != nil {
 		return err
 	}
@@ -767,11 +774,6 @@ func (m *Manager) delete(id string, probeOnly bool) error {
 	item.session.Revision = m.revision
 	item.session.State = "deleted"
 	m.emit(item.session)
-	for _, ext := range []string{".ring", ".log", ".activity", ".scope", ".review", ".verification", ".diff", ".edits", ".summary"} {
-		if err := os.Remove(filepath.Join(m.dir, id+ext)); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-	}
 	return nil
 }
 

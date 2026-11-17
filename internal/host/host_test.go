@@ -106,6 +106,49 @@ func TestTaskPersistsAndOutputCanResume(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestDeleteSessionRetriesCleanupAfterRestart(t *testing.T) {
+	m := newTestManager(t)
+	started, err := m.Start(childRequest(t, "output"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	awaitSession(t, m, started.ID)
+
+	blocked := filepath.Join(m.dir, started.ID+".summary")
+	if err := os.Mkdir(blocked, 0700); err != nil {
+		t.Fatal(err)
+	}
+	child := filepath.Join(blocked, "entry")
+	if err := os.WriteFile(child, []byte("obstruction"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Delete(started.ID); err == nil {
+		t.Fatal("delete succeeded with a nonempty auxiliary directory")
+	}
+	if _, err := m.Get(started.ID); err != nil {
+		t.Fatalf("session disappeared after failed cleanup: %v", err)
+	}
+	m.Close()
+
+	recovered, err := NewManager(m.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer recovered.Close()
+	if err := os.Remove(child); err != nil {
+		t.Fatal(err)
+	}
+	if err := recovered.Delete(started.ID); err != nil {
+		t.Fatalf("retry deletion: %v", err)
+	}
+	for _, ext := range []string{".json", ".ring", ".summary"} {
+		if _, err := os.Stat(filepath.Join(m.dir, started.ID+ext)); !os.IsNotExist(err) {
+			t.Fatalf("expected %s to be removed, got %v", ext, err)
+		}
+	}
+}
+
 func TestFailureCancellationAndRecovery(t *testing.T) {
 	m := newTestManager(t)
 	failed, err := m.Start(childRequest(t, "fail"))

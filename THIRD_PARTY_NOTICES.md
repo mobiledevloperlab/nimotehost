@@ -50,8 +50,8 @@ Transitive modules, including build/test dependencies, are recorded below and in
 
 Fyne and its transitive dependencies are isolated in
 `cmd/nimotehost-gui/go.mod` / `go.sum`; the CLI dependency manifest is unchanged.
-Desktop distributions carry `GUI-MODULES.json` and upstream LICENSE/COPYING/NOTICE
-files in `licenses-gui/`, in addition to the CLI licenses. The builder fails if a
-resolved desktop module has no root license file. Fyne uses the BSD 3-Clause
-license; consult each bundled notice for its dependencies. These libraries are not
-linked into the CLI.
+Desktop distributions carry `GUI-MODULES.json` and upstream license files in
+`licenses-gui/`, alongside the CLI licenses. This directory also preserves the
+separate notices for Fyne fonts, HarfBuzz and native GLFW, and the license texts
+referenced by the FreeType module. The builder requires the root notices and
+the listed nested files. Each bundled notice identifies its applicable terms.

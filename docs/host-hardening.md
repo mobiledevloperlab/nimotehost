@@ -140,7 +140,8 @@ Stop Host before editing; restart to apply. Missing fields inherit defaults.
 ```
 
 Defaults preserve 32 active/256 retained sessions and unlimited runtime, adding a
-64 MiB free-space floor. Limits may only tighten the existing session ceilings;
+64 MiB free-space floor. CPU, memory and process-count caps are unset by default.
+Limits may only tighten the existing session ceilings;
 retained must be at least active. Runtime is 0..31536000 seconds, zero unlimited.
 Disk floor zero explicitly disables that guard. Startup rejects invalid policy,
 unknown fields and null. Optional cpu_percent (0..100), memory_bytes (zero or >=16 MiB),
@@ -192,6 +193,25 @@ A generic non-closeable io.Writer cannot be forcibly unblocked. Clean EOF still
 drains accepted calls; disconnect never owns daemon task cancellation.
 
 Output pages retain byte `offset/start_offset/next_offset` semantics. Optional `resync_required` signals expired/future cursors without changing old clients receiving an empty page for future offsets. Close is idempotent and wakes waiters. Event recovery is bounded to 256 KiB/1024 entries and validates Session IDs, strictly increasing revisions and overflow. Corrupt journals fail loading and remain intact; no ledger/output/activity history is deleted automatically to repair state.
+
+### Client compatibility
+
+| Client input | Host behavior |
+| --- | --- |
+| `Nimote-Host-Protocol: 1` | An authenticated, authorized request passes the protocol check. A missing header or a different value receives HTTP 426. The Host release version is separate from the protocol. |
+| Missing or unfamiliar entries in `features` | Enable optional calls and fields only when the corresponding known feature is advertised as true. Clients can ignore unfamiliar response fields. |
+| Extra field in a request decoded by the strict JSON handler, for example `unknown_option` | Host returns HTTP 400. Send new request fields only after checking the relevant capability. |
+| Request key on an operation using the mutation ledger | Legacy keys up to 128 bytes retain their receipts. Generate `v2.<unix-seconds>.<64 lowercase hex characters>` only when `mutation_expiry_v1` is true. Versioned keys at least seven days old or more than five minutes ahead are rejected. Retry with the original key and payload. Operations that allow an omitted key provide no deduplication for that call. |
+
+### Session retention and deletion
+
+Session metadata, output, activity and task artifacts may contain private
+commands, paths or data. Deleting a completed session removes its session files.
+If cleanup fails, some auxiliary files may already be gone. The session remains
+listed and deletion can be retried after fixing the filesystem error, including
+after restarting Host. Deletion preserves the shared metadata event journal
+and mutation receipts used to prevent replay. Agent-owned history and workspace
+files have their own lifetimes.
 
 ### Explicit state recovery
 

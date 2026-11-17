@@ -25,14 +25,15 @@ func TestBilingualDocumentation(t *testing.T) {
 	}
 	link := regexp.MustCompile(`\]\(([^)]+)\)`)
 	for _, pair := range pairs {
-		for _, name := range pair {
+		for i, name := range pair {
 			path := filepath.Join(root, filepath.FromSlash(name))
 			data, err := os.ReadFile(path)
 			if err != nil {
 				t.Fatal(err)
 			}
 			text := string(data)
-			if !strings.Contains(text, "English") || !strings.Contains(text, "\u7b80\u4f53\u4e2d\u6587") {
+			other := pair[1-i]
+			if !strings.Contains(text, "]("+other+")") {
 				t.Errorf("%s has no language navigation", name)
 			}
 			for _, match := range link.FindAllStringSubmatch(text, -1) {
@@ -59,7 +60,7 @@ func TestFeatureDocumentationLayout(t *testing.T) {
 		if entry.Name() == "nimotehost.png" || entry.Name() == "nimotehost-rounded.png" {
 			continue
 		} // Original brand artwork, not a feature document.
-		if entry.IsDir() && entry.Name() == "plugin-system" {
+		if entry.IsDir() && (entry.Name() == "plugin-system" || entry.Name() == "open-source-audit") {
 			continue
 		}
 		if entry.IsDir() {

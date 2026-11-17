@@ -2,6 +2,10 @@
 
 The source artwork is `assets/nimotehost.png`. The master and app icons use the newly generated cat-and-N mark on a dark background.
 
+Forks can identify their origin with “based on NimoteHost.” Use a distinct
+name and icon to avoid suggesting an official Nimote release. See the
+[project notice](../../../NOTICE) for the scope of the trademark grant.
+
 - `icon-master.png`: full-resolution master.
 - `icon.png`: 1024 × 1024 app icon; copied to `assets/nimotehost-rounded.png`.
 - `icon-256.png`, `brand-128.png`, `tray-64.png`: runtime sizes.

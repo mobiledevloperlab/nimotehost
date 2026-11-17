@@ -16,6 +16,20 @@ import (
 	"strings"
 )
 
+// Upstream notices for resources and native code included in the desktop build.
+var guiNestedNotices = map[string][]string{
+	"fyne.io/fyne/v2": {
+		"theme/font/LICENSE.txt",
+		"theme/font/LICENSE_DejaVu-Powerline.txt",
+		"theme/font/LICENSE_Inter.txt",
+		"theme/font/LICENSE_EmojiOneColor.txt",
+	},
+	"github.com/go-gl/glfw/v3.4/glfw": {"glfw/LICENSE.md"},
+	"github.com/go-text/typesetting":  {"harfbuzz/LICENSE"},
+	// The root license for this graph dependency refers to these texts.
+	"github.com/golang/freetype": {"licenses/ftl.txt", "licenses/gpl.txt"},
+}
+
 // GUI distribution targets have native desktop SDKs and CI runners.
 func validateGUITarget(targetOS, arch string) error {
 	if err := validate(targetOS, arch, "1.0.0"); err != nil {
@@ -130,6 +144,7 @@ func buildGUI(targetOS, arch, version string) error {
 			continue
 		}
 		manifest = append(manifest, map[string]string{"module": mod.Path, "version": mod.Version})
+		noticeDir := filepath.Join(output, "licenses-gui", filepath.FromSlash(mod.Path+"@"+mod.Version))
 		entries, err := os.ReadDir(mod.Dir)
 		if err != nil {
 			return fmt.Errorf("read license for %s: %w", mod.Path, err)
@@ -139,7 +154,7 @@ func buildGUI(targetOS, arch, version string) error {
 			upper := strings.ToUpper(entry.Name())
 			if !entry.IsDir() && (strings.HasPrefix(upper, "LICENSE") || strings.HasPrefix(upper, "COPYING") || strings.HasPrefix(upper, "NOTICE") || upper == "PATENTS") {
 				found = true
-				dest := filepath.Join(output, "licenses-gui", filepath.FromSlash(mod.Path+"@"+mod.Version), entry.Name())
+				dest := filepath.Join(noticeDir, entry.Name())
 				if err = copyFile(filepath.Join(mod.Dir, entry.Name()), dest); err != nil {
 					return err
 				}
@@ -147,6 +162,11 @@ func buildGUI(targetOS, arch, version string) error {
 		}
 		if !found {
 			return fmt.Errorf("GUI dependency %s has no root license; inspect upstream before release", mod.Path)
+		}
+		for _, notice := range guiNestedNotices[mod.Path] {
+			if err = copyFile(filepath.Join(mod.Dir, notice), filepath.Join(noticeDir, notice)); err != nil {
+				return fmt.Errorf("copy GUI notice %s for %s@%s: %w", notice, mod.Path, mod.Version, err)
+			}
 		}
 	}
 	data, err := json.MarshalIndent(manifest, "", "  ")
