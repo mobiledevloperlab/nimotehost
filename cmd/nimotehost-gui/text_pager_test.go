@@ -11,7 +11,7 @@ import (
 )
 
 func TestTextPagingPreservesUnicodeAndStyles(t *testing.T) {
-	for _, text := range []string{"", "short\ntext", strings.Repeat("中文🙂é\n", 12000), strings.Repeat("x", textPageRunes*3)} {
+	for _, text := range []string{"", "short\ntext", strings.Repeat("\u4e2d\u6587🙂é\n", 12000), strings.Repeat("x", textPageRunes*3)} {
 		segment := &widget.TextSegment{Text: text, Style: widget.RichTextStyle{TextStyle: fyne.TextStyle{Bold: true}}}
 		pages := textPages([]widget.RichTextSegment{segment})
 		var recovered strings.Builder
@@ -60,7 +60,7 @@ func TestTextPagerNavigationAndReplacement(t *testing.T) {
 func BenchmarkLongTextLayout(b *testing.B) {
 	a := newUITestApp()
 	defer a.Quit()
-	text := strings.Repeat("中文 diagnostic output line\n", 1500)
+	text := strings.Repeat("\u4e2d\u6587 diagnostic output line\n", 1500)
 	b.Run("WholeLabel", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			v := readOnlyText(text)
@@ -82,7 +82,7 @@ func BenchmarkLongTextLayout(b *testing.B) {
 func TestPlainTextPagingRemainsSelectable(t *testing.T) {
 	a := newUITestApp()
 	defer a.Quit()
-	text := strings.Repeat("selectable 中文\n", 2000)
+	text := strings.Repeat("selectable \u4e2d\u6587\n", 2000)
 	p := newPlainTextPager(text)
 	var recovered strings.Builder
 	for i := range p.pages {
@@ -121,7 +121,7 @@ func TestLongReaderCopyIncludesEveryPage(t *testing.T) {
 	m, _ := newMessages("en")
 	u := &managerWindow{app: a, window: w, messages: m}
 	w.Resize(fyne.NewSize(960, 640))
-	text := strings.Repeat("中文 output\n", 3000)
+	text := strings.Repeat("\u4e2d\u6587 output\n", 3000)
 	u.showReader("Details", text)
 	var copy *widget.Button
 	visitObjects(w.Canvas().Overlays().Top(), func(obj fyne.CanvasObject) {

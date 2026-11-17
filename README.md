@@ -15,6 +15,23 @@ outstanding; see
 Current functionality: [completed](docs/completed.md) and [pending](docs/pending.md).
 Hardening decisions and verification: [audit](docs/host-hardening.md) and [test results](docs/host-hardening-tests.md).
 
+## GitHub build artifacts
+
+[Host CI](.github/workflows/ci.yml) runs on pushes, pull requests and manual dispatch.
+Download packages from the run's **Artifacts** section. Pushing a `v*` tag publishes
+packages to GitHub Releases after all required checks pass.
+
+| Platform | CLI | Desktop |
+| --- | --- | --- |
+| macOS | x64, ARM64 | x64, ARM64 |
+| Linux | x86 (386), x64, ARM64 | x64, ARM64 |
+| Windows | x86 (386), x64, ARM64 | x64, ARM64 |
+
+Desktop packages use native runners and include the CLI, dependency licenses and
+SHA-256 checksums. Linux desktop targets glibc 2.35 or newer. ARM means ARM64;
+32-bit ARM and 32-bit desktop packages are not supported. macOS packages are unsigned
+and not notarized. See the [release audit](OPEN_SOURCE_REVIEW.md) before publishing.
+
 ## Agent upstream monitoring
 
 The [compatibility workflow](.github/workflows/agent-compatibility.yml) checks upstream releases
@@ -24,7 +41,7 @@ checks real structured session initialization, runs existing Host Agent/protocol
 Codex JSON Schema. It sends no prompts and makes no model calls. Claude Agent SDK, ACP SDK,
 and ACP Go SDK releases are also watched without automatically updating project dependencies.
 
-Push to the private repository's default branch, enable Actions and Issues, and manually run
+Push to the repository's default branch, enable Actions and Issues, and manually run
 `Agent compatibility monitor` to establish a baseline. Subscribe to the issue it creates;
 subsequent updates post comments, with email delivery controlled by your GitHub notification settings.
 A failed version snapshot is retried once; use the manual `force` option for further retries.

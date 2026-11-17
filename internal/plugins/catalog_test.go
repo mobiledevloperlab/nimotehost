@@ -61,7 +61,7 @@ func setCatalogTransport(t *testing.T, c *Catalog, entry CatalogEntry, manifest,
 		}
 		var raw []byte
 		switch req.URL.Path {
-		case "/mobiledevloperlab/nimotehost/main/plugin-catalog/index.json":
+		case "/mobiledevloperlab/nimotehost/master/plugin-catalog/index.json":
 			raw = index
 		case "/author/echo/releases/download/v1.0.0/echo.manifest.json":
 			raw = manifest

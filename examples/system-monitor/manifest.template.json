@@ -3,7 +3,7 @@
   "id": "system-monitor",
   "version": "1.0.0",
   "publisher": "Nimote contributors (local UI demo)",
-  "source": "https://github.com/mobiledevloperlab/nimotehost/tree/main/examples/system-monitor",
+  "source": "https://github.com/mobiledevloperlab/nimotehost/tree/master/examples/system-monitor",
   "entrypoint": "plugin",
   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
   "platforms": [
@@ -17,8 +17,8 @@
       "name": "snapshot",
       "kind": "tool",
       "version": "1.0.0",
-      "title": "系统信息监测 · UI Demo",
-      "description": "只读系统快照与 500 行模拟数据；测试多标签、响应式布局、嵌套表单、表格和详情联动。",
+      "title": "System Monitor - UI Demo",
+      "description": "Read-only system snapshots and 500 simulated rows; exercises tabs, responsive layouts, nested forms, tables and linked details.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -29,7 +29,7 @@
               "demo"
             ],
             "default": "live",
-            "description": "live 读取本机；demo 生成 500 行模拟数据"
+            "description": "live reads the local system; demo generates 500 simulated rows"
           },
           "limit": {
             "type": "integer",
@@ -41,7 +41,7 @@
             "type": "string",
             "maxLength": 128,
             "default": "",
-            "description": "进程名称包含此文本，忽略大小写"
+            "description": "Case-insensitive process name filter"
           },
           "sort": {
             "type": "string",
@@ -206,9 +206,9 @@
             },
             "snapshot": {
               "mode": "demo",
-              "captured_at": "尚未采样",
+              "captured_at": "Not sampled yet",
               "summary": {
-                "status": "点击“采集本机快照”开始，或生成 500 行模拟压力数据"
+                "status": "Select Collect local snapshot or generate 500 simulated rows"
               },
               "metrics": [],
               "processes": [],
@@ -276,27 +276,27 @@
           },
           "root": {
             "type": "column",
-            "label": "系统监测工作台",
+            "label": "System monitor workspace",
             "children": [
               {
                 "type": "text",
-                "text": "SYSTEM MONITOR / 系统信息监测"
+                "text": "SYSTEM MONITOR"
               },
               {
                 "type": "text",
-                "text": "按需采样 · 只读快照 · 复杂 UI 交互测试"
+                "text": "On-demand sampling - read-only snapshots - complex UI interaction tests"
               },
               {
                 "type": "responsive",
                 "children": [
                   {
                     "type": "button",
-                    "label": "采集本机快照",
+                    "label": "Collect local snapshot",
                     "action": "live"
                   },
                   {
                     "type": "button",
-                    "label": "生成 500 行模拟压力数据",
+                    "label": "Generate 500 simulated rows",
                     "action": "demo"
                   }
                 ]
@@ -306,11 +306,11 @@
                 "children": [
                   {
                     "type": "column",
-                    "label": "总览",
+                    "label": "Overview",
                     "children": [
                       {
                         "type": "detail",
-                        "label": "采样状态与设备",
+                        "label": "Sampling status and device",
                         "source": "/state/snapshot/summary"
                       },
                       {
@@ -318,7 +318,7 @@
                         "children": [
                           {
                             "type": "table",
-                            "label": "资源指标",
+                            "label": "Resource metrics",
                             "source": "/state/snapshot/metrics",
                             "columns": [
                               "metric",
@@ -330,27 +330,27 @@
                           },
                           {
                             "type": "detail",
-                            "label": "所选指标详情",
+                            "label": "Selected metric details",
                             "source": "/state/metricSelection"
                           }
                         ]
                       },
                       {
                         "type": "group",
-                        "label": "采集说明",
+                        "label": "Collection notes",
                         "children": [
                           {
                             "type": "text",
-                            "text": "本机模式使用 ps / df 和系统网络接口。CPU 为进程平均 CPU 合计，可超过 100%；不表示整机瞬时占用。"
+                            "text": "Live mode uses ps / df and system network interfaces. CPU totals average process CPU and may exceed 100%; it is not instantaneous system utilization."
                           },
                           {
                             "type": "detail",
-                            "label": "来源",
+                            "label": "Source",
                             "source": "/state/snapshot/mode"
                           },
                           {
                             "type": "detail",
-                            "label": "采样时间 UTC",
+                            "label": "Sample time UTC",
                             "source": "/state/snapshot/captured_at"
                           }
                         ]
@@ -361,11 +361,11 @@
                         "children": [
                           {
                             "type": "group",
-                            "label": "数据来源与可用性提示",
+                            "label": "Data sources and availability",
                             "children": [
                               {
                                 "type": "detail",
-                                "label": "提示",
+                                "label": "Notes",
                                 "source": "/state/snapshot/warnings"
                               }
                             ]
@@ -376,18 +376,18 @@
                   },
                   {
                     "type": "column",
-                    "label": "进程",
+                    "label": "Processes",
                     "children": [
                       {
                         "type": "text",
-                        "text": "搜索、数字排序、20 行分页；点击行查看完整详情。新快照不会改变已选详情，请重新选行。"
+                        "text": "Search, numeric sorting and 20-row pages. Select a row for full details. New snapshots preserve the selected details; select a row again to update them."
                       },
                       {
                         "type": "responsive",
                         "children": [
                           {
                             "type": "table",
-                            "label": "进程列表",
+                            "label": "Process list",
                             "source": "/state/snapshot/processes",
                             "columns": [
                               "pid",
@@ -400,11 +400,11 @@
                           },
                           {
                             "type": "group",
-                            "label": "进程详情",
+                            "label": "Process details",
                             "children": [
                               {
                                 "type": "detail",
-                                "label": "所选快照行",
+                                "label": "Selected snapshot row",
                                 "source": "/state/processSelection"
                               }
                             ]
@@ -415,18 +415,18 @@
                   },
                   {
                     "type": "column",
-                    "label": "网络与趋势",
+                    "label": "Network and trends",
                     "children": [
                       {
                         "type": "responsive",
                         "children": [
                           {
                             "type": "column",
-                            "label": "网络接口",
+                            "label": "Network interfaces",
                             "children": [
                               {
                                 "type": "table",
-                                "label": "接口信息",
+                                "label": "Interface information",
                                 "source": "/state/snapshot/network",
                                 "columns": [
                                   "name",
@@ -438,11 +438,11 @@
                               },
                               {
                                 "type": "group",
-                                "label": "接口详情",
+                                "label": "Interface details",
                                 "children": [
                                   {
                                     "type": "detail",
-                                    "label": "所选接口",
+                                    "label": "Selected interface",
                                     "source": "/state/networkSelection"
                                   }
                                 ]
@@ -451,15 +451,15 @@
                           },
                           {
                             "type": "column",
-                            "label": "趋势样本",
+                            "label": "Trend samples",
                             "children": [
                               {
                                 "type": "text",
-                                "text": "趋势为 60 个模拟样本，仅用于排序、分页和布局测试；本机模式为空。"
+                                "text": "Trends contain 60 simulated samples for sorting, pagination and layout tests. Empty in live mode."
                               },
                               {
                                 "type": "table",
-                                "label": "模拟历史",
+                                "label": "Simulated history",
                                 "source": "/state/snapshot/history",
                                 "columns": [
                                   "sample",
@@ -471,11 +471,11 @@
                               },
                               {
                                 "type": "group",
-                                "label": "样本详情",
+                                "label": "Sample details",
                                 "children": [
                                   {
                                     "type": "detail",
-                                    "label": "所选样本",
+                                    "label": "Selected sample",
                                     "source": "/state/historySelection"
                                   }
                                 ]
@@ -488,18 +488,18 @@
                   },
                   {
                     "type": "column",
-                    "label": "告警",
+                    "label": "Alerts",
                     "children": [
                       {
                         "type": "text",
-                        "text": "按所采集进程的 CPU / 内存阈值生成，不过滤掉未显示的超限进程。"
+                        "text": "Generated from collected process CPU / memory thresholds, including processes outside the displayed subset."
                       },
                       {
                         "type": "responsive",
                         "children": [
                           {
                             "type": "table",
-                            "label": "超限进程",
+                            "label": "Processes exceeding thresholds",
                             "source": "/state/snapshot/alerts",
                             "columns": [
                               "severity",
@@ -511,7 +511,7 @@
                           },
                           {
                             "type": "detail",
-                            "label": "告警详情",
+                            "label": "Alert details",
                             "source": "/state/alertSelection"
                           }
                         ]
@@ -520,32 +520,32 @@
                   },
                   {
                     "type": "column",
-                    "label": "采样设置",
+                    "label": "Sampling settings",
                     "children": [
                       {
                         "type": "text",
-                        "text": "提交表单立即采集。可切换 live / demo、行数上限、进程名称过滤、排序、采集范围和阈值。"
+                        "text": "Submit to sample immediately. Configure live / demo mode, row limit, process name filter, sorting, collection scope and thresholds."
                       },
                       {
                         "type": "form",
-                        "label": "配置并采样",
+                        "label": "Configure and sample",
                         "action": "live"
                       },
                       {
                         "type": "group",
-                        "label": "预设参数",
+                        "label": "Presets",
                         "children": [
                           {
                             "type": "responsive",
                             "children": [
                               {
                                 "type": "detail",
-                                "label": "本机预设",
+                                "label": "Local preset",
                                 "source": "/state/live"
                               },
                               {
                                 "type": "detail",
-                                "label": "模拟预设",
+                                "label": "Demo preset",
                                 "source": "/state/demo"
                               }
                             ]
@@ -556,15 +556,15 @@
                   },
                   {
                     "type": "column",
-                    "label": "原始快照",
+                    "label": "Raw snapshot",
                     "children": [
                       {
                         "type": "text",
-                        "text": "用于检查嵌套 JSON、Unicode、长文本、空数组和 null。"
+                        "text": "Inspect nested JSON, Unicode, long text, empty arrays and nulls."
                       },
                       {
                         "type": "group",
-                        "label": "完整响应",
+                        "label": "Complete response",
                         "children": [
                           {
                             "type": "detail",

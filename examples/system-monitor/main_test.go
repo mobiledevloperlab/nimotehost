@@ -44,7 +44,7 @@ func TestManifestAndSnapshotContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, payload := range []string{`{}`, `{"mode":"demo","limit":500}`, `{"mode":"demo","limit":21,"filter":"编译","sort":"memory"}`, `{"mode":"demo","sections":{"processes":false,"network":false}}`} {
+	for _, payload := range []string{`{}`, `{"mode":"demo","limit":500}`, `{"mode":"demo","limit":21,"filter":"build-worker","sort":"memory"}`, `{"mode":"demo","sections":{"processes":false,"network":false}}`} {
 		var value any
 		json.Unmarshal([]byte(payload), &value)
 		if err = in.Validate(value); err != nil {
@@ -75,7 +75,7 @@ func TestDemoFilteringAndBounds(t *testing.T) {
 	if len(s.Processes) != 500 || len(s.History) != 60 || len(s.Alerts) == 0 || !s.HasWarnings {
 		t.Fatal("missing pressure data")
 	}
-	o.Filter = "编译"
+	o.Filter = "build-worker"
 	o.Sort = "memory"
 	o.Limit = 21
 	s = collect(context.Background(), o)

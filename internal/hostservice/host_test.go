@@ -235,7 +235,7 @@ func decodeTaskXML(t *testing.T, data []byte) string {
 }
 
 func TestWindowsTaskEncodingPreservesUnicode(t *testing.T) {
-	document := `<?xml version="1.0" encoding="UTF-16"?><Command>C:\用户 空格\工具🚀\nimotehost.exe</Command>`
+	document := `<?xml version="1.0" encoding="UTF-16"?><Command>C:\` + "\u7528\u6237 \u7a7a\u683c" + `\` + "\u5de5\u5177\U0001f680" + `\nimotehost.exe</Command>`
 	if actual := decodeTaskXML(t, encodeTaskXML(document)); actual != document {
 		t.Fatalf("task XML changed: %q", actual)
 	}

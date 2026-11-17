@@ -30,7 +30,7 @@ func TestBilingualDocumentation(t *testing.T) {
 				t.Fatal(err)
 			}
 			text := string(data)
-			if !strings.Contains(text, "English") || !strings.Contains(text, "简体中文") {
+			if !strings.Contains(text, "English") || !strings.Contains(text, "\u7b80\u4f53\u4e2d\u6587") {
 				t.Errorf("%s has no language navigation", name)
 			}
 			for _, match := range link.FindAllStringSubmatch(text, -1) {
@@ -68,7 +68,7 @@ func TestFeatureDocumentationLayout(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(data), "English") || !strings.Contains(string(data), "简体中文") {
+		if !strings.Contains(string(data), "English") || !strings.Contains(string(data), "\u7b80\u4f53\u4e2d\u6587") {
 			t.Fatalf("%s must document the current state in both languages", entry.Name())
 		}
 	}
