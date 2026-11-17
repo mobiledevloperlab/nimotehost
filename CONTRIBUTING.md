@@ -1,6 +1,6 @@
 # Contributing
 
-**English** | [简体中文](CONTRIBUTING.zh-CN.md)
+**English** | [Simplified Chinese](CONTRIBUTING.zh-CN.md)
 
 Use Go 1.26.5 or later. Work from the Host module root:
 

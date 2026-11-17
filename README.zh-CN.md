@@ -1,6 +1,6 @@
 # NimoteHost
 
-[English](README.md) | **简体中文**
+[英文版](README.md) | **简体中文**
 
 NimoteHost 是通过既有认证 SSH 使用的独立 Go 服务，可托管持久任务、终端和已安装的
 编程 Agent CLI。Host 只监听本机回环地址，所有 RPC 请求均需认证，无需 Nimote 账号、
@@ -14,8 +14,8 @@ NimoteHost 是通过既有认证 SSH 使用的独立 Go 服务，可托管持久
 
 ## GitHub 自动构建
 
-[Host CI](.github/workflows/ci.yml) 在 push、PR 和手动触发时编译，可从运行页面的
-**Artifacts** 下载。推送 `v*` 标签后，全部必要检查通过才会发布到 GitHub Releases。
+[Host CI](.github/workflows/ci.yml) 在推送、拉取请求和手动触发时编译，可从运行页面的
+构建产物区（`Artifacts`）下载。推送 `v*` 标签后，全部必要检查通过才会发布到 GitHub Releases。
 
 | 系统 | CLI | 桌面包 |
 | --- | --- | --- |
@@ -23,7 +23,7 @@ NimoteHost 是通过既有认证 SSH 使用的独立 Go 服务，可托管持久
 | Linux | x86（386）、x64、ARM64 | x64、ARM64 |
 | Windows | x86（386）、x64、ARM64 | x64、ARM64 |
 
-桌面版使用原生 runner，附 CLI、依赖许可证和 SHA-256 校验值。Linux 桌面版要求
+桌面版使用原生运行器，附 CLI、依赖许可证和 SHA-256 校验值。Linux 桌面版要求
 至少 glibc 2.35。ARM 指 ARM64，暂不提供 32 位 ARM 或 32 位桌面包。
 macOS 包尚未签名或公证。发布前参阅[开源检查记录](OPEN_SOURCE_REVIEW.md)。
 
@@ -32,19 +32,19 @@ macOS 包尚未签名或公证。发布前参阅[开源检查记录](OPEN_SOURCE
 [兼容性监测工作流](.github/workflows/agent-compatibility.yml)每 6 小时运行一次
 （UTC 00:23、06:23、12:23、18:23）。首次运行或上游版本变化时，临时安装指定版本的
 Codex、OpenCode、Claude ACP 适配器和 Claude Code，检查真实结构化会话初始化、
-运行 Host 现有 Agent/协议/审批回归测试，并导出 Codex JSON Schema；不发送 prompt、不调用模型。
+运行 Host 现有 Agent/协议/审批回归测试，并导出 Codex JSON Schema；不发送提示词、不调用模型。
 同时监测 Claude Agent SDK、ACP SDK 和 ACP Go SDK 的最新发布，但不会自动升级项目依赖。
 
 推送到 GitHub 仓库的默认分支后，开启 Actions 和 Issues，在 Actions 中手动运行
 `Agent compatibility monitor` 建立基线，然后订阅自动创建的 Issue。
 后续版本变化和检查结果会以评论通知；邮件由 GitHub 通知设置决定。
 失败的同一组版本自动重试一次，之后可手动勾选 `force` 重跑。普通无变化轮询不安装 CLI 或运行测试。
-工作流无需额外 secret，使用内置 `GITHUB_TOKEN`；仅报告任务有 Issues 写权限。
+工作流无需额外密钥，使用内置 `GITHUB_TOKEN`；仅报告任务有 Issues 写权限。
 
 检查通过只代表 Linux 上的初始化和现有模拟协议回归通过，完整审批、流式响应及恢复仍需真实模型验收。
 检查失败也可能来自网络、安装或认证，需查看日志；SDK 最新版仅作为变更信号，实际检查使用
-适配器解析出的依赖及仓库锁定的 Go SDK。Schema 保存为 artifact，尚未自动判断语义差异。
-日志和 Schema 保留 7 天。定时运行可能延迟；免费额度由账户共享，需在 GitHub Billing 中
+适配器解析出的依赖及仓库锁定的 Go SDK。模式定义保存为构建产物，尚未自动判断语义差异。
+日志和模式定义保留 7 天。定时运行可能延迟；免费额度由账户共享，需在 GitHub Billing 中
 配置 Actions 预算及超额停止，工作流本身无法保证零费用。删除 Issue 的隐藏状态会中断基线读取。
 
 ## CPU 架构
@@ -58,13 +58,13 @@ Codex、OpenCode、Claude ACP 适配器和 Claude Code，检查真实结构化�
 `amd64` 是 Intel/AMD 的 64 位 x86，`arm64` 是 64 位 ARM（包括 Apple Silicon）。
 `386` 是传统 32 位 x86，仅提供 CLI；macOS 没有 32 位构建目标。
 32 位 ARM 不在当前发行矩阵内。同一分发包中的 CLI 与 GUI 必须匹配目标架构。
-GUI CI 配置六个具备桌面 SDK 的原生 runner；仅 CLI 交叉构建通过不代表 GUI 或交互已验收。
+GUI CI 配置六个具备桌面 SDK 的原生运行器；仅 CLI 交叉构建通过不代表 GUI 或交互已验收。
 Windows ARM64 使用 MSYS2 CLANGARM64（`CC=clang`、`CXX=clang++`），不能复用 x64 MinGW 编译器，
 参见 [MSYS2 ARM64](https://www.msys2.org/docs/arm64/)。
 
 ## 部署预编译版本
 
-普通用户无需安装 Go。按照[已实现的安装与服务说明](docs/completed.md#安装与服务--installation)校验完整分发包、
+普通用户无需安装 Go。按照[已实现的安装与服务说明](docs/completed.md#installation-and-services)校验完整分发包、
 复制到固定目录、配置当前用户后台服务，再通过 SSH 验证访问。
 
 ## 一键安装
@@ -77,7 +77,7 @@ sh scripts/install.sh
 
 也可跨平台直接运行 `go run ./tools/install`（源码安装）。Windows PowerShell 使用 `.\scripts\install.ps1`。安装器校验完整包、复制到固定用户
 目录、注册后台服务并确认就绪；重复执行不重启正常服务。升级保留旧包，并拒绝
-中断活动任务。系统前置条件、旧预览版升级及恢复见[安装与服务说明](docs/completed.md#安装与服务--installation)。
+中断活动任务。系统前置条件、旧预览版升级及恢复见[安装与服务说明](docs/completed.md#installation-and-services)。
 
 ## 构建与运行
 
@@ -181,7 +181,7 @@ go vet ./...
 第三方组件保留各自许可证，见[第三方声明](THIRD_PARTY_NOTICES.zh-CN.md)。许可证和上游
 授权文本保留英文原文；中文说明不替代这些原文。
 
-## Fyne 桌面管理器 / Desktop
+## Fyne 桌面管理器
 
 命令和分发包统一命名为 `nimotehost`，GUI 显示 `NimoteHost`。
 升级前先关闭旧 GUI，再从完整包运行 `nimotehost setup`。安装器通过已认证的空闲停止
@@ -191,7 +191,7 @@ go vet ./...
 强制命令绝对路径需改用 `nimotehost.exe`。旧拼写仅用于升级兼容。
 
 CLI 与 GUI 复用现有 Go Host、认证本地 RPC 和三平台用户服务；Fyne 在
-`cmd/nimotehost-gui` 独立 module 中，CLI 不引入图形依赖。
+`cmd/nimotehost-gui` 独立模块中，CLI 不引入图形依赖。
 
 ```sh
 go run ./tools/build -gui -version 2.4.0
@@ -203,40 +203,39 @@ GUI、完整许可证、GUI-MODULES.json 和校验清单；原 CLI 发行包继�
 从解压包运行原安装脚本，会把整个包复制到固定目录并启动用户服务：Unix 为
 `~/.local/share/nimotehost`，Windows 为 `%LOCALAPPDATA%/NimoteHost`。
 随后打开安装目录中的 Windows `nimotehost-gui.exe`、macOS `NimoteHost.app`、
-Linux `nimotehost-gui`。Linux desktop 文件需 GUI 在 PATH，或把 Exec 改为绝对路径。
+Linux `nimotehost-gui`。Linux 桌面入口文件要求 GUI 位于 PATH 中，或将其 Exec 字段改为绝对路径。
 也可从 `dist/gui-<系统>-<架构>` 直接运行；启用登录启动后不要移动此目录。
 
-界面保留 Overview、Sessions、Devices、Settings 四个主要入口。首屏显示服务状态和主要操作；
-会话按名称、工作区和可读状态展示，支持搜索、筛选，历史对话位于 Sessions → Past conversations。
+界面保留概览、会话、设备、设置四个主要入口。首屏显示服务状态和主要操作；
+会话按名称、工作区和可读状态展示，支持搜索、筛选，历史对话位于会话页的历史对话入口。
 设置页按常规、本地服务和关于分组；本地服务中可直接启停 Host、编辑端口与日志级别，
 采用银灰浅色与深色外观、统一圆角和间距；支持端口校验、未保存提示、撤销修改与固定保存栏。
 切换界面语言会保留配置草稿和会话筛选。历史对话支持展开阅读；详情可选择、复制，诊断与日志使用大面积分页视图。
 关于页说明与 NimoteCode 的分工、SSH 使用方式、本地数据、第三方 Agent 数据边界及外观。
 快捷键：macOS 使用 ⌘，Windows/Linux 使用 Ctrl；1–4 切换页面、逗号打开设置、F 搜索会话、R 刷新状态。
-诊断位于 Help & diagnostics；审批仍展示实际命令与文件修改。
-Settings → Language 支持英语、简体中文、西班牙语、日语、韩语和俄语，默认英语；
+诊断位于帮助与诊断入口；审批仍展示实际命令与文件修改。
+设置页的语言选项支持英语、简体中文、西班牙语、日语、韩语和俄语，默认英语；
 切换语言立即生效并持久保存，不重启 Host。Fyne 使用系统字体，Linux 的中日韩显示需安装
 相应字体，例如 `fonts-noto-cjk`。
 配置复用 OS 用户配置目录下的 `nimotehost/config.json`，默认 `127.0.0.1:47831`，
 修改端口和日志级别前需停止 Host。GUI 语言、主题与 Linux 托盘偏好由 Fyne 单独持久化。
 
 Windows/macOS 关闭窗口隐藏到托盘；Linux 默认关闭窗口仅退出 GUI，确认有托盘支持
-后可在设置启用。退出 GUI 不停止 Host、SSH 或后台任务；明确 Stop/Restart 才结束
-Host 任务。完整控制仍依赖 SSH 系统账号；Devices 已支持独立只读设备身份和撤销，
+后可在设置启用。退出 GUI 不停止 Host、SSH 或后台任务；明确停止或重启才结束
+Host 任务。完整控制仍依赖 SSH 系统账号；设备页已支持独立只读设备身份和撤销，
 不自动改写 SSH 密钥。SSH 由系统管理，诊断不猜测其健康状态。
 详细审计、构建依赖和限制见[已完成](docs/completed.md#desktop-architecture-audit)，
 原生平台与手机验收见[待完成](docs/pending.md)。
 
-## Device authorization / 设备授权补充
+## 设备授权
 
-GUI Devices 和 `nimotehost devices add <name>` 可注册独立只读设备，
+图形界面的设备页和 `nimotehost devices add <name>` 可注册独立只读设备，
 `nimotehost devices list` 列出设备，`nimotehost devices revoke <id>` 撤销。
 管理员须把独立 SSH 公钥绑定到 `restrict` + `device-bridge` 强制命令；
 不能同时给这把密钥普通 Shell 登录权限。凭证不发送给手机，撤销针对后续 Host 请求生效。
 完整 SSH/任务执行权限仍属于系统账号，不受只读设备撤销隔离。
-Observer identities use restricted SSH keys, not unrestricted same-user shell access.
-设备注册及绑定方法、安全边界见 [设备授权说明](docs/completed.md#只读设备授权历史与更新入口--observer-devices-history-and-updates)。
-Sessions → Past conversations 已接入原生历史查询/恢复；Settings 可查询最新官方版本并打开下载入口。
+设备注册及绑定方法、安全边界见 [设备授权说明](docs/completed.md#observer-devices-history-and-updates)。
+会话页中的历史对话已接入原生历史查询与恢复；设置页可查询最新官方版本并打开下载入口。
 
 ## 社区插件
 

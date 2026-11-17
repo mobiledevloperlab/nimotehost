@@ -1,6 +1,6 @@
 # NimoteHost
 
-**English** | [简体中文](README.zh-CN.md)
+**English** | [Simplified Chinese](README.zh-CN.md)
 
 A standalone Go runtime for persistent tasks, terminals and installed coding
 agent CLIs over an existing authenticated SSH connection. Host listens only on
@@ -74,7 +74,7 @@ x64 MinGW compiler. See [MSYS2 ARM64](https://www.msys2.org/docs/arm64/).
 
 ## Deploy a prebuilt release
 
-End users do not need Go. See [implemented installation and service behavior](docs/completed.md#安装与服务--installation)
+End users do not need Go. See [implemented installation and service behavior](docs/completed.md#installation-and-services)
 for bundle verification, stable installation paths and the per-user service commands.
 
 ## One-command installation
@@ -89,7 +89,7 @@ For source installation, `go run ./tools/install` also works across platforms.
 Windows PowerShell: `.\scripts\install.ps1`. The installer verifies the full bundle,
 installs to a fixed user directory, starts the service and checks readiness.
 Repeating a healthy installation does not restart it. Updates preserve the old
-bundle and refuse to interrupt active tasks. See [implemented installation behavior](docs/completed.md#安装与服务--installation)
+bundle and refuse to interrupt active tasks. See [implemented installation behavior](docs/completed.md#installation-and-services)
 for prerequisites, older preview upgrades and recovery.
 
 ## Build and run
@@ -177,7 +177,7 @@ and appearance. Shortcuts use Cmd on macOS or Ctrl on Windows/Linux: 1–4 switc
 pages, comma opens Settings, F searches sessions, and R refreshes status. Command and file-change approvals still show their actual
 content before you decide.
 
-Choose English, 简体中文, Español, 日本語, 한국어 or Русский in Settings → Language.
+Choose English, Simplified Chinese, Spanish, Japanese, Korean or Russian in Settings → Language.
 English is the default; language changes apply immediately and persist without
 restarting Host. Fyne uses installed system fonts; Linux needs suitable CJK fonts
 (such as `fonts-noto-cjk`) for Chinese, Japanese and Korean.
@@ -227,16 +227,18 @@ to this standalone Host source tree, extracted from `nimote-connect/host` at
 Connect commit `4701d14`. Third-party components retain their own
 licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-## Device authorization / 设备授权补充
+## Device authorization
 
-GUI Devices 和 `nimotehost devices add <name>` 可注册独立只读设备，
-`nimotehost devices list` 列出设备，`nimotehost devices revoke <id>` 撤销。
-管理员须把独立 SSH 公钥绑定到 `restrict` + `device-bridge` 强制命令；
-不能同时给这把密钥普通 Shell 登录权限。凭证不发送给手机，撤销针对后续 Host 请求生效。
-完整 SSH/任务执行权限仍属于系统账号，不受只读设备撤销隔离。
-Observer identities use restricted SSH keys, not unrestricted same-user shell access.
-设备注册及绑定方法、安全边界见 [设备授权说明](docs/completed.md#只读设备授权历史与更新入口--observer-devices-history-and-updates)。
-GUI History 已接入原生历史查询/恢复；Settings 可查询最新官方版本并打开下载入口。
+The GUI Devices page and `nimotehost devices add <name>` register independent
+read-only devices. Use `nimotehost devices list` to list devices and
+`nimotehost devices revoke <id>` to revoke one. Administrators must bind a unique
+SSH public key to a `restrict` option and a `device-bridge` forced command.
+Do not also grant unrestricted shell access to that key. Credentials stay on the
+Host; revocation applies to subsequent Host requests. Full SSH and task execution
+remain OS-account privileges outside read-only device revocation.
+See [device registration, key binding and security boundaries](docs/completed.md#observer-devices-history-and-updates).
+The GUI History page supports native history queries and resume. Settings can
+check the latest official version and open its download page.
 
 ## Windows portable discovery
 
