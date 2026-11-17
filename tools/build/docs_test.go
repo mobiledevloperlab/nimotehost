@@ -4,6 +4,8 @@
 package main
 
 import (
+	"go/scanner"
+	"go/token"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -68,8 +70,8 @@ func TestFeatureDocumentationLayout(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(data), "English") || !strings.Contains(string(data), "\u7b80\u4f53\u4e2d\u6587") {
-			t.Fatalf("%s must document the current state in both languages", entry.Name())
+		if containsHan(string(data)) {
+			t.Fatalf("%s must document the current state in English", entry.Name())
 		}
 	}
 	if !reflect.DeepEqual(names, []string{"completed.md", "external-agent-sessions-tests.md", "external-agent-sessions.md", "host-hardening-tests.md", "host-hardening.md", "pending.md", "plugin-ui-architecture.md", "plugin-ui-audit.md", "plugin-ui-implementation.md", "plugin-ui-protocol.md"}) {
@@ -103,5 +105,56 @@ func TestImplementedRPCReference(t *testing.T) {
 	}
 	if !reflect.DeepEqual(actual, expected) {
 		t.Fatalf("RPC documentation differs: %v", actual)
+	}
+}
+
+func containsHan(text string) bool {
+	return regexp.MustCompile(`\p{Han}`).MatchString(text)
+}
+
+func TestSubdirectoryDocumentationAndCodeCommentsUseEnglish(t *testing.T) {
+	root := filepath.Join("..", "..")
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			switch entry.Name() {
+			case ".git", ".nimote", "dist", "release", "node_modules":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		extension := filepath.Ext(path)
+		if extension != ".md" && extension != ".go" {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if extension == ".md" {
+			if filepath.Dir(path) != root && containsHan(string(data)) {
+				t.Errorf("subdirectory documentation must use English: %s", path)
+			}
+			return nil
+		}
+		fileSet := token.NewFileSet()
+		file := fileSet.AddFile(path, fileSet.Base(), len(data))
+		var source scanner.Scanner
+		source.Init(file, data, nil, scanner.ScanComments)
+		for {
+			position, kind, literal := source.Scan()
+			if kind == token.EOF {
+				break
+			}
+			if kind == token.COMMENT && containsHan(literal) {
+				t.Errorf("code comment must use English: %s", fileSet.Position(position))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

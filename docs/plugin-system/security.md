@@ -1,4 +1,4 @@
-# Security boundary — English / 简体中文
+# Security boundary
 
 **Independent processes are not a security sandbox.** Third-party binaries are
 untrusted. This release's portable execution boundary is the Host OS account,
@@ -55,10 +55,6 @@ and response bodies are intentionally visible; the plugin cannot infer all secre
 in arbitrary content. Public servers can have side effects; invocation confirmation
 is required even for GET. Network routing/NAT changes and administrator/kernel
 compromise require external network isolation, not an application URL checker.
-
-简体中文：默认禁用、明确授权、完整性校验、进程监管和应用层 SSRF 防护均已实现；
-权限声明不是 OS 沙箱。恶意同账户插件仍可读取账户文件，必须在外部隔离环境中运行。
-撤销阻止后续调用并发出终止请求，无法撤回已经完成或已发送的副作用。
 
 
 ## Online catalog boundary

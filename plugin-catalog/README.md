@@ -1,4 +1,4 @@
-# Community plugin catalog / 社区插件目录
+# Community plugin catalog
 
 **Submit metadata only. Do not submit plugin source code or binaries here.**
 
@@ -20,7 +20,3 @@ JSON URL in GUI → Plugins → Plugin catalog → Catalog sources.
 
 See [public catalog specification](../docs/plugin-system/catalog.md) and
 [catalog schema](../docs/plugin-system/spec/v1/catalog.schema.json).
-
-简体中文：开发者代码和发布包全部放在自己的 GitHub 仓库，只向此目录提交一条 JSON
-记录，包含仓库、版本、平台、Release 资产名称和 Manifest SHA256。无需提交插件源码，
-无需修改 Host 或客户端代码。当前目录为空，不虚构尚未发布的社区插件。

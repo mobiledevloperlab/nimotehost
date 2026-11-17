@@ -1,4 +1,4 @@
-# Plugin SDK — English / 简体中文
+# Plugin SDK
 
 `github.com/mobiledevloperlab/nimotehost/pkg/pluginsdk` is the public Go SDK.
 External plugins import it without depending on Host internals. Other languages
@@ -47,7 +47,3 @@ and authorization path. No automatic calls or timer refresh are defined by
 For distribution, build and verify each supported platform and follow the
 [metadata-only catalog workflow](catalog.md). The local demo does not publish a
 catalog entry or change the running Host during packaging.
-
-简体中文：复制系统监测示例，通过公开 SDK 实现能力。打包后可在 GUI 手动选择
-`manifest.json` 安装并启用。插件以当前用户权限运行，需授予 `process.same-user`；
-系统监测示例不需要网络访问授权，不执行写入系统配置或结束进程的操作。

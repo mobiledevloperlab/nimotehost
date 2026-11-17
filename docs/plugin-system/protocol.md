@@ -1,4 +1,4 @@
-# Host Capability Protocol 1.0 — English / 简体中文
+# Host Capability Protocol 1.0
 
 Normative, language-independent public contract: [spec/v1](spec/v1/README.md).
 The spec directory can be copied/versioned/published independently of Host Go
@@ -69,7 +69,3 @@ in [the catalog specification](catalog.md), gated by `plugin_catalog_v1`. Manife
 the same generic invoke/query operations. Event capabilities return schema-defined
 snapshots/batches on invoke; arbitrary unsolicited child notifications are not
 supported in v1.
-
-简体中文：HCP 1.0 使用已有 SSH RPC 安全通道，独立于 Host transport protocol 1。
-查询、调用、取消、进度及订阅均无需插件专属接口。断线不取消已接受调用；重连使用
-epoch、request_id 和结果 ID，重启后不得自动重放可能有副作用的操作。

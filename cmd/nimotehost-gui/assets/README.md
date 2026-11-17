@@ -1,9 +1,9 @@
-# NimoteHost brand assets / 品牌资源
+# NimoteHost brand assets
 
-The source artwork is `docs/nimotehost.png`. The master and app icons use the newly generated cat-and-N mark on a dark background.
+The source artwork is `assets/nimotehost.png`. The master and app icons use the newly generated cat-and-N mark on a dark background.
 
 - `icon-master.png`: full-resolution master.
-- `icon.png`: 1024 × 1024 app icon; copied to `docs/nimotehost-rounded.png`.
+- `icon.png`: 1024 × 1024 app icon; copied to `assets/nimotehost-rounded.png`.
 - `icon-256.png`, `brand-128.png`, `tray-64.png`: runtime sizes.
 - `icon.icns`, `icon.ico`: macOS and Windows icon containers.
 - `../logo_windows_{amd64,arm64}.syso`: Windows executable icon resources.

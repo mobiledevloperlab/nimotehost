@@ -1,6 +1,6 @@
 # Nimote Host Capability Protocol 1.0
 
-English / 简体中文 — Public, versioned specification, Apache-2.0.
+Public, versioned specification, Apache-2.0.
 
 This directory plus [protocol.md](../../protocol.md) defines HCP **1.0** without a
 Go dependency. Freeze this version's field meanings when publishing releases.

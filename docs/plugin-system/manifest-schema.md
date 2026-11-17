@@ -1,4 +1,4 @@
-# Manifest Schema — English / 简体中文
+# Manifest Schema
 
 The normative [JSON Schema](spec/v1/manifest.schema.json) is HCP 1.0. Build a
 platform-specific bundle using [the SDK guide](plugin-sdk.md). A bundle contains
@@ -26,6 +26,3 @@ The catalog supports explicit GitHub Release download/install using a separate
 [metadata index schema](spec/v1/catalog.schema.json). There is no signing authority
 or automatic update. Developers submit metadata only; executable code stays in
 their own repository.
-
-简体中文：Manifest 与协议作为公开 JSON 文件版本化提供。安装前审查来源并固定
-Manifest SHA256；启用时明确批准全部声明权限。更新必须先禁用，并重新批准权限。
