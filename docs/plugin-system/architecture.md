@@ -35,10 +35,11 @@ with this repository, without importing internal Go packages.
 Each enabled plugin owns a serial work queue and independent supervisor worker.
 Different plugins execute concurrently. Initialization negotiates HCP 1.0;
 health checks run every five seconds, with a two-second deadline. Startup allows
-three seconds after process creation. Failure causes at most three launch attempts
-per enable cycle, with one/two-second backoff. No invocation is retried. Explicit
-recovery from exhausted attempts requires disable/enable. Invalid installed
-packages are rejected without stopping core Host startup.
+three seconds after process creation. Launch, initialization and connection
+failures share a budget of three per enable cycle, with one- and two-second
+backoffs. Healthy time does not reset the count. Host never retries an
+invocation. Disable and re-enable the plugin to start a fresh cycle. Invalid
+installed packages are rejected without stopping core Host startup.
 
 Limits: 16 installed plugins, 64 capabilities per plugin, eight queued requests
 per plugin, 32 retained/active invocations globally, 30 seconds per invocation,

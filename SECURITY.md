@@ -21,6 +21,16 @@ assertion of a completed independent security audit or native device acceptance.
 See [the protocol and execution boundaries](docs/completed.md) for authentication,
 resource limits, terminal/agent behavior and restart semantics.
 
+## Rotate the owner token
+
+Finish active sessions and stop Host using `nimotehost stop`, or stop its
+service through the OS service manager. Close the GUI and make sure the service
+stays stopped during rotation. As the same OS account, remove the `token` file
+from the active Host state directory. Start Host as usual to generate a new
+token, then reconnect owner clients and reopen existing RPC bridges. Replace
+the credential in any integration that stores its own copy. Restricted device
+credentials and SSH keys are managed separately.
+
 ## Restricted devices
 
 Registered observer devices use independent credentials through a fixed SSH forced

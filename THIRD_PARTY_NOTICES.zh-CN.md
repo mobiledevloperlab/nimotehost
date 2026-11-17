@@ -47,6 +47,6 @@ MCP SDK 的许可证说明了 Apache-2.0 / MIT 的迁移状态；应保留其完
 
 Fyne 及其间接依赖隔离在 `cmd/nimotehost-gui/go.mod` 和 `go.sum` 中，命令行版本的
 依赖清单保持不变。桌面分发包除命令行版本的许可证外，还包含 `GUI-MODULES.json`，
-并在 `licenses-gui/` 中附带上游 LICENSE、COPYING 和 NOTICE 文件。如果某个已解析的
-桌面模块在根目录没有许可证文件，构建会失败。Fyne 采用 BSD-3-Clause；其依赖的许可
-条款以各自随附声明为准。这些图形库不会链接到命令行版本中。
+并在 `licenses-gui/` 中附带上游许可证文件，包括 Fyne 字体、HarfBuzz 和原生 GLFW 的
+独立声明，以及 FreeType 模块引用的许可文本。构建需要模块根目录的声明和清单列出的
+子目录文件。具体许可条款以各自随附声明为准。
