@@ -57,18 +57,19 @@ func lookupAgentAdapter(provider string) (agentAdapter, bool) {
 var _ agentAdapter = cliAgentAdapter{}
 
 type AgentInstallation struct {
-	CLIPath          string `json:"cli_path,omitempty"`
-	CLIDiscovered    bool   `json:"cli_discovered"`
-	History          string `json:"history"`
-	Resume           string `json:"resume"`
-	LiveAttach       bool   `json:"live_attach"`
-	LiveAttachReason string `json:"live_attach_reason"`
-	Path             string `json:"path,omitempty"`
-	Protocol         string `json:"protocol"`
-	ProtocolVersion  int    `json:"protocol_version,omitempty"`
-	Installed        bool   `json:"installed"`
-	Version          string `json:"version,omitempty"`
-	ProbeStatus      string `json:"probe_status"`
+	SessionCapabilities *ExternalSessionCapabilities `json:"session_capabilities,omitempty"`
+	CLIPath             string                       `json:"cli_path,omitempty"`
+	CLIDiscovered       bool                         `json:"cli_discovered"`
+	History             string                       `json:"history"`
+	Resume              string                       `json:"resume"`
+	LiveAttach          bool                         `json:"live_attach"`
+	LiveAttachReason    string                       `json:"live_attach_reason"`
+	Path                string                       `json:"path,omitempty"`
+	Protocol            string                       `json:"protocol"`
+	ProtocolVersion     int                          `json:"protocol_version,omitempty"`
+	Installed           bool                         `json:"installed"`
+	Version             string                       `json:"version,omitempty"`
+	ProbeStatus         string                       `json:"probe_status"`
 }
 
 func installedAgents() map[string]AgentInstallation {
@@ -78,6 +79,19 @@ func installedAgents() map[string]AgentInstallation {
 		path, err := exec.LookPath(d.Executable())
 		cliPath, cliErr := exec.LookPath(name)
 		result[name] = AgentInstallation{CLIPath: cliPath, CLIDiscovered: cliErr == nil, History: "requires_successful_protocol_query", Resume: "requires_successful_protocol_handshake", LiveAttachReason: "arbitrary process attachment is not supported by installed adapters", Path: path, Protocol: d.Protocol(), ProtocolVersion: d.ProtocolVersion(), Installed: err == nil, ProbeStatus: "not_probed"}
+		adapter, _ := lookupExternalSessionAdapter(name)
+		caps := adapter.SessionCapabilities()
+		if err != nil {
+			caps.Discovery, caps.History, caps.Resume = "unsupported", "unsupported", "unsupported"
+			caps.Reason = "Required native protocol adapter is not installed"
+			if name == "claude" && cliErr == nil {
+				caps.Discovery = "conditional"
+				caps.Reason = "Claude CLI discovery is available; structured history and resume require the ACP adapter"
+			}
+		}
+		info := result[name]
+		info.SessionCapabilities = &caps
+		result[name] = info
 	}
 	return result
 }

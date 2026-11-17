@@ -72,7 +72,7 @@ func TestFeatureDocumentationLayout(t *testing.T) {
 			t.Fatalf("%s must document the current state in both languages", entry.Name())
 		}
 	}
-	if !reflect.DeepEqual(names, []string{"completed.md", "host-hardening-tests.md", "host-hardening.md", "pending.md", "plugin-ui-architecture.md", "plugin-ui-audit.md", "plugin-ui-implementation.md", "plugin-ui-protocol.md"}) {
+	if !reflect.DeepEqual(names, []string{"completed.md", "external-agent-sessions-tests.md", "external-agent-sessions.md", "host-hardening-tests.md", "host-hardening.md", "pending.md", "plugin-ui-architecture.md", "plugin-ui-audit.md", "plugin-ui-implementation.md", "plugin-ui-protocol.md"}) {
 		t.Fatalf("docs must contain the maintained functionality and hardening documents: %v", names)
 	}
 }
@@ -95,6 +95,7 @@ func TestImplementedRPCReference(t *testing.T) {
 		"POST /v1/sessions/{id}/agent-message", "GET /v1/sessions/{id}/activity?after=sequence",
 		"GET /v1/events?after=revision", "GET /v1/agent-history?agent=...&directory=...&cursor=...",
 		"GET /v1/agent-history/{conversation_id}?agent=...&directory=...&cursor=...",
+		"POST /v1/agent-history",
 		"GET /v1/inbox?view=...", "POST /v1/inbox/{id}",
 		"GET /v1/sessions/{id}/verification", "POST /v1/sessions/{id}/verification", "GET /v1/sessions/{id}/verification-diff", "GET /v1/conflicts",
 		"GET /v1/github-tasks", "POST /v1/github-tasks", "GET /v1/github-tasks/{id}", "POST /v1/github-tasks/{id}/{action}",

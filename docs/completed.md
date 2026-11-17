@@ -1,6 +1,6 @@
 # 已完成功能 / Completed functionality
 
-English / 简体中文 · `2.4.0` · 更新 / Updated: 2026-11-14
+English / 简体中文 · `2.4.0` · 更新 / Updated: 2026-11-17
 
 本文只描述当前源码已实现的功能、使用方式与边界。未完成能力和验收统一见
 [未完成功能](pending.md)。已实现不等于所有平台、手机和真实模型均已验收。
@@ -8,6 +8,10 @@ This is the implemented source contract, not a claim of full device acceptance.
 See [pending work](pending.md) for remaining features and validation.
 
 ## 功能范围 / Features
+
+2026-11-17 增量：已实现 Codex 原控制 socket、Windows AF_UNIX/只读 ACL 校验和 OpenCode v1/v2 原 HTTP 服务附着，复用原 Session、审批、事件与重连路径。Codex 已做 macOS 真实 CLI＋本地模型夹具验收；Windows 新测试仅交叉编译，Claude 独立活进程的结构化控制仍未支持，真实跨平台/手机矩阵待验收。详见[架构与能力矩阵](external-agent-sessions.md)及[实际测试记录](external-agent-sessions-tests.md)。
+
+Claude 后续增量：已实现官方 `agents --json` 原生会话发现、状态和等待原因投影，独立于 ACP；沿用 owner 专属发现 API。ACP v2 历史读取补齐显式回放参数并排除控制快照。本机安装 Claude 2.1.311 / ACP 0.107.3，真实隔离发现和初始化验证通过；终端附着与结构化接管明确分开，后者仍未支持。
 
 | 功能 / Feature | 当前实现 / Implemented behavior |
 | --- | --- |
@@ -114,6 +118,7 @@ Use encoded argv, not shell interpolation. Closing the RPC bridge only detaches 
 | GET /v1/events?after=revision | 最新 1024 条进程元数据事件 / process-state events |
 | GET /v1/agent-history?agent=...&directory=...&cursor=... | 原生对话列表 / native history |
 | GET /v1/agent-history/{conversation_id}?agent=...&directory=...&cursor=... | transcript 分页 / transcript pages |
+| POST /v1/agent-history | owner 显式连接已有 Agent 服务，发现原会话；请求体凭据不写入返回值 |
 | GET /v1/inbox?view=... | 单 Host 收件箱及范围内计数 / scoped task inbox |
 | POST /v1/inbox/{id} | 版本绑定的处理、归档 / revision-bound review marker |
 | GET /v1/sessions/{id}/verification | 可信来源、版本及实际测试证据 / verification evidence |
@@ -512,6 +517,8 @@ Reused: active Sessions and normalized provider tool events. Added `workspace_co
 `isolated_worktree_v1`: owner `POST /v1/sessions` accepts optional `worktree: {branch?, base?}` and a mandatory `request_id`. Host creates a new branch and worktree under its private state before launching the original adapter. Default base is committed HEAD; existing uncommitted files are not copied. Retry uses the original start receipt. Worktrees and branches survive failures/deletion for manual recovery. Resume and execution identity modes cannot be combined with this option. Workflow dispatch uses this execution mode; general Session creation remains an API operation.
 
 ### 4. History discovery and continuation
+
+本节原 GET/普通恢复路径保持兼容。2026-11-17 新增的显式 `attach` 路径通过既有 Codex 控制 socket 或 OpenCode v2 HTTP 服务连接原线程，详见[外部会话架构与能力矩阵](external-agent-sessions.md)；不将任意 PTY 进程或旧历史记录宣称为已接管。
 
 Reused: PATH detection, explicit version probes, Codex app-server history/resume, ACP history/list/load/resume, replay and startup handshake. Added `agent_history_aggregate_v1`, `GET /v1/agent-history?agent=all&directory=...&cursor=...`. Aggregate responses retain `items`/`next_cursor` and add per-provider status. Each row has provider, original conversation ID, title, workspace and update time. Errors remain per-provider; one failing adapter does not suppress successful results. Desktop history supports All agents and shows provider/workspace/update time.
 

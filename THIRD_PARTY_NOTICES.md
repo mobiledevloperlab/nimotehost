@@ -33,6 +33,7 @@ Transitive modules, including build/test dependencies, are recorded below and in
 | --- | --- | --- |
 | cloud.google.com/go/compute/metadata | v0.3.0 | [LICENSE](third_party/cloud.google.com-go-compute-metadata/LICENSE) |
 | github.com/coder/acp-go-sdk | v0.13.5 | [LICENSE](third_party/coder-acp-go-sdk/LICENSE) |
+| github.com/coder/websocket | v1.8.14 | [LICENSE](third_party/coder-websocket/LICENSE) |
 | github.com/golang-jwt/jwt/v5 | v5.3.1 | [LICENSE](third_party/golang-jwt-jwt-v5/LICENSE) |
 | github.com/google/go-cmp | v0.7.0 | [LICENSE](third_party/google-go-cmp/LICENSE) |
 | github.com/google/jsonschema-go | v0.4.3 | [LICENSE](third_party/google-jsonschema-go/LICENSE) |

@@ -26,6 +26,13 @@ type AgentMessage struct {
 }
 
 type structuredAgent struct {
+	attachment              *ExternalAttachment
+	attachmentReady         bool
+	attachmentStateObserved bool
+	externalDisconnected    bool
+	openCode                *openCodeAttachment
+	attachmentResolved      map[string]bool
+
 	executionPolicy    string
 	onExecutionPolicy  func(string) error
 	onActivity         func(string, any)
@@ -98,7 +105,13 @@ func (a *structuredAgent) closeLocked() {
 		return
 	}
 	a.closed = true
-	a.rejectPendingPermissions()
+	if a.attachment == nil {
+		a.rejectPendingPermissions()
+	} else {
+		// Detaching is not a native rejection. Other desktop subscribers may
+		// still be deciding these requests on the independent Agent server.
+		clear(a.rpc.permissions)
+	}
 	for id, req := range a.steers {
 		a.emit("steer_rejected", map[string]any{"request_id": req.RequestID, "text": req.Text, "error": "agent stopped before confirming the message"})
 		delete(a.steers, id)
@@ -107,12 +120,15 @@ func (a *structuredAgent) closeLocked() {
 	for id := range a.approvals {
 		a.emit("approval_resolved", id)
 	}
-	if a.busy {
+	if a.busy && a.attachment == nil {
 		status := "interrupted"
 		if a.failure != nil {
 			status = "failed"
 		}
 		a.emit("turn_completed", map[string]string{"id": a.turn, "status": status})
+	}
+	if a.attachment != nil {
+		a.emit("connection", map[string]string{"status": "disconnected"})
 	}
 	a.busy = false
 	a.configuring = false
@@ -223,7 +239,7 @@ func (m *Manager) AgentSnapshot(id string) (map[string]any, error) {
 	for i := range controls.Options {
 		controls.Options[i].Values = slices.Clone(controls.Options[i].Values)
 	}
-	return map[string]any{"cursor": cursor, "status": a.statusLocked(), "ready": !a.closed && a.thread != "", "busy": a.busy || a.configuring, "turn_id": a.turn, "can_steer": a.canSteer(), "approvals": pending, "controls": controls}, nil
+	return map[string]any{"cursor": cursor, "status": a.statusLocked(), "ready": !a.closed && !a.externalDisconnected && a.thread != "" && (a.attachment == nil || a.attachmentReady), "busy": a.busy || a.configuring, "turn_id": a.turn, "can_steer": a.canSteer(), "approvals": pending, "controls": controls}, nil
 }
 
 // Caller holds a.mu. Compaction and turn startup cannot receive steering.
@@ -236,6 +252,8 @@ func (a *structuredAgent) canSteer() bool {
 func (a *structuredAgent) statusLocked() string {
 	switch {
 	case a.closed:
+		return "disconnected"
+	case a.externalDisconnected:
 		return "disconnected"
 	case len(a.approvals) > 0:
 		return "needs_approval"

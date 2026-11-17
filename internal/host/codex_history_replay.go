@@ -51,6 +51,7 @@ func (a *structuredAgent) receiveCodexHistory(raw json.RawMessage) {
 		return
 	}
 	a.thread = a.historyThread
+	a.attachmentReady = true
 	a.historyThread = ""
 	a.historyCursors = nil
 	if a.onConversationID != nil {

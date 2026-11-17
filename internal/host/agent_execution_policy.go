@@ -16,6 +16,9 @@ func validExecutionPolicy(value string) bool {
 	return value == "confirm" || value == "smart" || value == "auto"
 }
 func (a *structuredAgent) effectiveExecutionPolicy() string {
+	if a.attachment != nil {
+		return "confirm"
+	}
 	if validExecutionPolicy(a.executionPolicy) {
 		return a.executionPolicy
 	}
@@ -31,9 +34,16 @@ func (a *structuredAgent) publishExecutionPolicy() {
 			options = append(options, option)
 		}
 	}
-	a.controls.Options = append(options, agentOption{ID: executionPolicyOption, Label: "Execution policy", Category: "execution_policy", Value: a.effectiveExecutionPolicy(), Values: []agentChoice{{"confirm", "Confirm each request"}, {"smart", "Smart execution"}, {"auto", "Automatic approvals"}}})
+	values := []agentChoice{{"confirm", "Confirm each request"}, {"smart", "Smart execution"}, {"auto", "Automatic approvals"}}
+	if a.attachment != nil {
+		values = values[:1]
+	}
+	a.controls.Options = append(options, agentOption{ID: executionPolicyOption, Label: "Execution policy", Category: "execution_policy", Value: a.effectiveExecutionPolicy(), Values: values})
 }
 func (a *structuredAgent) configureExecutionPolicy(req AgentMessage) error {
+	if a.attachment != nil && req.Value != "confirm" {
+		return errors.New("external attachments require manual native approval")
+	}
 	if a.closed || a.thread == "" || a.busy || a.configuring || len(a.approvals) != 0 {
 		return errors.New("execution policy can only change while the session is idle")
 	}

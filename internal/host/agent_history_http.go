@@ -19,6 +19,38 @@ const agentHistoryRPCTimeout = 30 * time.Second
 
 func (s *Server) serveAgentHistory(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/v1/agent-history" {
+		if r.Method == http.MethodPost {
+			var req struct {
+				Agent      string             `json:"agent"`
+				Directory  string             `json:"directory"`
+				Cursor     string             `json:"cursor"`
+				Connection ExternalAttachment `json:"connection"`
+			}
+			if !readJSON(w, r, &req) {
+				return
+			}
+			if err := req.Connection.validateDiscovery(req.Agent); err != nil {
+				fail(w, 400, err.Error())
+				return
+			}
+			if req.Directory != "" {
+				info, err := os.Stat(req.Directory)
+				if !filepath.IsAbs(req.Directory) || err != nil || !info.IsDir() {
+					fail(w, 400, "external workspace is unavailable")
+					return
+				}
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), agentHistoryTimeout)
+			defer cancel()
+			page, err := listAttachedSessions(ctx, req.Agent, req.Directory, req.Cursor, req.Connection)
+			if err != nil {
+				fail(w, 503, "external Agent discovery is unavailable or unsupported")
+				return
+			}
+			s.describeHistory(page.Items)
+			respond(w, 200, page)
+			return
+		}
 		if r.Method != http.MethodGet {
 			fail(w, 405, "method not allowed")
 			return
@@ -48,6 +80,7 @@ func (s *Server) serveAgentHistory(w http.ResponseWriter, r *http.Request) {
 				fail(w, 400, "invalid aggregate history request")
 				return
 			}
+			s.describeHistory(page.Items)
 			respond(w, 200, page)
 			return
 		}
@@ -82,15 +115,13 @@ func (s *Server) serveAgentHistory(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 		var err error
 		var page codexHistoryPage
-		if agent == "codex" {
-			page, err = listCodexHistory(ctx, directory, r.URL.Query().Get("cursor"))
-		} else {
-			page, err = listACPHistory(ctx, agent, directory, r.URL.Query().Get("cursor"))
-		}
+		adapter, _ := lookupExternalSessionAdapter(agent)
+		page, err = adapter.ListSessions(ctx, directory, r.URL.Query().Get("cursor"))
 		if err != nil {
 			fail(w, 503, agent+" history is temporarily unavailable")
 			return
 		}
+		s.describeHistory(page.Items)
 		respond(w, 200, page)
 		return
 	}
@@ -119,14 +150,16 @@ func (s *Server) serveAgentHistory(w http.ResponseWriter, r *http.Request) {
 		var page map[string]any
 		var err error
 		if agent == "codex" && caps.Features["codex_history_v1"] {
-			page, err = readCodexHistory(ctx, id, r.URL.Query().Get("cursor"))
+			adapter, _ := lookupExternalSessionAdapter(agent)
+			page, err = adapter.ReadSession(ctx, id, directory, r.URL.Query().Get("cursor"))
 		} else if (agent == "opencode" && caps.Features["opencode_history_v1"]) || (agent == "claude" && caps.Features["claude_history_v1"]) {
 			if !filepath.IsAbs(directory) {
 				err = errors.New("history directory must be absolute")
 			} else if info, statErr := os.Stat(directory); statErr != nil || !info.IsDir() {
 				err = errors.New("history directory is unavailable")
 			} else {
-				page, err = readACPHistory(ctx, agent, id, directory)
+				adapter, _ := lookupExternalSessionAdapter(agent)
+				page, err = adapter.ReadSession(ctx, id, directory, r.URL.Query().Get("cursor"))
 			}
 		} else {
 			err = errors.New("unsupported provider")
@@ -135,7 +168,19 @@ func (s *Server) serveAgentHistory(w http.ResponseWriter, r *http.Request) {
 			fail(w, 404, "conversation is unavailable")
 			return
 		}
+		adapter, _ := lookupExternalSessionAdapter(agent)
+		description := adapter.SessionCapabilities()
+		description.History = "supported"
+		page["session_capabilities"] = description
 		respond(w, 200, page)
 		return
 	}
+}
+
+func (s *Server) describeHistory(items []map[string]any) {
+	var sessions []Session
+	if s.manager != nil {
+		sessions = s.manager.List(0)
+	}
+	describeExternalSessions(items, sessions)
 }

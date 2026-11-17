@@ -4,6 +4,7 @@
 package host
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -110,6 +111,10 @@ func listACPHistory(ctx context.Context, agent, cwd, cursor string) (codexHistor
 	if err != nil {
 		return codexHistoryPage{}, err
 	}
+	return projectACPSessions(agent, result)
+}
+
+func projectACPSessions(agent string, result json.RawMessage) (codexHistoryPage, error) {
 	var response struct {
 		Sessions   []map[string]any `json:"sessions"`
 		Items      []map[string]any `json:"items"`
@@ -122,6 +127,9 @@ func listACPHistory(ctx context.Context, agent, cwd, cursor string) (codexHistor
 	if rows == nil {
 		rows = response.Items
 	}
+	if rows == nil {
+		return codexHistoryPage{}, errors.New("ACP history response is missing sessions")
+	}
 	if len(rows) > maxHistoryPage || len(response.NextCursor) > 4096 {
 		return codexHistoryPage{}, errors.New("ACP returned an invalid history page")
 	}
@@ -130,6 +138,9 @@ func listACPHistory(ctx context.Context, agent, cwd, cursor string) (codexHistor
 		id, _ := s["sessionId"].(string)
 		if id == "" {
 			id, _ = s["id"].(string)
+		}
+		if !validExternalConversationID(id) {
+			return codexHistoryPage{}, errors.New("ACP returned an invalid conversation ID")
 		}
 		dir, _ := s["cwd"].(string)
 		title, _ := s["title"].(string)
@@ -154,18 +165,38 @@ func readACPHistory(ctx context.Context, agent, id, cwd string) (map[string]any,
 		return nil, errors.New("invalid conversation id")
 	}
 	method := "session/load"
+	params := map[string]any{"sessionId": id, "cwd": cwd, "mcpServers": []any{}}
 	if agent == "claude" {
 		method = "session/resume"
+		// ACP v2 resume without replayFrom restores context but emits no
+		// transcript. Explicit history reads must request the original replay.
+		params["replayFrom"] = map[string]string{"type": "start"}
 	}
-	_, replay, err := acpHistoryRPC(ctx, agent, cwd, method, map[string]any{"sessionId": id, "cwd": cwd, "mcpServers": []any{}})
+	result, replay, err := acpHistoryRPC(ctx, agent, cwd, method, params)
 	if err != nil {
 		return nil, err
+	}
+	var acknowledgement struct {
+		SessionID string `json:"sessionId"`
+	}
+	if json.Unmarshal(result, &acknowledgement) != nil || !bytes.HasPrefix(bytes.TrimSpace(result), []byte("{")) ||
+		acknowledgement.SessionID != "" && acknowledgement.SessionID != id {
+		return nil, errors.New("ACP history acknowledged a different or invalid conversation")
 	}
 	transcript := historyTranscript{Items: []map[string]any{}}
 	for i, raw := range replay.updates {
 		var update map[string]any
 		if err := json.Unmarshal(raw, &update); err != nil {
 			return nil, errors.New("invalid ACP history update")
+		}
+		if sessionID, ok := update["sessionId"].(string); !ok || sessionID != id {
+			return nil, errors.New("ACP history update belongs to another conversation")
+		}
+		if detail, ok := update["update"].(map[string]any); ok {
+			switch detail["sessionUpdate"] {
+			case "replay_complete", "state_update", "available_commands_update", "config_option_update", "current_mode_update", "session_info_update":
+				continue // Control snapshots are not historical tool calls.
+			}
 		}
 		transcript.append(projectACPHistoryUpdate(update, i))
 		if transcript.Truncated {

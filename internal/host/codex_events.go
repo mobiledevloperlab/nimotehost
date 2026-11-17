@@ -4,6 +4,8 @@ package host
 import (
 	"encoding/json"
 	"sort"
+
+	acp "github.com/coder/acp-go-sdk"
 )
 
 // The provider protocol stops here. Host clients consume this additive event
@@ -16,6 +18,32 @@ func (a *structuredAgent) notification(method string, raw json.RawMessage) {
 		}
 		if json.Unmarshal(raw, &p) == nil {
 			key := string(p.RequestID)
+			if a.attachment != nil && len(key) > 256 {
+				if a.stopProcess != nil {
+					_ = a.stopProcess()
+				}
+				return
+			}
+			if a.attachment != nil && key != "" && key != "null" {
+				if a.attachmentResolved == nil {
+					a.attachmentResolved = map[string]bool{}
+				}
+				if len(a.attachmentResolved) >= 4096 {
+					a.attachmentReady = false
+					if a.stopProcess != nil {
+						_ = a.stopProcess()
+					}
+					return
+				}
+				a.attachmentResolved[key] = true
+				if reply := a.rpc.permissions[key]; reply != nil {
+					select {
+					case reply <- agentRPCReply{err: acp.NewRequestCancelled(nil)}:
+					default:
+					}
+					delete(a.rpc.permissions, key)
+				}
+			}
 			if _, ok := a.approvals[key]; ok {
 				delete(a.approvals, key)
 				delete(a.approvalDetails, key)
