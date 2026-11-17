@@ -1,6 +1,6 @@
 # 第三方声明
 
-[English](THIRD_PARTY_NOTICES.md) | **简体中文**
+[英文版](THIRD_PARTY_NOTICES.md) | **简体中文**
 
 NimoteHost 自有代码和文档采用 Apache-2.0。第三方组件保留各自版权与许可证；
 原文保存在源码的 `third_party/`，构建时复制到二进制分发目录的 `licenses/`。
@@ -26,7 +26,7 @@ JSON-RPC 连接，Codex 使用薄线路适配层。
 MCP SDK 的许可证说明了 Apache-2.0 / MIT 的迁移状态；应保留其完整原文。
 间接模块（包括构建和测试依赖）记录于下表及 `third_party/dependencies.json`。
 
-| Module | Version | License files |
+| 模块 | 版本 | 许可证文件 |
 | --- | --- | --- |
 | cloud.google.com/go/compute/metadata | v0.3.0 | [LICENSE](third_party/cloud.google.com-go-compute-metadata/LICENSE) |
 | github.com/coder/acp-go-sdk | v0.13.5 | [LICENSE](third_party/coder-acp-go-sdk/LICENSE) |
@@ -43,12 +43,10 @@ MCP SDK 的许可证说明了 Apache-2.0 / MIT 的迁移状态；应保留其完
 | golang.org/x/time | v0.15.0 | [LICENSE](third_party/x-time/LICENSE), [PATENTS](third_party/x-time/PATENTS) |
 | golang.org/x/tools | v0.42.0 | [LICENSE](third_party/x-tools/LICENSE), [PATENTS](third_party/x-tools/PATENTS) |
 
-## Desktop dependencies / 桌面依赖
+## 桌面依赖
 
-Fyne and its transitive dependencies are isolated in
-`cmd/nimotehost-gui/go.mod` / `go.sum`; the CLI dependency manifest is unchanged.
-Desktop distributions carry `GUI-MODULES.json` and upstream LICENSE/COPYING/NOTICE
-files in `licenses-gui/`, in addition to the CLI licenses. The builder fails if a
-resolved desktop module has no root license file. Fyne uses the BSD 3-Clause
-license; consult each bundled notice for its dependencies. These libraries are not
-linked into the CLI. Fyne 及其依赖仅用于桌面版，随桌面包附完整上游许可证。
+Fyne 及其间接依赖隔离在 `cmd/nimotehost-gui/go.mod` 和 `go.sum` 中，命令行版本的
+依赖清单保持不变。桌面分发包除命令行版本的许可证外，还包含 `GUI-MODULES.json`，
+并在 `licenses-gui/` 中附带上游 LICENSE、COPYING 和 NOTICE 文件。如果某个已解析的
+桌面模块在根目录没有许可证文件，构建会失败。Fyne 采用 BSD-3-Clause；其依赖的许可
+条款以各自随附声明为准。这些图形库不会链接到命令行版本中。

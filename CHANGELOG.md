@@ -1,6 +1,6 @@
 # Changelog
 
-**English** | [简体中文](CHANGELOG.zh-CN.md)
+**English** | [Simplified Chinese](CHANGELOG.zh-CN.md)
 
 ## Unreleased — 2.4.0
 

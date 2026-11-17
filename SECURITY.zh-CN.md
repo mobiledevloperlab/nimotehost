@@ -1,36 +1,31 @@
 # 安全政策
 
-[English](SECURITY.md) | **简体中文**
+[英文版](SECURITY.md) | **简体中文**
 
-Host 以当前系统用户权限执行命令，本地 token 等价于该用户的命令执行权限。请妥善保管，
-通过已认证 SSH 使用，不要通过未认证代理暴露回环 HTTP 接口。不要在公开 issue 中发送
-token、Host 状态文件、私有项目输出或其他凭据。
+Host 以当前系统用户权限执行命令，本地令牌 等价于该用户的命令执行权限。请妥善保管，
+通过已认证 SSH 使用，不要通过未认证代理暴露回环 HTTP 接口。不要在公开问题报告 中发送
+令牌、Host 状态文件、私有项目输出或其他凭据。
 
 报告漏洞时，使用 NimoteHost GitHub 仓库的 **Security → Report a vulnerability**。
 仓库所有者在创建公开仓库时应开启私密漏洞报告。如果该入口不可用，请通过维护者的
 GitHub 个人资料请求私密沟通渠道，初次联系不要包含利用细节或秘密。
 
-在 `2.4.0` 阶段，仅针对最新开发版本提供修复，不承诺支持或响应时间 SLA。
+在 `2.4.0` 阶段，仅针对最新开发版本提供修复，不承诺支持或响应时间服务承诺。
 公开源码不代表已完成独立安全审计或真实设备验收。
 
 认证、资源配额、终端/Agent 行为及重启语义见[协议与执行边界](docs/completed.md)。
 
-## Restricted devices / 受限设备
+## 受限设备
 
-Registered observer devices use independent credentials through a fixed SSH forced
-command. They can read the account's Host sessions and output, but cannot create
-processes, send input, approve tasks or shut down Host. Revocation is checked on
-subsequent requests, including requests over an existing RPC stream; in-flight
-requests and data already disclosed are not rolled back.
+已注册的只读观察设备通过固定的 SSH 强制命令使用独立凭据。它们可以读取当前账号的
+Host 会话和输出，但不能创建进程、发送输入、批准任务或关闭 Host。系统会在后续每次
+请求时检查撤销状态，包括通过既有 RPC 流发送的请求；正在处理的请求和已经披露的数据
+不会因此回滚。
 
-Each device needs a unique SSH key with `restrict,command="... device-bridge ID"`.
-Never also install this key for unrestricted shell access. Credentials stay on the
-Host; registration does not itself install or remove SSH keys. Removing a device's
-restricted key is a separate SSH administration operation. Existing unrestricted
-SSH keys/passwords remain full OS-account access and cannot be isolated by Host
-revocation. Full execution-capable device isolation requires a different security
-boundary (separate OS identity/sandbox), not a client-provided device ID.
+每台设备必须使用独立 SSH 密钥，并配置 `restrict,command="... device-bridge ID"`。
+不要同时为这把密钥授予不受限的命令行登录权限。凭据保留在 Host，注册设备本身不会
+安装或删除 SSH 密钥；移除设备的受限密钥需要另行执行 SSH 管理操作。已有的不受限
+SSH 密钥和密码仍授予完整系统账号权限，无法通过 Host 撤销实现隔离。可执行命令的
+设备若要相互隔离，必须采用独立系统身份或沙箱等安全边界，不能依靠客户端提供的设备 ID。
 
-受限设备拥有独立只读身份；撤销在后续请求生效，不影响其他设备和后台任务。
-同账号完整 Shell 权限可读取账号凭证，不在设备隔离保证范围内。不要将只读设备
-密钥同时配置为普通 SSH 登录密钥。只读范围包含会话输出，授权前需考虑其中的敏感内容。
+只读权限包含会话输出，其中可能含有敏感内容，授权前应考虑这一披露范围。
