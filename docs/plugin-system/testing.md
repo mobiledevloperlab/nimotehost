@@ -1,4 +1,4 @@
-# Testing — English / 简体中文
+# Testing
 
 Current implementation: HCP **1.0**, existing Host transport **1**.
 
@@ -54,8 +54,6 @@ NimoteCode integration against the versioned spec. See implementation summary
 for final command outcomes. Core existing process/SSH/approval tests remain in
 the full suite; no production Host state or external client repository is modified.
 
-简体中文：本机执行 macOS 原生测试和竞态检测；Linux/Windows 仅交叉编译，原生验收
-仍须运行现有 CI。安全测试不访问公网或真实凭据；未宣称进行独立安全审计。
 
 ## Desktop follow-up
 

@@ -1,4 +1,4 @@
-# GitHub plugin catalog — English / 简体中文
+# GitHub plugin catalog
 
 Both installation paths are supported:
 
@@ -128,8 +128,3 @@ index / 60 KiB Manifest / 64 MiB executable limits. Hash/identity/version/platfo
 checks precede publication. Temporary downloads are private and cleaned on normal
 failure/cancel/shutdown. Abrupt Host SIGKILL can leave an ignored `.download-*`
 directory for manual cleanup. This does not add an OS sandbox or a signing authority.
-
-简体中文：本地包安装和在线目录安装并存。开发者只向公共目录提交 JSON 记录，代码与
-Release 资产留在自己的 GitHub 仓库；Host 搜索目录、按平台下载、校验后安装，默认不启用。
-目录可独立托管，不要求提交插件源码到 NimoteHost。默认目录当前为空，需发布该 JSON
-到对应 GitHub 分支才能供默认远端来源读取；本次不自动推送或发布任何插件。

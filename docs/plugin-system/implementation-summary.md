@@ -1,4 +1,4 @@
-# Implementation summary — English / 简体中文
+# Implementation summary
 
 Delivered in this source tree: additive HCP **1.0** plugin platform over existing
 Host transport **1**. Review [architecture](architecture.md), [public protocol](protocol.md),
@@ -67,9 +67,6 @@ Known limits / follow-up:
    available for diagnosis. No guarantee is made that arbitrary returned content
    itself contains no secrets.
 
-简体中文：已交付可扩展源码、公开协议/SDK、独立插件及自动化测试；现有功能沿用原实现。
-尚未实现同账户恶意代码沙箱、签名市场、跨重启调用恢复或 NimoteCode 仓库改造。
-Linux/Windows 原生测试与外部发布明确保留为后续验收，不以交叉编译替代。
 
 ## Desktop GUI and local deployment follow-up
 
@@ -92,10 +89,6 @@ macOS arm64 deployment completed on 2026-11-14:
   `capabilities.subscribe` passed. No community plugin was automatically enabled.
 - Final native GUI module race suite passed (including the added plugin page tests),
   desktop facade race suite passed, and both packages passed static checks.
-
-简体中文：当前系统已停止旧版本并安装/启动新 Host 与 GUI，入口在用户 Applications。
-安装前后 Host 身份保持不变，凭据及会话记录保留，程序包摘要及实时 HCP 接口验证通过。
-新增 GUI 源码随本次功能提交保存，未推送远端。
 
 
 ## Local and metadata-only GitHub catalog installation

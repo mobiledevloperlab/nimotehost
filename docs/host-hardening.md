@@ -1,8 +1,8 @@
-# Host hardening audit / 加固审计
+# Host hardening audit
 
-English / 简体中文 · 2026-11-14 · Implemented increment with remaining release gates / 已实施增量与剩余发布门槛
+ 2026-11-14 · Implemented increment with remaining release gates
 
-## Baseline / 现状
+## Baseline
 
 Audit covers the CLI/SSH bridge, RPC/MCP, Manager, persistence and request ledger,
 Codex/ACP state machines, history helpers, Unix/Windows process backends,
@@ -10,7 +10,7 @@ service/install lifecycle, desktop facade and build/test contracts. UI changes
 and NimoteCode are outside this work. Existing completed/pending documents were
 read before implementation; existing protections are retained.
 
-| Priority | Existing / 已有 | Gap and decision / 缺口与决策 |
+| Priority | Existing| Gap and decision|
 | --- | --- | --- |
 | P0 identity | Owner token; observer credentials; per-request durable revocation; restricted SSH bridge | Add explicit session-scoped identities. Same-user arbitrary execution cannot be isolated by an HTTP ACL; do not grant shell/input/accept/configure through a purported sandbox. |
 | P0 approvals | SDK request correlation, local permission IDs, one-time ACP grants, durable mutation receipts, bounded queues | Validate optional Codex thread/turn context and active lifecycle before publishing permissions; invalidate queued replies at turn end; enforce offered native decisions. |
@@ -22,18 +22,18 @@ read before implementation; existing protections are retained.
 | P1 scheduling | Immediate bounded admission, serialized state changes, startup budget, native cancellation | Retain immediate rejection (no hidden replay queue); add session runtime ceiling and observable limits. |
 | P1 diagnostics | Bounded slog file, receipt capacity status, activity/error states | Add structured error codes while preserving error strings and status; expose truthful resource enforcement capabilities. |
 
-## Release boundary / 发布边界
+## Release boundary
 
 This audit is not release certification. Native macOS/Windows and WSL Linux tests,
 Linux root-only execution-boundary acceptance and real Codex approval/resume are
 recorded separately from remaining native service/restart/SSH/other-Agent gates.
 See the [actual test record](host-hardening-tests.md) for completed runs.
 
-本轮不修改 UI/客户端、不新增云或依赖、不把交叉编译当作实机验收。
+This increment changes no UI/client, adds no cloud service or dependency, and does not treat cross-compilation as native acceptance.
 
-## Implemented architecture / 已实施架构
+## Implemented architecture
 
-### Device authority / 设备权限
+### Device authority
 
 The owner token and existing `observer` records retain their semantics. New
 `session_observer` and `session_operator` records contain a nonempty explicit
@@ -48,19 +48,14 @@ nimotehost devices add-scoped emergency session_operator <session-id>...
 nimotehost devices revoke <device-id>
 ```
 
-| Principal / 身份 | Allowed / 允许 | Denied / 禁止 |
+| Principal| Allowed| Denied|
 | --- | --- | --- |
 | Owner | Existing full RPC, process and native history control | Existing protocol/validation restrictions remain |
 | observer | Existing account-wide read-only endpoints | Every write and native-history process helper |
 | session_observer | Host identity/capabilities; scoped session metadata/output/activity/Agent state; filtered lists/events | Other sessions; all writes; native history; global resource/receipt counts |
 | session_operator | Scoped reads plus cancel, Agent interrupt and approval decline | Create/delete, terminal input/resize, prompt/steer, approval accept, configuration, compact/discover, history helpers, Host management |
 
-受限 SSH key 必须仍使用 `restrict` 和固定绝对路径 `device-bridge <id>`；
-不得为同一 key 另留普通 Shell 登录。Host 不自动改写 SSH 配置。
-operator 是“安全停止/拒绝”权限；完整控制只提供给以下明确部署的 Linux 独立执行身份。
-所有新角色每次 HTTP 请求重新读私有记录并检查撤销。已有在途操作可能完成，
-撤销不回滚已读取数据。事件保留全局 cursor/resync 语义，仅过滤事件内容；
-全局游标仍可暴露主机活动时序，不能声称完全隐藏流量模式。
+Restricted SSH keys still require `restrict` and a fixed absolute `device-bridge <id>` command; never also authorize the same key for a normal shell. Host does not rewrite SSH configuration. Operators provide safe stop/decline authority; full control is limited to the explicitly deployed Linux identity boundary below. Each HTTP request rereads private role records and checks revocation. In-flight work may complete, and disclosed data cannot be recalled. Events retain global cursor/resync semantics while filtering contents; cursor timing can still reveal host activity patterns.
 
 Scoped cancel requires JSON `{ "request_id": "..." }`. Scoped `agent-message`
 accepts only interrupt or approval/decline and requires its existing request key.
@@ -68,7 +63,7 @@ Permission checks precede receipt lookup. Device ledger keys are namespaced by
 principal; owner keys/fingerprints and old receipts keep their original storage
 contract. A guessed owner key cannot retrieve an owner receipt through a device.
 
-### Linux independent controller / Linux 独立控制身份
+### Linux independent controller
 
 `StartRequest.execution_identity={"uid":N,"gid":N}` is an owner-only, opt-in
 Linux execution boundary. Each UID/GID is 1000000..2147483646, unknown to NSS,
@@ -109,7 +104,7 @@ multi-session grant is not usable for bindings that were not durably written.
 Darwin/Windows return unsupported for execution_identity/controller grants. Ordinary
 same-account owner sessions and observer/operator behavior retain their established semantics.
 
-### Native approvals / 原生审批
+### Native approvals
 
 The existing SDK, 64 pending permissions, bounded dispatcher and durable ledger
 remain authoritative. Publication now holds the Agent mutex throughout validation
@@ -128,7 +123,7 @@ keys additionally bind to a SHA256 of the full AgentMessage, rejecting changed
 content/action even for direct Manager callers without HTTP.
 Already-dispatched native replies cannot be recalled.
 
-### Resource ownership / 资源管理
+### Resource ownership
 
 `resources.json` lives beside `config.json` in the private Host configuration
 folder, is loaded at daemon start and must be a private regular file (Unix 0600).
@@ -161,14 +156,7 @@ processes. Memory is cgroup-charged memory on Linux, committed bytes on Windows,
 not a portable RSS promise. CPU percent covers available host CPU capacity (Linux
 uses runtime.NumCPU); no global cgroup controllers are auto-enabled.
 
-磁盘探测使用 Unix Statfs / Windows GetDiskFreeSpaceEx，不引入命令或依赖。
-准入在 Manager 锁下完成，超过并发/保留或磁盘不足则在创建会话文件和进程前拒绝。
-首个任务启动时创建一个属于 Manager 的监控协程，每 250ms 检查超时和输出失败、每秒检查磁盘。
-低空间或检测失败会停止已有托管进程；原因按现有完成路径尝试保存为失败。
-若文件系统已无法写入，持久化错误会记录日志；重启可能只能恢复为 interrupted，
-不承诺磁盘彻底耗尽时仍能写入完整失败记录。
-这些是尽力保护，不是内核配额：空间可在采样间隔耗尽，工作区可能在其他磁盘，
-未配置内核约束时用户代码仍可大量占用 CPU/内存；工作区写入硬配额尚未实现。资源失败不会触发自动任务重试。
+Disk probes use Unix Statfs / Windows GetDiskFreeSpaceEx without commands or dependencies. Admission holds the Manager lock and rejects concurrency/retention/space failures before creating files or processes. The first task starts one Manager-owned monitor: runtime/output failures every 250 ms, disk every second. Low space or probe failure stops managed work and attempts the existing failed-result persistence path. Unwritable storage logs persistence failure; restart may recover only interrupted state, not a complete failure record. These are best-effort guards, not kernel quotas: space may run out between samples, workspaces may be on other disks, and unconstrained tasks can still consume CPU/memory. Workspace write quotas are unimplemented. Resource failures never retry tasks automatically.
 
 The daemon admits at most 128 TCP sockets, 64 device read handlers and 16 device
 mutation handlers separately, with per-device limits of 8 reads/2 mutations and
@@ -180,7 +168,7 @@ There is no new durable task queue or automatic execution retry. Auto Agent star
 does not launch its terminal fallback after resource enforcement or output failure;
 the original failed structured session is retained for inspection.
 
-### Lifecycle and transport / 生命周期与流式传输
+### Lifecycle and transport
 
 On Unix a private re-exec guardian observes the Host lifetime pipe. Host SIGKILL,
 cancellation or target completion triggers cleanup. waitid(WNOWAIT) on Linux or
@@ -203,13 +191,9 @@ so blocked Scanner/Encoder operations can unwind before workers are joined.
 A generic non-closeable io.Writer cannot be forcibly unblocked. Clean EOF still
 drains accepted calls; disconnect never owns daemon task cancellation.
 
-输出页沿用原字节 offset/start_offset/next_offset 语义；可选 `resync_required`
-提示过期或超前游标，不改变旧客户端读超前位置得到空页的行为。
-输出关闭可重复调用，并唤醒等待者。事件恢复限制 256 KiB / 1024 条，校验合法
-Session ID、严格递增 revision、溢出边界；损坏日志拒绝加载且保留原文件，
-不会自动删除账本、输出或活动历史来“修复”状态。
+Output pages retain byte `offset/start_offset/next_offset` semantics. Optional `resync_required` signals expired/future cursors without changing old clients receiving an empty page for future offsets. Close is idempotent and wakes waiters. Event recovery is bounded to 256 KiB/1024 entries and validates Session IDs, strictly increasing revisions and overflow. Corrupt journals fail loading and remain intact; no ledger/output/activity history is deleted automatically to repair state.
 
-### Explicit state recovery / 显式状态修复
+### Explicit state recovery
 
 `nimotehost repair inspect` produces a SHA256-bound review plan for session JSON,
 identity sidecars and event journal. `repair apply <plan-id>` rechecks the plan
@@ -222,7 +206,7 @@ Receipts, credential files, revocations, output and activity are never reset/rep
 Corrupt ownership evidence requires operator review; repair does not infer process
 ownership from a filename/PID or resurrect tasks. No automatic destructive repair.
 
-### Adapter and diagnostics / 扩展与诊断
+### Adapter and diagnostics
 
 A narrow internal agentAdapter interface and shared CLI descriptors centralize
 executable/protocol/arguments/version requirements for live sessions and history.
@@ -253,7 +237,7 @@ category; uncertain mutation results use request_uncertain, separate from transi
 capacity/unavailable errors. No token, environment, prompt, terminal output or tool diff is added to
 operational logs. Self-review and tests are not independent security approval.
 
-## Compatibility and rollback / 兼容及回滚
+## Compatibility and rollback
 
 - Protocol remains 1; SSH/RPC/MCP routes and provider command interfaces remain.
   New capability flags: device_session_acl_v1, device_safe_control_v1,
@@ -291,10 +275,9 @@ operational logs. Self-review and tests are not independent security approval.
   now compares stable status fields plus instance identity, because free disk is
   intentionally dynamic; it also verifies restart changes the instance ID.
 
-中文结论：旧客户端继续使用旧接口；新增能力需要协商。不做破坏性数据迁移，
-不自动清理未知文件/凭证/任务，不把受限 operator 或应用层限流描述为 OS 沙箱。
+Existing clients retain old endpoints; additions require negotiation. There is no destructive migration or automatic deletion of unknown files, credentials or tasks. Scoped operators and application admission limits are not an OS sandbox.
 
-## Follow-up acceptance and deployment / 后续验收及部署决策
+## Follow-up acceptance and deployment
 
 Linux native Codex acceptance exposed Tokio's use of anonymous Unix stream pairs
 for signal wakeups. Blanket socketpair denial caused startup to panic. The filter

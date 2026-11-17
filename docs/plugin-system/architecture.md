@@ -1,4 +1,4 @@
-# Plugin architecture — English / 简体中文
+# Plugin architecture
 
 NimoteHost now has an additive Host-side capability platform. Protocol **HCP 1.0**
 is independent of the existing Host transport protocol **1**. A generic client
@@ -53,9 +53,6 @@ clear all prior grants. A crash during a two-directory update may leave a privat
 `.previous-*` directory for manual recovery; unknown staging/backup directories
 are ignored. This is fail-closed installation, not a transactional package database.
 
-简体中文：复用现有 SSH、认证、进程监管、ACP 和 MCP；新增能力通过统一协议发现。
-独立进程与原有会话管理并存，不替换现有任务系统。标准插件可自动接入已支持 HCP
-的通用客户端；未实现 HCP 的旧客户端继续使用原接口。
 
 ## Desktop GUI
 
@@ -67,6 +64,3 @@ HCP contract through the existing authenticated desktop facade; no plugin-specif
 GUI logic is added. Settings retains its original navigation index. All six existing
 languages include plugin controls. Complex schemas use a JSON editor rather than
 a complete visual JSON Schema form renderer.
-
-简体中文：新增通用插件页面、清单审查、权限确认、能力调用及结果/进度/取消入口；
-界面继续使用现有六种语言，复杂输入采用通用 JSON 编辑器。
