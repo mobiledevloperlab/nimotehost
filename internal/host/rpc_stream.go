@@ -10,15 +10,18 @@ import (
 	"errors"
 	"io"
 	"sync"
+
+	"github.com/mobiledevloperlab/nimotehost/pkg/hostclient"
 )
 
 // Stream v1 clients limit the entire line (excluding the newline).
 const maxRPCStreamFrame = 2 << 20
 
 type rpcStreamResponse struct {
-	ID     uint64          `json:"id"`
-	Result json.RawMessage `json:"result,omitempty"`
-	Error  *string         `json:"error,omitempty"`
+	ID          uint64            `json:"id"`
+	Result      json.RawMessage   `json:"result,omitempty"`
+	Error       *string           `json:"error,omitempty"`
+	ErrorDetail *hostclient.Error `json:"error_detail,omitempty"`
 }
 
 func encodeRPCStreamResponse(id uint64, result []byte, callErr error) []byte {
@@ -27,6 +30,19 @@ func encodeRPCStreamResponse(id uint64, result []byte, callErr error) []byte {
 		message := callErr.Error()
 		response.Result = nil
 		response.Error = &message
+		var detail *hostclient.Error
+		if errors.As(callErr, &detail) {
+			response.ErrorDetail = detail
+		} else {
+			code := "transport_error"
+			if errors.Is(callErr, context.DeadlineExceeded) {
+				code = "deadline_exceeded"
+			}
+			if errors.Is(callErr, context.Canceled) {
+				code = "cancelled"
+			}
+			response.ErrorDetail = &hostclient.Error{Code: code, Message: message}
+		}
 	}
 	frame, err := json.Marshal(response)
 	hasPayload := len(response.Result) != 0 || response.Error != nil
@@ -37,7 +53,7 @@ func encodeRPCStreamResponse(id uint64, result []byte, callErr error) []byte {
 	if err != nil || !hasPayload {
 		message = "Invalid Host RPC response"
 	}
-	frame, _ = json.Marshal(rpcStreamResponse{ID: id, Error: &message})
+	frame, _ = json.Marshal(rpcStreamResponse{ID: id, Error: &message, ErrorDetail: &hostclient.Error{Code: "invalid_response", Message: message}})
 	return frame
 }
 

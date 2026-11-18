@@ -7,7 +7,7 @@
 <p align="center"><a href="README.md">English</a> · 简体中文</p>
 
 <p align="center">
-  <strong>通过 SSH 使用主机上的任务、终端和编程 Agent，会话在客户端断开后继续运行。</strong><br>
+  <strong>NimoteCode 的主机端配套服务，让任务、终端和编程 Agent 会话在客户端断开后继续运行。</strong><br>
   提供独立 CLI 与桌面管理器，适用于 Linux、macOS 和 Windows。
 </p>
 
@@ -27,7 +27,8 @@
 
 ## 项目简介
 
-NimoteHost 是通过既有认证 SSH 使用的独立 Go 服务。Host 只监听本机回环地址，
+NimoteHost 主要与 [NimoteCode](https://github.com/mobiledevloperlab/nimotecode) 配合使用，
+为其 Host 工作区提供任务、终端与编程 Agent 会话后端。它是通过既有认证 SSH 使用的独立 Go 服务。Host 只监听本机回环地址，
 所有 RPC 请求均需认证，无需 Nimote 账号、控制面或公网中继。
 
 提供 Linux、macOS、Windows 的 amd64/arm64 CLI 和桌面构建，以及 Linux/Windows 的
@@ -36,6 +37,28 @@ NimoteHost 是通过既有认证 SSH 使用的独立 Go 服务。Host 只监听�
 
 功能状态见[已完成功能](docs/completed.md)和[未完成功能](docs/pending.md)；
 加固决策与验证见[加固审计](docs/host-hardening.md)和[测试记录](docs/host-hardening-tests.md)。
+
+## 与 NimoteCode 配合，也可独立使用
+
+在主机上安装并启动 NimoteHost，再用 NimoteCode 连接同一系统账号的 SSH，
+即可使用兼容版本提供的 Host 会话、输出和 Agent 审批功能。
+客户端先探测协议和能力，再启用相应功能；具体可用性取决于双方版本、主机配置和已安装的 Agent。
+
+NimoteHost 运行不依赖 NimoteCode 客户端。其他用户可自行构建和部署，使用桌面管理器，
+或从脚本、自有客户端通过以下接口接入：
+
+- `nimotehost rpc`：从标准输入接收 JSON 请求，经主机本地认证接口调用。
+- `nimotehost rpc-stream`：在单个 SSH exec 通道中复用 JSONL 请求，需先协商流协议。
+- `nimotehost mcp`：供兼容 MCP 的客户端使用，默认只读；写操作需显式启用。
+
+接口和能力见[功能与协议说明](docs/completed.md)，
+版本兼容规则见[客户端兼容表](docs/host-hardening.md#client-compatibility)。
+[Go 客户端包](pkg/hostclient)提供能力探测、结构化错误和基于标准输入的命令传输；
+参阅[第三方接入指南](docs/client-api.md)及[可运行示例](examples/host-client/main.go)。
+`pkg/pluginsdk` 用于社区插件，与通用 Host 客户端包用途不同。
+
+Host 默认以当前系统账号执行命令。通过同一账号的普通 SSH 登录接入，相当于使用该账号的权限；
+多用户部署需自行设计账号与隔离边界，参阅[安全政策](SECURITY.zh-CN.md)。
 
 ## 从这里开始
 

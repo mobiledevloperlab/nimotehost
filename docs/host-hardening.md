@@ -196,6 +196,10 @@ Output pages retain byte `offset/start_offset/next_offset` semantics. Optional `
 
 ### Client compatibility
 
+See the [client integration guide](client-api.md) for framing, error codes and the
+public Go client. `rpc_error_details_v1` adds optional stream error details while
+preserving legacy error strings and stream protocol 1.
+
 | Client input | Host behavior |
 | --- | --- |
 | `Nimote-Host-Protocol: 1` | An authenticated, authorized request passes the protocol check. A missing header or a different value receives HTTP 426. The Host release version is separate from the protocol. |

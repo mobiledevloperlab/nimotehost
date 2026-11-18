@@ -7,7 +7,7 @@
 <p align="center">English · <a href="README.zh-CN.md">简体中文</a></p>
 
 <p align="center">
-  <strong>Run tasks, terminals and coding agents on your host, with sessions that outlive client disconnects.</strong><br>
+  <strong>The host-side companion to NimoteCode, keeping tasks, terminals and coding agent sessions running after clients disconnect.</strong><br>
   A standalone CLI and desktop manager for Linux, macOS and Windows.
 </p>
 
@@ -27,8 +27,9 @@
 
 ## Overview
 
-NimoteHost is a standalone Go runtime accessed over an existing authenticated SSH
-connection. Host listens only on loopback and authenticates every RPC request.
+NimoteHost is primarily designed to work with [NimoteCode](https://github.com/mobiledevloperlab/nimotecode),
+providing the task, terminal and coding agent backend for its Host workspace. It is
+a standalone Go runtime accessed over an existing authenticated SSH connection. Host listens only on loopback and authenticates every RPC request.
 No Nimote account, control plane or public relay is required.
 
 Build targets include Linux/macOS/Windows amd64 and arm64 CLI and desktop editions,
@@ -37,6 +38,32 @@ acceptance remains outstanding; see [pending functionality](docs/pending.md).
 
 Current functionality: [completed](docs/completed.md) and [pending](docs/pending.md).
 Hardening decisions and verification: [audit](docs/host-hardening.md) and [test results](docs/host-hardening-tests.md).
+
+## With NimoteCode or on its own
+
+Install and start NimoteHost on your host, then connect NimoteCode over SSH as the
+same OS user to use the sessions, output and Agent approvals available in compatible
+versions. The client probes the protocol and capabilities before enabling features;
+availability depends on both versions, host configuration and installed Agents.
+
+Running NimoteHost does not require the NimoteCode client. Other users can build
+and deploy it, use the desktop manager, or integrate scripts and their own clients
+through these interfaces:
+
+- `nimotehost rpc`: accepts a JSON request on stdin and calls the authenticated local API.
+- `nimotehost rpc-stream`: multiplexes JSONL requests over one SSH exec channel after stream-protocol negotiation.
+- `nimotehost mcp`: serves compatible MCP clients; read-only by default, with writes explicitly enabled.
+
+See [features and protocols](docs/completed.md) and the
+[client compatibility table](docs/host-hardening.md#client-compatibility).
+The [Go client package](pkg/hostclient) provides capability negotiation, structured
+errors and a command transport using stdin. See the [integration guide](docs/client-api.md)
+and [runnable example](examples/host-client/main.go). `pkg/pluginsdk` is separate
+and intended for community plugins.
+
+Host executes commands as its OS user by default. Connecting through an ordinary
+SSH login for that user carries that account's authority. Multi-user deployments
+need their own account and isolation boundaries; see [Security](SECURITY.md).
 
 ## Start here
 

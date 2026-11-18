@@ -15,16 +15,15 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
+
+	"github.com/mobiledevloperlab/nimotehost/pkg/hostclient"
 )
 
 // RPCRequest is one authenticated request transported over an existing SSH
 // exec channel. No credential is returned to the phone or placed in argv.
-type RPCRequest struct {
-	Method string          `json:"method"`
-	Path   string          `json:"path"`
-	Body   json.RawMessage `json:"body,omitempty"`
-}
+type RPCRequest = hostclient.Request
 
 const maxRPCResponse = 2 << 20
 
@@ -76,6 +75,9 @@ func Call(ctx context.Context, dir string, req RPCRequest) ([]byte, error) {
 	client := rpcHTTPClient(req)
 	response, err := client.Do(r)
 	if err != nil {
+		if errors.Is(err, syscall.ECONNREFUSED) {
+			return nil, &hostclient.Error{Code: "host_stopped", Message: err.Error(), Legacy: err.Error(), Cause: err}
+		}
 		return nil, err
 	}
 	defer response.Body.Close()
@@ -87,7 +89,19 @@ func Call(ctx context.Context, dir string, req RPCRequest) ([]byte, error) {
 		return nil, errors.New("Host RPC response exceeds 2 MiB")
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, fmt.Errorf("Host RPC %d: %s", response.StatusCode, strings.TrimSpace(string(data)))
+		var rejection struct {
+			Code    string `json:"code"`
+			Message string `json:"error"`
+		}
+		_ = json.Unmarshal(data, &rejection)
+		if rejection.Code == "" {
+			rejection.Code = "unknown"
+		}
+		if rejection.Message == "" {
+			rejection.Message = strings.TrimSpace(string(data))
+		}
+		return nil, &hostclient.Error{Status: response.StatusCode, Code: rejection.Code, Message: rejection.Message,
+			Legacy: fmt.Sprintf("Host RPC %d: %s", response.StatusCode, strings.TrimSpace(string(data)))}
 	}
 	return data, nil
 }
