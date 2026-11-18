@@ -14,8 +14,10 @@ NimoteHost 是通过既有认证 SSH 使用的独立 Go 服务，可托管持久
 
 ## GitHub 自动构建
 
-[Host CI](.github/workflows/ci.yml) 在推送、拉取请求和手动触发时编译，可从运行页面的
-构建产物区（`Artifacts`）下载。推送 `v*` 标签后，全部必要检查通过才会发布到 GitHub Releases。
+[Host CI](.github/workflows/ci.yml) 在拉取请求和推送到 `master` 时运行 Linux 检查。手动运行时可选择
+`cli`、`gui` 或 `both`，从运行页面的构建产物区（`Artifacts`）下载对应的包。
+推送 `v*` 标签后，两种构建并行启动。CLI 检查通过后先发布 CLI 包和源码归档，六个桌面构建全部
+通过后再把桌面包追加到同一个 GitHub Release。追加桌面包要求仓库关闭不可变发布设置。
 
 | 系统 | CLI | 桌面包 |
 | --- | --- | --- |

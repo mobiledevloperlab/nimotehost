@@ -17,9 +17,12 @@ Hardening decisions and verification: [audit](docs/host-hardening.md) and [test 
 
 ## GitHub build artifacts
 
-[Host CI](.github/workflows/ci.yml) runs on pushes, pull requests and manual dispatch.
-Download packages from the run's **Artifacts** section. Pushing a `v*` tag publishes
-packages to GitHub Releases after all required checks pass.
+[Host CI](.github/workflows/ci.yml) runs Linux checks on pull requests and pushes to
+`master`. Run it manually with `cli`, `gui`, or `both` to download packages from the
+run's **Artifacts** section. Pushing a `v*` tag starts both builds. The CLI packages
+and source archive go live after the CLI checks pass. The desktop packages are added
+to the same GitHub Release after all six desktop builds pass. Adding desktop packages
+requires immutable releases to be disabled in the repository settings.
 
 | Platform | CLI | Desktop |
 | --- | --- | --- |
