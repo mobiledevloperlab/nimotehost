@@ -58,12 +58,11 @@ func buildGUI(targetOS, arch, version string) error {
 	if err := copyTree(source, output); err != nil {
 		return err
 	}
-	for _, asset := range []struct{ source, target string }{
-		{"icon.png", "nimotehost.png"}, {"icon.ico", "nimotehost.ico"},
-	} {
-		if err := copyFile(filepath.Join("cmd", "nimotehost-gui", "assets", asset.source), filepath.Join(output, asset.target)); err != nil {
-			return err
-		}
+	if err := copyDesktopIcon(output, targetOS); err != nil {
+		return err
+	}
+	if err := writeDistributionReadmes(output, targetOS, arch, version, true); err != nil {
+		return err
 	}
 	binaryDir := output
 	if targetOS == "darwin" {
@@ -181,6 +180,9 @@ func buildGUI(targetOS, arch, version string) error {
 		if err = os.WriteFile(filepath.Join(output, "nimotehost.desktop"), []byte(entry), 0644); err != nil {
 			return err
 		}
+	}
+	if err := validateDistribution(output, targetOS, true); err != nil {
+		return err
 	}
 	// The CLI installer verifies this manifest; include every bundled GUI file too.
 	if err = writeGUISums(output); err != nil {

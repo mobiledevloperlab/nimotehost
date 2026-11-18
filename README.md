@@ -120,8 +120,11 @@ For other targets or a versioned distribution:
 go run ./tools/build -os windows -arch arm64 -version 2.4.0
 ```
 
-The complete distribution includes current bilingual feature documentation, licenses,
-a module manifest, build metadata and SHA256SUMS. Builds also produce a versioned
+Binary distributions include concise English/Chinese installation instructions, the
+target platform's installer, licenses, module manifests, build metadata and SHA256SUMS.
+Full development documentation, contribution guidelines and audit records stay in
+the source archive and on GitHub. Bundle file lists and local documentation links
+are validated before archiving. Builds also produce a versioned
 `.tar.gz` (Linux/macOS) or `.zip` (Windows) and an adjacent `.sha256`. A Bash wrapper, `./scripts/build-host.sh <os> <arch> [version]`,
 is also available. Preserve the entire distribution when sharing binaries.
 

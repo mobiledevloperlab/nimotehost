@@ -33,6 +33,14 @@ Claude adds official `agents --json` discovery, status and wait-reason projectio
 
 Users need a trusted complete distribution, not Go. Verify SHA256, extract and retain licenses, BUILD.json, MODULES.json and SHA256SUMS.
 
+Binary bundles include generated English/Chinese installation instructions and only
+the target platform's installer. Full repository documentation, contribution guides
+and audit records remain in source archives and on GitHub. Builders validate the
+bundle file allowlist and local README/notice links before generating checksums.
+Desktop bundles include the CLI; macOS retains the adjacent CLI inside the app
+and the root CLI required by setup. Linux carries its desktop icon; Windows uses
+embedded icon resources and macOS uses its app's ICNS resource.
+
 ```sh
 # Source build requires Go 1.26.5+
 go run ./tools/build

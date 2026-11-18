@@ -24,16 +24,13 @@ func TestDeployableArchives(t *testing.T) {
 			if err := os.MkdirAll(filepath.Join(directory, "scripts"), 0755); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.MkdirAll(filepath.Join(directory, "docs"), 0755); err != nil {
-				t.Fatal(err)
-			}
 			name := "nimotehost"
 			if targetOS == "windows" {
 				name += ".exe"
 			}
 			os.WriteFile(filepath.Join(directory, name), []byte("binary fixture"), 0755)
 			os.WriteFile(filepath.Join(directory, "scripts", "install.sh"), []byte("installer fixture"), 0644)
-			os.WriteFile(filepath.Join(directory, "docs", "completed.md"), []byte("deploy fixture"), 0644)
+			os.WriteFile(filepath.Join(directory, "README.md"), []byte("deploy fixture"), 0644)
 			path, err := packageDistribution(directory, targetOS, "amd64", "1.0.0-dev")
 			if err != nil {
 				t.Fatal(err)
@@ -95,7 +92,7 @@ func TestDeployableArchives(t *testing.T) {
 					}
 				}
 			}
-			if !found[name] || !found["docs/completed.md"] || !found["scripts/install.sh"] || len(found) != 3 {
+			if !found[name] || !found["README.md"] || !found["scripts/install.sh"] || len(found) != 3 {
 				t.Fatalf("wrong contents: %v", found)
 			}
 		})

@@ -217,7 +217,7 @@ func build(targetOS, arch, version string) error {
 	if err := cmd.Run(); err != nil {
 		return err
 	}
-	for _, name := range []string{"LICENSE", "NOTICE", "README.md", "README.zh-CN.md", "CONTRIBUTING.md", "CONTRIBUTING.zh-CN.md", "SECURITY.md", "SECURITY.zh-CN.md", "CHANGELOG.md", "CHANGELOG.zh-CN.md", "THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.zh-CN.md"} {
+	for _, name := range []string{"LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.zh-CN.md"} {
 		data, err := os.ReadFile(name)
 		if err != nil {
 			return err
@@ -229,7 +229,7 @@ func build(targetOS, arch, version string) error {
 			return err
 		}
 	}
-	for _, name := range []string{"install.sh", "install.ps1"} {
+	for _, name := range []string{distributionInstaller(targetOS)} {
 		dest := filepath.Join(output, "scripts", name)
 		if err := copyFile(filepath.Join("scripts", name), dest); err != nil {
 			return err
@@ -240,7 +240,7 @@ func build(targetOS, arch, version string) error {
 			}
 		}
 	}
-	if err := copyTree("docs", filepath.Join(output, "docs")); err != nil {
+	if err := writeDistributionReadmes(output, targetOS, arch, version, false); err != nil {
 		return err
 	}
 	// Replace distribution notices on each build so removed dependencies don't linger.
@@ -285,6 +285,9 @@ func build(targetOS, arch, version string) error {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(output, "BUILD.json"), append(data, '\n'), 0644); err != nil {
+		return err
+	}
+	if err := validateDistribution(output, targetOS, false); err != nil {
 		return err
 	}
 	var paths []string

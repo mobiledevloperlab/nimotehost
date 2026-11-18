@@ -139,7 +139,8 @@ go run ./tools/build
 go run ./tools/build -os windows -arch arm64 -version 2.4.0
 ```
 
-完整分发目录包含当前中英文功能说明、许可证、模块清单、构建信息和 SHA256SUMS。
+二进制分发包包含简短的中英文安装说明、当前平台安装脚本、许可证、模块清单、构建信息和 SHA256SUMS。
+完整开发文档、贡献指南和审计记录保留在源码归档与 GitHub；打包前会检查文件清单和包内文档链接。
 构建还会生成带版本的 `.tar.gz`（Linux/macOS）或 `.zip`（Windows）以及配套 `.sha256`。也可使用 Bash 包装脚本：
 `./scripts/build-host.sh <os> <arch> [version]`。分发二进制时请保留整个分发目录。
 
