@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 
 	"github.com/mobiledevloperlab/nimotehost/pkg/hostclient"
@@ -56,7 +55,7 @@ func TestRPCRejectionPreservesLegacyAndStructuredDetails(t *testing.T) {
 	server.Close()
 	_, stoppedErr := Call(context.Background(), dir, RPCRequest{Method: "GET", Path: "/v1/status"})
 	var stopped *hostclient.Error
-	if !errors.As(stoppedErr, &stopped) || stopped.Code != "host_stopped" || !errors.Is(stoppedErr, syscall.ECONNREFUSED) {
+	if !errors.As(stoppedErr, &stopped) || stopped.Code != "host_stopped" || !errors.Is(stoppedErr, rpcConnectionRefused) {
 		t.Fatalf("connection refusal lost typed code or cause: %v", stoppedErr)
 	}
 }

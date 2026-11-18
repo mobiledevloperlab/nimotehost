@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/mobiledevloperlab/nimotehost/pkg/hostclient"
@@ -75,7 +74,7 @@ func Call(ctx context.Context, dir string, req RPCRequest) ([]byte, error) {
 	client := rpcHTTPClient(req)
 	response, err := client.Do(r)
 	if err != nil {
-		if errors.Is(err, syscall.ECONNREFUSED) {
+		if errors.Is(err, rpcConnectionRefused) {
 			return nil, &hostclient.Error{Code: "host_stopped", Message: err.Error(), Legacy: err.Error(), Cause: err}
 		}
 		return nil, err
