@@ -8,39 +8,67 @@ import (
 
 // Entries exist only while a device has admitted work. Neither stale identities
 // nor unbounded attacker-chosen keys accumulate in this map.
-type principalUsage struct{ reads, writes int }
+type principalUsage struct{ reads, writes, outputWaits int }
 type requestAdmission struct {
 	mu                      sync.Mutex
 	devices                 map[string]principalUsage
 	ownerReads, ownerWrites chan struct{}
+	ownerOutputWaits        chan struct{}
 }
 
 func newRequestAdmission() *requestAdmission {
-	return &requestAdmission{devices: make(map[string]principalUsage), ownerReads: make(chan struct{}, 8), ownerWrites: make(chan struct{}, 4)}
+	return &requestAdmission{
+		devices:          make(map[string]principalUsage),
+		ownerReads:       make(chan struct{}, 8),
+		ownerWrites:      make(chan struct{}, 4),
+		ownerOutputWaits: make(chan struct{}, 4),
+	}
 }
-func (a *requestAdmission) acquire(id string, owner, mutation bool) (func(), bool) {
+
+// Waiting output readers share the normal read budget, but may use at most
+// half of it. Metadata/health requests must still get through while terminals
+// are idle, including when multiple clients share the owner credential.
+func (a *requestAdmission) acquire(id string, owner, mutation, outputWait bool) (func(), bool) {
 	if owner {
+		if outputWait {
+			select {
+			case a.ownerOutputWaits <- struct{}{}:
+			default:
+				return nil, false
+			}
+		}
 		slots := a.ownerReads
 		if mutation {
 			slots = a.ownerWrites
 		}
 		select {
 		case slots <- struct{}{}:
-			return func() { <-slots }, true
+			return func() {
+				<-slots
+				if outputWait {
+					<-a.ownerOutputWaits
+				}
+			}, true
 		default:
+			if outputWait {
+				<-a.ownerOutputWaits
+			}
 			return nil, false
 		}
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	n := a.devices[id]
-	if (!mutation && n.reads >= 8) || (mutation && n.writes >= 2) {
+	if (!mutation && n.reads >= 8) || (mutation && n.writes >= 2) || (outputWait && n.outputWaits >= 4) {
 		return nil, false
 	}
 	if mutation {
 		n.writes++
 	} else {
 		n.reads++
+	}
+	if outputWait {
+		n.outputWaits++
 	}
 	a.devices[id] = n
 	return func() {
@@ -51,6 +79,9 @@ func (a *requestAdmission) acquire(id string, owner, mutation bool) (func(), boo
 			n.writes--
 		} else {
 			n.reads--
+		}
+		if outputWait {
+			n.outputWaits--
 		}
 		if n.reads == 0 && n.writes == 0 {
 			delete(a.devices, id)

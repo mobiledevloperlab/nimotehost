@@ -11,10 +11,11 @@ import (
 // ACP v1 is deliberately negotiated explicitly. An unsupported major version
 // fails startup and auto mode selects the installed CLI's terminal interface.
 type acpState struct {
-	canceling bool
-	version   int
-	tools     map[string]map[string]any
-	options   map[string]map[string]string
+	canceling   bool
+	version     int
+	legacyModel *agentOption
+	tools       map[string]map[string]any
+	options     map[string]map[string]string
 }
 
 func (a *structuredAgent) initializeACP() error {
@@ -32,7 +33,7 @@ func (a *structuredAgent) initializeACP() error {
 func (a *structuredAgent) receiveACPResult(id string, payload, rpcError json.RawMessage) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.closed {
+	if a.closed || a.stopRequested.Load() {
 		return
 	}
 	if len(rpcError) > 0 && string(rpcError) != "null" {
@@ -107,6 +108,9 @@ func (a *structuredAgent) receiveACPResult(id string, payload, rpcError json.Raw
 					if a.controls.Options[i].ID == a.pendingConfig.OptionID {
 						a.controls.Options[i].Value = a.pendingConfig.Value
 					}
+				}
+				if a.pendingConfig.OptionID == "__model" && a.acp.legacyModel != nil {
+					a.acp.legacyModel.Value = a.pendingConfig.Value
 				}
 				a.pendingConfig = nil
 			}

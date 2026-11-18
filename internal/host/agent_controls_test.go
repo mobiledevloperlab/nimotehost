@@ -126,6 +126,54 @@ func TestACPModelFailureKeepsSelection(t *testing.T) {
 	}
 }
 
+func TestACPModelsSurviveConfigOptionsAndRefresh(t *testing.T) {
+	for _, config := range []string{`[]`, `[{"id":"effort","name":"Effort","currentValue":"low","options":[{"value":"low","name":"Low"}]}]`} {
+		t.Run(config, func(t *testing.T) {
+			a, _ := testACP()
+			readyACP(t, a)
+			a.configACP(json.RawMessage(`{"configOptions":` + config + `,"models":{"currentModelId":"one","availableModels":[{"modelId":"one","name":"One"},{"modelId":"two","name":"Two"}]}}`))
+			// Later configuration notifications must keep the independent legacy catalog.
+			a.configACP(json.RawMessage(`{"configOptions":` + config + `}`))
+			if err := a.message(AgentMessage{Action: "configure", RequestID: "select-legacy", OptionID: "__model", Value: "two"}); err != nil {
+				t.Fatal("legacy model was lost", a.controls, err)
+			}
+			frame := queuedFrame(t, a)
+			if frame["method"] != "session/set_model" {
+				t.Fatal(frame)
+			}
+			response, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": frame["id"], "result": map[string]any{}})
+			receiveAgentFrameForTest(a, response)
+			a.configACP(json.RawMessage(`{"configOptions":` + config + `}`))
+			var selected string
+			for _, opt := range a.controls.Options {
+				if opt.ID == "__model" {
+					selected = opt.Value
+				}
+			}
+			if selected != "two" {
+				t.Fatal("configuration refresh lost acknowledged selection", a.controls.Options)
+			}
+		})
+	}
+}
+
+func TestACPModernModelTakesPrecedenceOverLegacyCatalog(t *testing.T) {
+	a, _ := testACP()
+	readyACP(t, a)
+	a.configACP(json.RawMessage(`{"models":{"currentModelId":"old","availableModels":[{"modelId":"old","name":"Old"}]},"configOptions":[{"id":"provider-model","category":"model","name":"Model","currentValue":"new","options":[{"value":"new","name":"New"}]}]}`))
+	for _, opt := range a.controls.Options {
+		if opt.ID == "__model" {
+			t.Fatal("duplicate legacy model selector", a.controls)
+		}
+	}
+	if err := a.message(AgentMessage{Action: "configure", RequestID: "select-modern", OptionID: "provider-model", Value: "new"}); err != nil {
+		t.Fatal(err)
+	}
+	if frame := queuedFrame(t, a); frame["method"] != "session/set_config_option" {
+		t.Fatal(frame)
+	}
+}
+
 func TestCodexCatalogRefreshPreservesSelectionsAndDeduplicatesInFlight(t *testing.T) {
 	a, _ := testAgent()
 	a.thread = "thread"

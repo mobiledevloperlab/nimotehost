@@ -8,24 +8,64 @@ import (
 	"time"
 )
 
+func TestOutputWaitAdmissionReservesReadsAndReleases(t *testing.T) {
+	for _, owner := range []bool{false, true} {
+		t.Run(map[bool]string{false: "device", true: "owner"}[owner], func(t *testing.T) {
+			a := newRequestAdmission()
+			var release []func()
+			for range 4 {
+				f, ok := a.acquire("one", owner, false, true)
+				if !ok {
+					t.Fatal("early output rejection")
+				}
+				release = append(release, f)
+			}
+			if _, ok := a.acquire("one", owner, false, true); ok {
+				t.Fatal("output consumed reserved reads")
+			}
+			for range 4 {
+				f, ok := a.acquire("one", owner, false, false)
+				if !ok {
+					t.Fatal("metadata lost reserved reads")
+				}
+				release = append(release, f)
+			}
+			if _, ok := a.acquire("one", owner, false, false); ok {
+				t.Fatal("total read limit increased")
+			}
+			for _, f := range release {
+				f()
+			}
+			if len(a.devices) != 0 || len(a.ownerReads) != 0 || len(a.ownerOutputWaits) != 0 {
+				t.Fatal("admission slots leaked")
+			}
+			f, ok := a.acquire("one", owner, false, true)
+			if !ok {
+				t.Fatal("output did not recover capacity")
+			}
+			f()
+		})
+	}
+}
+
 func TestPrincipalAdmissionIsolationAndRelease(t *testing.T) {
 	a := newRequestAdmission()
 	var release []func()
 	for range 8 {
-		f, ok := a.acquire("a", false, false)
+		f, ok := a.acquire("a", false, false, false)
 		if !ok {
 			t.Fatal("early rejection")
 		}
 		release = append(release, f)
 	}
-	if _, ok := a.acquire("a", false, false); ok {
+	if _, ok := a.acquire("a", false, false, false); ok {
 		t.Fatal("unbounded device reads")
 	}
 	for _, principal := range []struct {
 		id    string
 		owner bool
 	}{{"b", false}, {"", true}} {
-		f, ok := a.acquire(principal.id, principal.owner, false)
+		f, ok := a.acquire(principal.id, principal.owner, false, false)
 		if !ok {
 			t.Fatal("one device exhausted another principal")
 		}
@@ -33,13 +73,13 @@ func TestPrincipalAdmissionIsolationAndRelease(t *testing.T) {
 	}
 	var mutations []func()
 	for range 2 {
-		f, ok := a.acquire("a", false, true)
+		f, ok := a.acquire("a", false, true, false)
 		if !ok {
 			t.Fatal("reads exhausted control slots")
 		}
 		mutations = append(mutations, f)
 	}
-	if _, ok := a.acquire("a", false, true); ok {
+	if _, ok := a.acquire("a", false, true, false); ok {
 		t.Fatal("unbounded device mutations")
 	}
 	for _, f := range append(release, mutations...) {
@@ -57,7 +97,7 @@ func TestPrincipalAdmissionConcurrentBound(t *testing.T) {
 	for range 64 {
 		wg.Go(func() {
 			<-start
-			if release, ok := a.acquire("one", false, false); ok {
+			if release, ok := a.acquire("one", false, false, false); ok {
 				accepted <- release
 			}
 		})

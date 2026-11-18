@@ -150,12 +150,18 @@ func TestStructuredAgentProcessLifecycle(t *testing.T) {
 	awaitOutput("hello from subprocess")
 	// Re-attaching reads the same durable event log, without starting a new agent.
 	awaitOutput(`"type":"user"`)
-	if err = m.Cancel(s.ID); err != nil {
-		t.Fatal(err)
+	api := &Server{manager: m, token: "owner", admission: newRequestAdmission()}
+	path := "/v1/sessions/" + s.ID
+	if w := deviceRequest(api, "owner", "POST", path+"/cancel", ""); w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
 	}
 	ended := awaitSession(t, m, s.ID)
-	if ended.Interaction != "structured" || ended.State != "canceled" {
+	if ended.Interaction != "structured" || ended.State != "canceled" || ended.Error != "" {
 		t.Fatal(ended)
+	}
+	data, _, err := m.Output(s.ID, 0)
+	if err != nil || strings.Contains(string(data), `"type":"error"`) {
+		t.Fatalf("unexpected errors after stopping Agent: %s (%v)", data, err)
 	}
 	if err = m.AgentMessage(s.ID, AgentMessage{Action: "prompt", RequestID: "after-stop", Text: "hello"}); err == nil {
 		t.Fatal("stopped process accepted prompt")
