@@ -26,6 +26,8 @@ type RPCRequest struct {
 	Body   json.RawMessage `json:"body,omitempty"`
 }
 
+const maxRPCResponse = 2 << 20
+
 var loopbackClient = &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{Proxy: nil, MaxIdleConnsPerHost: 8, IdleConnTimeout: 30 * time.Second}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 func Call(ctx context.Context, dir string, req RPCRequest) ([]byte, error) {
@@ -77,11 +79,11 @@ func Call(ctx context.Context, dir string, req RPCRequest) ([]byte, error) {
 		return nil, err
 	}
 	defer response.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(response.Body, (2<<20)+1))
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxRPCResponse+1))
 	if err != nil {
 		return nil, err
 	}
-	if len(data) > 2<<20 {
+	if len(data) > maxRPCResponse {
 		return nil, errors.New("Host RPC response exceeds 2 MiB")
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {

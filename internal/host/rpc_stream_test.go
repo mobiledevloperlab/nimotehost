@@ -19,6 +19,49 @@ import (
 	"time"
 )
 
+func TestRPCStreamOversizedResponseKeepsBridgeOpen(t *testing.T) {
+	requests := strings.NewReader(
+		"{\"id\":1,\"method\":\"GET\",\"path\":\"/v1/large\"}\n" +
+			"{\"id\":2,\"method\":\"GET\",\"path\":\"/v1/error\"}\n" +
+			"{\"id\":3,\"method\":\"GET\",\"path\":\"/v1/status\"}\n",
+	)
+	var replies bytes.Buffer
+	err := serveRPCStream(context.Background(), requests, &replies, func(_ context.Context, req RPCRequest) ([]byte, error) {
+		switch req.Path {
+		case "/v1/large":
+			// The HTTP body fits, but escaping it inside the JSONL frame does not.
+			return []byte(`"` + strings.Repeat("<", maxRPCStreamFrame/6) + `"`), nil
+		case "/v1/error":
+			return nil, errors.New(strings.Repeat("\n", maxRPCStreamFrame/2))
+		default:
+			return []byte(`{"ok":true}`), nil
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := bytes.Split(bytes.TrimSpace(replies.Bytes()), []byte{'\n'})
+	if len(lines) != 4 {
+		t.Fatalf("got %d frames, want greeting and three replies", len(lines))
+	}
+	for _, line := range lines[1:] {
+		if len(line) > maxRPCStreamFrame {
+			t.Fatalf("oversized frame: %d bytes", len(line))
+		}
+		var response rpcStreamResponse
+		if err := json.Unmarshal(line, &response); err != nil {
+			t.Fatal(err)
+		}
+		if response.ID == 3 {
+			if string(response.Result) != `{"ok":true}` || response.Error != nil {
+				t.Fatalf("invalid status reply: %s", line)
+			}
+		} else if response.Error == nil || *response.Error != "Host RPC response exceeds stream frame limit" {
+			t.Fatalf("expected per-request size error for %d", response.ID)
+		}
+	}
+}
+
 func TestRPCStreamMultiplexesOutputWaitAndControlRequests(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

@@ -12,6 +12,35 @@ import (
 	"sync"
 )
 
+// Stream v1 clients limit the entire line (excluding the newline).
+const maxRPCStreamFrame = 2 << 20
+
+type rpcStreamResponse struct {
+	ID     uint64          `json:"id"`
+	Result json.RawMessage `json:"result,omitempty"`
+	Error  *string         `json:"error,omitempty"`
+}
+
+func encodeRPCStreamResponse(id uint64, result []byte, callErr error) []byte {
+	response := rpcStreamResponse{ID: id, Result: result}
+	if callErr != nil {
+		message := callErr.Error()
+		response.Result = nil
+		response.Error = &message
+	}
+	frame, err := json.Marshal(response)
+	hasPayload := len(response.Result) != 0 || response.Error != nil
+	if err == nil && len(frame) <= maxRPCStreamFrame && hasPayload {
+		return frame
+	}
+	message := "Host RPC response exceeds stream frame limit"
+	if err != nil || !hasPayload {
+		message = "Invalid Host RPC response"
+	}
+	frame, _ = json.Marshal(rpcStreamResponse{ID: id, Error: &message})
+	return frame
+}
+
 // ServeRPCStream carries bounded, multiplexed requests over one SSH exec
 // channel. The credential stays on the host. EOF only detaches the client;
 // processes belong to the daemon, never to this bridge.
@@ -36,11 +65,14 @@ func serveRPCStream(ctx context.Context, input io.Reader, output io.Writer, call
 	}
 	var mu sync.Mutex
 	var writeErr error
-	encoder := json.NewEncoder(output)
-	write := func(value any) error {
+	write := func(frame []byte) error {
 		mu.Lock()
 		defer mu.Unlock()
-		err := encoder.Encode(value)
+		line := append(frame, '\n')
+		n, err := output.Write(line)
+		if err == nil && n != len(line) {
+			err = io.ErrShortWrite
+		}
 		if err != nil {
 			if writeErr == nil {
 				writeErr = err
@@ -49,7 +81,7 @@ func serveRPCStream(ctx context.Context, input io.Reader, output io.Writer, call
 		}
 		return err
 	}
-	if err := write(map[string]any{"stream_protocol": 1}); err != nil {
+	if err := write([]byte(`{"stream_protocol":1}`)); err != nil {
 		return err
 	}
 	scanner := bufio.NewScanner(input)
@@ -99,11 +131,7 @@ func serveRPCStream(ctx context.Context, input io.Reader, output io.Writer, call
 			defer func() { idsMu.Lock(); delete(inflight, id); idsMu.Unlock() }()
 			defer func() { <-slots }()
 			result, err := call(ctx, request)
-			if err != nil {
-				_ = write(map[string]any{"id": id, "error": err.Error()})
-			} else {
-				_ = write(map[string]any{"id": id, "result": json.RawMessage(result)})
-			}
+			_ = write(encodeRPCStreamResponse(id, result, err))
 		}(frame.ID, frame.RPCRequest)
 	}
 	if err := ctx.Err(); err != nil {
