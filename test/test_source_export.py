@@ -60,12 +60,20 @@ class HostExportTests(unittest.TestCase):
         self.assertFalse(self.archive.exists())
 
     def test_credentials_rejected_without_echoing_values(self):
-        fake_key = 'AKIA' + 'A' * 16
-        (self.host / 'docs/secret.txt').write_text(fake_key)
-        result = self.export()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertNotIn(fake_key, result.stdout + result.stderr)
-        self.assertFalse(self.archive.exists())
+        fake_keys = [
+            'AKIA' + 'A' * 16,
+            'sk-' + 'A' * 40,
+            'sk-' + 'proj-' + 'A' * 40,
+            'sk-' + 'ant-' + 'A' * 40,
+            '-----BEGIN ' + 'ENCRYPTED PRIVATE KEY-----',
+        ]
+        for fake_key in fake_keys:
+            with self.subTest(prefix=fake_key[:8]):
+                (self.host / 'docs/secret.txt').write_text(fake_key)
+                result = self.export()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn(fake_key, result.stdout + result.stderr)
+                self.assertFalse(self.archive.exists())
 
     def test_environment_file_rejected(self):
         (self.host / 'docs/.env').write_text('VALUE=fixture')

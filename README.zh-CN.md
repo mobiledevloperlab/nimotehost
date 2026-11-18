@@ -1,68 +1,54 @@
-# NimoteHost
+<p align="center">
+  <img src="cmd/nimotehost-gui/assets/readme-logo.svg" alt="NimoteHost logo" width="88" height="88">
+</p>
 
-[英文版](README.md) | **简体中文**
+<h1 align="center">NimoteHost — 跨平台任务、终端与编程 Agent 服务</h1>
 
-NimoteHost 是通过既有认证 SSH 使用的独立 Go 服务，可托管持久任务、终端和已安装的
-编程 Agent CLI。Host 只监听本机回环地址，所有 RPC 请求均需认证，无需 Nimote 账号、
-控制面、Tailcat 或公网中继。
+<p align="center"><a href="README.md">English</a> · 简体中文</p>
 
-当前是 **`2.4.0` 开发预览版**，提供 Linux、macOS、Windows 的 amd64/arm64 构建，以及 Linux/Windows 32 位 x86（386）CLI 构建。
-完整原生平台和移动客户端/Agent 验收仍待完成，见[未完成功能](docs/pending.md)。
+<p align="center">
+  <strong>通过 SSH 使用主机上的任务、终端和编程 Agent，会话在客户端断开后继续运行。</strong><br>
+  提供独立 CLI 与桌面管理器，适用于 Linux、macOS 和 Windows。
+</p>
+
+<p align="center"><sub>持久任务&nbsp;&nbsp;•&nbsp;&nbsp;终端会话&nbsp;&nbsp;•&nbsp;&nbsp;Agent 审批&nbsp;&nbsp;•&nbsp;&nbsp;社区插件</sub></p>
+
+<p align="center"><sub>
+  <a href="#从这里开始">快速开始</a> ·
+  <a href="#一键安装">安装</a> ·
+  <a href="#构建与运行">源码构建</a> ·
+  <a href="#fyne-桌面管理器">桌面版</a> ·
+  <a href="SECURITY.zh-CN.md">安全说明</a>
+</sub></p>
+
+<p align="center"><sub>2.4.0 开发预览版 · Apache-2.0 开源</sub></p>
+
+---
+
+## 项目简介
+
+NimoteHost 是通过既有认证 SSH 使用的独立 Go 服务。Host 只监听本机回环地址，
+所有 RPC 请求均需认证，无需 Nimote 账号、控制面或公网中继。
+
+提供 Linux、macOS、Windows 的 amd64/arm64 CLI 和桌面构建，以及 Linux/Windows 的
+32 位 x86（386）CLI 构建。完整原生平台和移动客户端/Agent 验收仍待完成，
+见[未完成功能](docs/pending.md)。
 
 功能状态见[已完成功能](docs/completed.md)和[未完成功能](docs/pending.md)；
 加固决策与验证见[加固审计](docs/host-hardening.md)和[测试记录](docs/host-hardening-tests.md)。
 
-## GitHub 自动构建
+## 从这里开始
 
-[Host CI](.github/workflows/ci.yml) 在拉取请求和推送到 `master` 时运行 Linux 检查。手动运行时可选择
-`cli`、`gui` 或 `both`，从运行页面的构建产物区（`Artifacts`）下载对应的包。
-推送 `v*` 标签后，两种构建并行启动。CLI 检查通过后先发布 CLI 包和源码归档，六个桌面构建全部
-通过后再把桌面包追加到同一个 GitHub Release。追加桌面包要求仓库关闭不可变发布设置。
+| 你想做什么 | 入口 |
+| --- | --- |
+| 下载 CLI 或桌面版 | [GitHub Releases](https://github.com/mobiledevloperlab/nimotehost/releases) · [平台与构建产物](#github-自动构建) |
+| 安装并启动后台服务 | [一键安装](#一键安装) |
+| 从源码构建 CLI | [构建与运行](#构建与运行) |
+| 使用图形界面 | [Fyne 桌面管理器](#fyne-桌面管理器) |
+| 了解功能与安全边界 | [已完成功能](docs/completed.md) · [安全政策](SECURITY.zh-CN.md) |
 
-| 系统 | CLI | 桌面包 |
-| --- | --- | --- |
-| macOS | x64、ARM64 | x64、ARM64 |
-| Linux | x86（386）、x64、ARM64 | x64、ARM64 |
-| Windows | x86（386）、x64、ARM64 | x64、ARM64 |
-
-桌面版使用原生运行器，附 CLI、依赖许可证和 SHA-256 校验值。Linux 桌面版要求
-至少 glibc 2.35。ARM 指 ARM64，暂不提供 32 位 ARM 或 32 位桌面包。
-macOS 包尚未签名或公证。发布前参阅[开源检查记录](OPEN_SOURCE_REVIEW.md)。
-
-## Agent 上游监测
-
-[兼容性监测工作流](.github/workflows/agent-compatibility.yml)每 6 小时运行一次
-（UTC 00:23、06:23、12:23、18:23）。首次运行或上游版本变化时，临时安装指定版本的
-Codex、OpenCode、Claude ACP 适配器和 Claude Code，检查真实结构化会话初始化、
-运行 Host 现有 Agent/协议/审批回归测试，并导出 Codex JSON Schema；不发送提示词、不调用模型。
-同时监测 Claude Agent SDK、ACP SDK 和 ACP Go SDK 的最新发布，但不会自动升级项目依赖。
-
-推送到 GitHub 仓库的默认分支后，开启 Actions 和 Issues，在 Actions 中手动运行
-`Agent compatibility monitor` 建立基线，然后订阅自动创建的 Issue。
-后续版本变化和检查结果会以评论通知；邮件由 GitHub 通知设置决定。
-失败的同一组版本自动重试一次，之后可手动勾选 `force` 重跑。普通无变化轮询不安装 CLI 或运行测试。
-工作流无需额外密钥，使用内置 `GITHUB_TOKEN`；仅报告任务有 Issues 写权限。
-
-检查通过只代表 Linux 上的初始化和现有模拟协议回归通过，完整审批、流式响应及恢复仍需真实模型验收。
-检查失败也可能来自网络、安装或认证，需查看日志；SDK 最新版仅作为变更信号，实际检查使用
-适配器解析出的依赖及仓库锁定的 Go SDK。模式定义保存为构建产物，尚未自动判断语义差异。
-日志和模式定义保留 7 天。定时运行可能延迟；免费额度由账户共享，需在 GitHub Billing 中
-配置 Actions 预算及超额停止，工作流本身无法保证零费用。删除 Issue 的隐藏状态会中断基线读取。
-
-## CPU 架构
-
-| 系统 | CLI | GUI |
-| --- | --- | --- |
-| Linux | amd64、arm64、386 | amd64、arm64 |
-| macOS | amd64、arm64 | amd64、arm64 |
-| Windows | amd64、arm64、386 | amd64、arm64 |
-
-`amd64` 是 Intel/AMD 的 64 位 x86，`arm64` 是 64 位 ARM（包括 Apple Silicon）。
-`386` 是传统 32 位 x86，仅提供 CLI；macOS 没有 32 位构建目标。
-32 位 ARM 不在当前发行矩阵内。同一分发包中的 CLI 与 GUI 必须匹配目标架构。
-GUI CI 配置六个具备桌面 SDK 的原生运行器；仅 CLI 交叉构建通过不代表 GUI 或交互已验收。
-Windows ARM64 使用 MSYS2 CLANGARM64（`CC=clang`、`CXX=clang++`），不能复用 x64 MinGW 编译器，
-参见 [MSYS2 ARM64](https://www.msys2.org/docs/arm64/)。
+客户端断开后任务可继续运行；Host 或系统重启不会恢复任务进程。
+SSH 和 Codex、Claude Code、OpenCode 等 Agent CLI 需单独安装与配置。
 
 ## 部署预编译版本
 
@@ -164,6 +150,52 @@ GUI 构建需要对应系统的原生工具链。发现机制不依赖 CPU 架�
 
 详细说明：[已完成功能与协议](docs/completed.md)、[未完成功能与验收](docs/pending.md)、
 [贡献指南](CONTRIBUTING.zh-CN.md)、[安全政策](SECURITY.zh-CN.md)。
+
+## GitHub 自动构建
+
+[Host CI](.github/workflows/ci.yml) 在拉取请求和推送到 `master` / `main` 时，
+运行测试、干净源码检查、八种 CLI 目标及六种原生桌面目标的构建。
+手动运行时可选择 `cli`、`gui` 或 `both`；从运行页面的 `Artifacts` 下载构建产物。
+推送 `v*` 标签后，两种构建并行启动。CLI 检查通过后先发布 CLI 包和源码归档，六个桌面构建全部
+通过后再把桌面包追加到同一个 GitHub Release。追加桌面包要求仓库关闭不可变发布设置。
+
+| 系统 | CLI | 桌面包 |
+| --- | --- | --- |
+| macOS | x64、ARM64 | x64、ARM64 |
+| Linux | x86（386）、x64、ARM64 | x64、ARM64 |
+| Windows | x86（386）、x64、ARM64 | x64、ARM64 |
+
+桌面版使用原生运行器，附 CLI、依赖许可证和 SHA-256 校验值。Linux 桌面版要求
+至少 glibc 2.35。ARM 指 ARM64，暂不提供 32 位 ARM 或 32 位桌面包。
+macOS 包尚未签名或公证。发布前参阅[开源检查记录](OPEN_SOURCE_REVIEW.md)。
+
+`amd64` 是 Intel/AMD 的 64 位 x86，`arm64` 是 64 位 ARM（包括 Apple Silicon）。
+`386` 是传统 32 位 x86，仅提供 CLI；macOS 没有 32 位构建目标。
+32 位 ARM 不在当前发行矩阵内。同一分发包中的 CLI 与 GUI 必须匹配目标架构。
+GUI CI 配置六个具备桌面 SDK 的原生运行器；仅 CLI 交叉构建通过不代表 GUI 或交互已验收。
+Windows ARM64 使用 MSYS2 CLANGARM64（`CC=clang`、`CXX=clang++`），不能复用 x64 MinGW 编译器，
+参见 [MSYS2 ARM64](https://www.msys2.org/docs/arm64/)。
+
+
+## Agent 上游监测
+
+[兼容性监测工作流](.github/workflows/agent-compatibility.yml)每 6 小时运行一次
+（UTC 00:23、06:23、12:23、18:23）。首次运行或上游版本变化时，临时安装指定版本的
+Codex、OpenCode、Claude ACP 适配器和 Claude Code，检查真实结构化会话初始化、
+运行 Host 现有 Agent/协议/审批回归测试，并导出 Codex JSON Schema；不发送提示词、不调用模型。
+同时监测 Claude Agent SDK、ACP SDK 和 ACP Go SDK 的最新发布，但不会自动升级项目依赖。
+
+推送到 GitHub 仓库的默认分支后，开启 Actions 和 Issues，在 Actions 中手动运行
+`Agent compatibility monitor` 建立基线，然后订阅自动创建的 Issue。
+后续版本变化和检查结果会以评论通知；邮件由 GitHub 通知设置决定。
+失败的同一组版本自动重试一次，之后可手动勾选 `force` 重跑。普通无变化轮询不安装 CLI 或运行测试。
+工作流无需额外密钥，使用内置 `GITHUB_TOKEN`；仅报告任务有 Issues 写权限。
+
+检查通过只代表 Linux 上的初始化和现有模拟协议回归通过，完整审批、流式响应及恢复仍需真实模型验收。
+检查失败也可能来自网络、安装或认证，需查看日志；SDK 最新版仅作为变更信号，实际检查使用
+适配器解析出的依赖及仓库锁定的 Go SDK。模式定义保存为构建产物，尚未自动判断语义差异。
+日志和模式定义保留 7 天。定时运行可能延迟；免费额度由账户共享，需在 GitHub Billing 中
+配置 Actions 预算及超额停止，工作流本身无法保证零费用。删除 Issue 的隐藏状态会中断基线读取。
 
 ## 开发
 

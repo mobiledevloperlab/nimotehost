@@ -21,3 +21,6 @@ env.md
 
 # Local Host task/session state
 /.nimote/
+
+# Private release follow-up notes
+/OPEN_SOURCE_PENDING.zh-CN.md

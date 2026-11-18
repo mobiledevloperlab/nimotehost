@@ -1,79 +1,56 @@
-# NimoteHost
+<p align="center">
+  <img src="cmd/nimotehost-gui/assets/readme-logo.svg" alt="NimoteHost logo" width="88" height="88">
+</p>
 
-**English** | [Simplified Chinese](README.zh-CN.md)
+<h1 align="center">NimoteHost — Tasks, terminals and coding agents over SSH</h1>
 
-A standalone Go runtime for persistent tasks, terminals and installed coding
-agent CLIs over an existing authenticated SSH connection. Host listens only on
-loopback, authenticates every RPC request and requires no Nimote account,
-control plane, Tailcat or public relay.
+<p align="center">English · <a href="README.zh-CN.md">简体中文</a></p>
 
-Host is a **development preview (`2.4.0`)**. It supports Linux/macOS/Windows
-on amd64 and arm64, plus Linux/Windows 32-bit x86 (386) CLIs. Full native-platform and mobile/Agent acceptance remains
-outstanding; see
-[pending functionality](docs/pending.md).
+<p align="center">
+  <strong>Run tasks, terminals and coding agents on your host, with sessions that outlive client disconnects.</strong><br>
+  A standalone CLI and desktop manager for Linux, macOS and Windows.
+</p>
+
+<p align="center"><sub>Persistent Tasks&nbsp;&nbsp;•&nbsp;&nbsp;Terminal Sessions&nbsp;&nbsp;•&nbsp;&nbsp;Agent Approvals&nbsp;&nbsp;•&nbsp;&nbsp;Community Plugins</sub></p>
+
+<p align="center"><sub>
+  <a href="#start-here">Quick start</a> ·
+  <a href="#one-command-installation">Install</a> ·
+  <a href="#build-and-run">Build from source</a> ·
+  <a href="#desktop-edition-fyne">Desktop edition</a> ·
+  <a href="SECURITY.md">Security</a>
+</sub></p>
+
+<p align="center"><sub>2.4.0 development preview · Open source under Apache-2.0</sub></p>
+
+---
+
+## Overview
+
+NimoteHost is a standalone Go runtime accessed over an existing authenticated SSH
+connection. Host listens only on loopback and authenticates every RPC request.
+No Nimote account, control plane or public relay is required.
+
+Build targets include Linux/macOS/Windows amd64 and arm64 CLI and desktop editions,
+plus Linux/Windows 32-bit x86 (386) CLIs. Full native-platform and mobile/Agent
+acceptance remains outstanding; see [pending functionality](docs/pending.md).
 
 Current functionality: [completed](docs/completed.md) and [pending](docs/pending.md).
 Hardening decisions and verification: [audit](docs/host-hardening.md) and [test results](docs/host-hardening-tests.md).
 
-## GitHub build artifacts
+## Start here
 
-[Host CI](.github/workflows/ci.yml) runs Linux checks on pull requests and pushes to
-`master`. Run it manually with `cli`, `gui`, or `both` to download packages from the
-run's **Artifacts** section. Pushing a `v*` tag starts both builds. The CLI packages
-and source archive go live after the CLI checks pass. The desktop packages are added
-to the same GitHub Release after all six desktop builds pass. Adding desktop packages
-requires immutable releases to be disabled in the repository settings.
+| What you want to do | Where to go |
+| --- | --- |
+| Download the CLI or desktop edition | [GitHub Releases](https://github.com/mobiledevloperlab/nimotehost/releases) · [Platforms and artifacts](#github-build-artifacts) |
+| Install and start the background service | [One-command installation](#one-command-installation) |
+| Build the CLI from source | [Build and run](#build-and-run) |
+| Use the graphical interface | [Desktop edition](#desktop-edition-fyne) |
+| Understand features and security boundaries | [Implemented functionality](docs/completed.md) · [Security policy](SECURITY.md) |
 
-| Platform | CLI | Desktop |
-| --- | --- | --- |
-| macOS | x64, ARM64 | x64, ARM64 |
-| Linux | x86 (386), x64, ARM64 | x64, ARM64 |
-| Windows | x86 (386), x64, ARM64 | x64, ARM64 |
-
-Desktop packages use native runners and include the CLI, dependency licenses and
-SHA-256 checksums. Linux desktop targets glibc 2.35 or newer. ARM means ARM64;
-32-bit ARM and 32-bit desktop packages are not supported. macOS packages are unsigned
-and not notarized. See the [release audit](OPEN_SOURCE_REVIEW.md) before publishing.
-
-## Agent upstream monitoring
-
-The [compatibility workflow](.github/workflows/agent-compatibility.yml) checks upstream releases
-every six hours (00:23, 06:23, 12:23 and 18:23 UTC). On its first run or a version change,
-it temporarily installs exact versions of Codex, OpenCode, the Claude ACP adapter and Claude Code,
-checks real structured session initialization, runs existing Host Agent/protocol/approval regressions, and exports
-Codex JSON Schema. It sends no prompts and makes no model calls. Claude Agent SDK, ACP SDK,
-and ACP Go SDK releases are also watched without automatically updating project dependencies.
-
-Push to the repository's default branch, enable Actions and Issues, and manually run
-`Agent compatibility monitor` to establish a baseline. Subscribe to the issue it creates;
-subsequent updates post comments, with email delivery controlled by your GitHub notification settings.
-A failed version snapshot is retried once; use the manual `force` option for further retries.
-Unchanged polls do not install CLIs or run tests. No extra secrets are needed: the workflow uses
-the built-in `GITHUB_TOKEN`, with issue write permission limited to the reporting job.
-
-A pass covers Linux startup and existing protocol fixtures; full approval, streaming and resume
-acceptance still requires model tests. Failures can also be caused by installation, authentication
-or networking. SDK latest versions are watch signals; checks use resolved adapter dependencies
-and the repository's pinned Go SDK. Schema artifacts are exported without semantic diffing.
-Logs and schemas expire after seven days. Scheduled runs can be delayed, and free usage is shared
-across the account: configure an Actions budget with usage stopping in GitHub Billing to control
-costs. The workflow cannot guarantee zero charges. Preserve the issue's hidden state markers.
-
-## CPU architectures
-
-| Platform | CLI | GUI |
-| --- | --- | --- |
-| Linux | amd64, arm64, 386 | amd64, arm64 |
-| macOS | amd64, arm64 | amd64, arm64 |
-| Windows | amd64, arm64, 386 | amd64, arm64 |
-
-`amd64` means 64-bit Intel/AMD x86; `arm64` means 64-bit ARM (including Apple
-Silicon). `386` is legacy 32-bit x86, CLI only. macOS has no 32-bit build target.
-32-bit ARM is outside this distribution matrix. CLI and GUI in a bundle must match
-the target architecture. GUI CI uses six native runners with the required desktop
-SDKs; cross-building a CLI alone does not verify the GUI or interactive behavior.
-On Windows ARM64, use MSYS2 CLANGARM64 (`CC=clang`, `CXX=clang++`), rather than the
-x64 MinGW compiler. See [MSYS2 ARM64](https://www.msys2.org/docs/arm64/).
+Tasks continue after clients disconnect; restarting Host or the OS does not restore
+task processes. Install and configure SSH and Agent CLIs such as Codex, Claude Code
+and OpenCode separately.
 
 ## Deploy a prebuilt release
 
@@ -210,6 +187,60 @@ and [remaining acceptance](docs/pending.md).
 Read [implemented functionality and protocol](docs/completed.md),
 [pending functionality and acceptance](docs/pending.md),
 [contribution guidelines](CONTRIBUTING.md) and [security policy](SECURITY.md).
+
+## GitHub build artifacts
+
+[Host CI](.github/workflows/ci.yml) runs tests, clean-source checks, eight CLI target
+builds and six native desktop target builds on pull requests and pushes to `master`
+or `main`. Run it manually with `cli`, `gui`, or `both`. Download build outputs from
+the run's **Artifacts** section. Pushing a `v*` tag starts both builds. The CLI packages
+and source archive go live after the CLI checks pass. The desktop packages are added
+to the same GitHub Release after all six desktop builds pass. Adding desktop packages
+requires immutable releases to be disabled in the repository settings.
+
+| Platform | CLI | Desktop |
+| --- | --- | --- |
+| macOS | x64, ARM64 | x64, ARM64 |
+| Linux | x86 (386), x64, ARM64 | x64, ARM64 |
+| Windows | x86 (386), x64, ARM64 | x64, ARM64 |
+
+Desktop packages use native runners and include the CLI, dependency licenses and
+SHA-256 checksums. Linux desktop targets glibc 2.35 or newer. ARM means ARM64;
+32-bit ARM and 32-bit desktop packages are not supported. macOS packages are unsigned
+and not notarized. See the [release audit](OPEN_SOURCE_REVIEW.md) before publishing.
+
+`amd64` means 64-bit Intel/AMD x86; `arm64` means 64-bit ARM (including Apple
+Silicon). `386` is legacy 32-bit x86, CLI only. macOS has no 32-bit build target.
+32-bit ARM is outside this distribution matrix. CLI and GUI in a bundle must match
+the target architecture. GUI CI uses six native runners with the required desktop
+SDKs; cross-building a CLI alone does not verify the GUI or interactive behavior.
+On Windows ARM64, use MSYS2 CLANGARM64 (`CC=clang`, `CXX=clang++`), rather than the
+x64 MinGW compiler. See [MSYS2 ARM64](https://www.msys2.org/docs/arm64/).
+
+
+## Agent upstream monitoring
+
+The [compatibility workflow](.github/workflows/agent-compatibility.yml) checks upstream releases
+every six hours (00:23, 06:23, 12:23 and 18:23 UTC). On its first run or a version change,
+it temporarily installs exact versions of Codex, OpenCode, the Claude ACP adapter and Claude Code,
+checks real structured session initialization, runs existing Host Agent/protocol/approval regressions, and exports
+Codex JSON Schema. It sends no prompts and makes no model calls. Claude Agent SDK, ACP SDK,
+and ACP Go SDK releases are also watched without automatically updating project dependencies.
+
+Push to the repository's default branch, enable Actions and Issues, and manually run
+`Agent compatibility monitor` to establish a baseline. Subscribe to the issue it creates;
+subsequent updates post comments, with email delivery controlled by your GitHub notification settings.
+A failed version snapshot is retried once; use the manual `force` option for further retries.
+Unchanged polls do not install CLIs or run tests. No extra secrets are needed: the workflow uses
+the built-in `GITHUB_TOKEN`, with issue write permission limited to the reporting job.
+
+A pass covers Linux startup and existing protocol fixtures; full approval, streaming and resume
+acceptance still requires model tests. Failures can also be caused by installation, authentication
+or networking. SDK latest versions are watch signals; checks use resolved adapter dependencies
+and the repository's pinned Go SDK. Schema artifacts are exported without semantic diffing.
+Logs and schemas expire after seven days. Scheduled runs can be delayed, and free usage is shared
+across the account: configure an Actions budget with usage stopping in GitHub Billing to control
+costs. The workflow cannot guarantee zero charges. Preserve the issue's hidden state markers.
 
 ## Development
 
