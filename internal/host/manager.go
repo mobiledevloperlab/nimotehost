@@ -25,6 +25,9 @@ type processHandle interface {
 }
 
 type managed struct {
+	inputMu        sync.Mutex
+	inputStreams   map[string]*terminalInputStream
+	inputClock     uint64
 	edits          *observedEdits
 	summary        string
 	onTurnComplete func()
@@ -625,20 +628,38 @@ func (m *Manager) cancel(id string, userRequested bool) error {
 	return nil
 }
 func (m *Manager) Input(id string, data []byte) error {
+	item, err := m.inputSession(id)
+	if err != nil {
+		return err
+	}
+	item.inputMu.Lock()
+	defer item.inputMu.Unlock()
+	return m.writeInput(item, data)
+}
+
+func (m *Manager) inputSession(id string) (*managed, error) {
 	m.mu.Lock()
+	defer m.mu.Unlock()
 	item, ok := m.sessions[id]
 	if !ok {
-		m.mu.Unlock()
-		return os.ErrNotExist
+		return nil, os.ErrNotExist
 	}
-	terminal := item.terminal
 	if item.agent != nil {
-		m.mu.Unlock()
-		return errors.New("use agent-message for structured sessions")
+		return nil, errors.New("use agent-message for structured sessions")
 	}
-	running := item.process != nil
+	if item.process == nil || item.terminal == nil || item.session.State != "running" || m.closed {
+		return nil, errors.New("session has no active terminal")
+	}
+	return item, nil
+}
+
+// Recheck after acquiring inputMu: a queued writer may have outlived the process.
+func (m *Manager) writeInput(item *managed, data []byte) error {
+	m.mu.Lock()
+	terminal := item.terminal
+	running := item.process != nil && item.session.State == "running" && !m.closed
 	m.mu.Unlock()
-	if !running || terminal == nil {
+	if !running {
 		return errors.New("session has no active terminal")
 	}
 	n, err := terminal.Write(data)

@@ -36,6 +36,38 @@ func TestTerminalReconnectInputAndResize(t *testing.T) {
 		t.Fatalf("%q %v", data, err)
 	}
 }
+
+func TestTerminalInputStreamRealPTY(t *testing.T) {
+	m := newTestManager(t)
+	s, err := m.Start(StartRequest{Kind: "terminal", Command: "/bin/sh", Args: []string{"-c", "read value; printf 'received:%s' \"$value\""}, Directory: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream, err := m.OpenInputStream(s.ID, "owner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Resize(s.ID, 40, 120); err != nil {
+		t.Fatal(err)
+	}
+	// Split a multibyte code point exactly as a chunked client paste can do.
+	data := []byte("中文😀")
+	for i, chunk := range [][]byte{data[:1], data[1:], []byte("\n")} {
+		if _, err := m.StreamInput(s.ID, "owner", stream, uint64(i+1), chunk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := awaitSession(t, m, s.ID); got.State != "succeeded" {
+		t.Fatal(got)
+	}
+	output, _, err := m.Output(s.ID, 0)
+	if err != nil || !strings.Contains(string(output), "received:中文😀") {
+		t.Fatalf("%q %v", output, err)
+	}
+	if _, err := m.StreamInput(s.ID, "owner", stream, 4, []byte("late")); err == nil {
+		t.Fatal("finished terminal accepted input")
+	}
+}
 func TestUnsafeStateAndSymlinksRejected(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "unsafe")
 	if err := os.Mkdir(dir, 0755); err != nil {
