@@ -13,9 +13,53 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func TestOutputLongPollsLeaveStatusCapacity(t *testing.T) {
+	m := newTestManager(t)
+	id := strings.Repeat("b", 64)
+	f, err := os.CreateTemp(t.TempDir(), "output")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	// A running output source with no bytes keeps admitted long polls waiting.
+	m.sessions[id] = &managed{session: Session{ID: id, State: "running"}, output: &outputWriter{file: f, changed: make(chan struct{})}}
+	api := &Server{manager: m, token: "owner", admission: newRequestAdmission()}
+	ctx, cancel := context.WithCancel(context.Background())
+	var workers sync.WaitGroup
+	var finished atomic.Int32
+	defer func() { cancel(); workers.Wait(); delete(m.sessions, id) }()
+	for range 8 {
+		workers.Go(func() {
+			r := httptest.NewRequest("GET", "/v1/sessions/"+id+"/output?wait_ms=1000", nil).WithContext(ctx)
+			r.Header.Set("Authorization", "Bearer owner")
+			r.Header.Set("Nimote-Host-Protocol", "1")
+			api.ServeHTTP(httptest.NewRecorder(), r)
+			finished.Add(1)
+		})
+	}
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for len(api.admission.ownerReads)+int(finished.Load()) < 8 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if len(api.admission.ownerReads) != 4 {
+		t.Fatal("expected four admitted output readers", len(api.admission.ownerReads))
+	}
+	if reply := deviceRequest(api, "owner", "GET", "/v1/status", ""); reply.Code != http.StatusOK {
+		t.Fatal("output polling made a live Host appear offline", reply.Code, reply.Body.String())
+	}
+	for wait, want := range map[string]int{"1": http.StatusTooManyRequests, "00": http.StatusOK, "1001": http.StatusBadRequest} {
+		reply := deviceRequest(api, "owner", "GET", "/v1/sessions/"+id+"/output?wait_ms="+wait, "")
+		if reply.Code != want {
+			t.Fatalf("wait_ms=%s returned %d, want %d: %s", wait, reply.Code, want, reply.Body.String())
+		}
+	}
+}
 
 func TestServerRequiresBearerScheme(t *testing.T) {
 	for _, auth := range []string{"secret", "Basic secret", "Bearer secret"} {

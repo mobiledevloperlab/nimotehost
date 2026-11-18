@@ -156,7 +156,7 @@ func TestFailureCancellationAndRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	failed = awaitSession(t, m, failed.ID)
-	if failed.State != "failed" || *failed.ExitCode != 7 {
+	if failed.State != "failed" || *failed.ExitCode != 7 || failed.Error == "" {
 		t.Fatalf("%+v", failed)
 	}
 	s, err := m.Start(childRequest(t, "sleep"))
@@ -170,7 +170,7 @@ func TestFailureCancellationAndRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	s = awaitSession(t, m, s.ID)
-	if s.State != "canceled" {
+	if s.State != "canceled" || s.Error != "" {
 		t.Fatalf("%+v", s)
 	}
 	// Simulate persisted intent surviving a crash; no stale PID is signaled.

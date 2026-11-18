@@ -93,7 +93,7 @@ func TestImplementedRPCReference(t *testing.T) {
 	expected := []string{
 		"GET /v1/capabilities", "GET /v1/status", "GET /v1/sessions?after=revision",
 		"POST /v1/sessions", "GET /v1/sessions/{id}", "DELETE /v1/sessions/{id}",
-		"POST /v1/sessions/{id}/cancel", "POST /v1/sessions/{id}/input", "POST /v1/sessions/{id}/resize",
+		"POST /v1/sessions/{id}/cancel", "POST /v1/sessions/{id}/input", "POST /v1/sessions/{id}/input-stream", "POST /v1/sessions/{id}/resize",
 		"GET /v1/sessions/{id}/output?offset=0", "GET /v1/sessions/{id}/agent-state",
 		"POST /v1/sessions/{id}/agent-message", "GET /v1/sessions/{id}/activity?after=sequence",
 		"GET /v1/events?after=revision", "GET /v1/agent-history?agent=...&directory=...&cursor=...",

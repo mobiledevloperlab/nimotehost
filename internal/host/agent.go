@@ -11,6 +11,7 @@ import (
 	"os"
 	"slices"
 	"sync"
+	"sync/atomic"
 )
 
 // AgentMessage is a semantic operation, never terminal input or arbitrary RPC.
@@ -46,6 +47,7 @@ type structuredAgent struct {
 	compacting         bool
 	pendingConfig      *AgentMessage
 	stopProcess        func() error
+	stopRequested      atomic.Bool
 	failure            error
 	onConversationID   func(string)
 	resumeConversation string
@@ -169,7 +171,7 @@ func (a *structuredAgent) closeLocked() {
 
 func (a *structuredAgent) fail(err error) {
 	a.mu.Lock()
-	if a.closed {
+	if a.closed || a.stopRequested.Load() {
 		a.mu.Unlock()
 		return
 	}

@@ -112,7 +112,7 @@ func (a *structuredAgent) writeAgentRPC(ctx context.Context, sent <-chan struct{
 
 func (a *structuredAgent) handleAgentRPC(ctx context.Context, method string, params json.RawMessage) (any, *acp.RequestError) {
 	a.mu.Lock()
-	if a.closed {
+	if a.closed || a.stopRequested.Load() {
 		a.mu.Unlock()
 		return nil, acp.NewRequestCancelled(nil)
 	}

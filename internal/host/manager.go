@@ -475,16 +475,17 @@ func (m *Manager) wait(item *managed) {
 		go func() { _, _ = io.Copy(item.output, item.terminal); close(copied) }()
 	}
 	code, err := item.process.Wait()
+	var agentErr error
 	finalAgentStatus := ""
 	if item.agent != nil {
-		if code != 0 {
+		if code != 0 && !item.agent.stopRequested.Load() {
 			if detail := item.agent.diagnostics.text(); detail != "" {
 				item.agent.emit("error", detail)
 			}
 		}
 		item.agent.close()
 		item.agent.mu.Lock()
-		err = errors.Join(err, item.agent.failure)
+		agentErr = item.agent.failure
 		finalAgentStatus = structuredTurnResult(item.agent.lastTurnStatus)
 		item.agent.mu.Unlock()
 	}
@@ -500,7 +501,12 @@ func (m *Manager) wait(item *managed) {
 	outputErr := errors.Join(processErr, item.output.Close())
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	err = errors.Join(err, item.resourceError)
+	if item.session.State == "canceled" {
+		// An explicit stop determines the outcome even when the killed process
+		// returns a signal or nonzero exit status.
+		err = nil
+	}
+	err = errors.Join(err, agentErr, item.resourceError)
 	now := time.Now().UTC()
 	item.session.OutputBytes, item.session.OutputTruncated = item.output.stats()
 	item.session.Finished = &now
@@ -615,7 +621,13 @@ func (m *Manager) cancel(id string, userRequested bool) error {
 	if item.process == nil {
 		return nil
 	}
+	if item.agent != nil {
+		item.agent.stopRequested.Store(true)
+	}
 	if err := item.process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		if item.agent != nil && item.session.State != "canceled" {
+			item.agent.stopRequested.Store(false)
+		}
 		return err
 	}
 	item.session.State = "canceled"

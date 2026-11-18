@@ -182,12 +182,33 @@ func (a *structuredAgent) configACP(raw json.RawMessage) {
 				a.controls.Options = append(a.controls.Options, opt)
 			}
 		}
-	} else if result.Models != nil {
+	}
+	if result.Models != nil {
 		opt := agentOption{ID: "__model", Category: "model", Label: "Model", Value: result.Models.Current, Values: []agentChoice{}}
 		for _, m := range result.Models.Available {
 			opt.Values = append(opt.Values, agentChoice{m.ID, m.Name})
 		}
-		a.controls.Options = []agentOption{opt}
+		a.acp.legacyModel = &opt
+	}
+	if result.ConfigOptions != nil || result.Models != nil {
+		// Config options and the legacy model catalog are independent fields.
+		// Prefer the provider's modern model control, but retain legacy models
+		// when configOptions is empty or only advertises unrelated settings.
+		options := make([]agentOption, 0, len(a.controls.Options)+1)
+		hasModel := false
+		for _, opt := range a.controls.Options {
+			if opt.ID == "__model" {
+				continue
+			}
+			if opt.Category == "model" || opt.ID == "model" {
+				hasModel = true
+			}
+			options = append(options, opt)
+		}
+		if !hasModel && a.acp.legacyModel != nil {
+			options = append(options, *a.acp.legacyModel)
+		}
+		a.controls.Options = options
 	}
 	a.publishControls()
 }

@@ -29,6 +29,7 @@ import (
 
 const Address = "127.0.0.1:47831"
 const maxRequest = 1 << 20
+const maxOutputWaitMillis = 1000
 
 func decodeJSON(data []byte, target any) error {
 	dec := json.NewDecoder(bytes.NewReader(data))
@@ -190,7 +191,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.admission != nil {
-		release, ok := s.admission.acquire(device.ID, owner, r.Method != http.MethodGet)
+		mutation := r.Method != http.MethodGet
+		outputWait := false
+		if !mutation {
+			path, sessionPath := strings.CutPrefix(r.URL.Path, "/v1/sessions/")
+			id, outputPath := strings.CutSuffix(path, "/output")
+			if sessionPath && outputPath && validID(id) {
+				wait, err := strconv.Atoi(r.URL.Query().Get("wait_ms"))
+				outputWait = err == nil && wait > 0 && wait <= maxOutputWaitMillis
+			}
+		}
+		release, ok := s.admission.acquire(device.ID, owner, mutation, outputWait)
 		if !ok {
 			w.Header().Set("Retry-After", "1")
 			fail(w, 429, "principal request capacity reached")
@@ -602,7 +613,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		wait := 0
 		if value := r.URL.Query().Get("wait_ms"); value != "" {
 			wait, err = strconv.Atoi(value)
-			if err != nil || wait < 0 || wait > 1000 {
+			if err != nil || wait < 0 || wait > maxOutputWaitMillis {
 				fail(w, 400, "invalid output wait")
 				return
 			}

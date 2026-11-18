@@ -25,7 +25,7 @@ func (a *structuredAgent) receiveCodex(f codexFrame) {
 }
 
 func (a *structuredAgent) receiveCodexLocked(f codexFrame) {
-	if a.closed {
+	if a.closed || a.stopRequested.Load() {
 		return
 	}
 	if f.Method != "" {
