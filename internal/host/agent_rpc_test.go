@@ -267,3 +267,53 @@ func TestAgentRPCCancellationCannotOvertakeQueuedPrompt(t *testing.T) {
 		}
 	}
 }
+
+func TestCodexApprovalWaitsForObservedTurnIdentity(t *testing.T) {
+	for _, variant := range []string{"matching", "foreign-turn", "cancelled"} {
+		t.Run(variant, func(t *testing.T) {
+			a := newStructuredAgent("codex", io.Discard, t.TempDir())
+			defer a.close()
+			a.thread = "thread"
+			a.busy = true
+			a.executionPolicy = "auto"
+			a.rpc.turnReady = make(chan struct{})
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			replies := make(chan agentRPCReply, 1)
+			started := make(chan struct{})
+			go func() {
+				close(started)
+				result, err := a.handleAgentRPC(ctx, "item/commandExecution/requestApproval", json.RawMessage(`{"threadId":"thread","turnId":"turn","command":"cat README.md"}`))
+				replies <- agentRPCReply{result: result, err: err}
+			}()
+			<-started
+			select {
+			case reply := <-replies:
+				t.Fatalf("approval completed before turn was observed: %+v", reply)
+			case <-time.After(20 * time.Millisecond):
+			}
+			if variant == "cancelled" {
+				cancel()
+			} else {
+				turn := "turn"
+				if variant == "foreign-turn" {
+					turn = "other"
+				}
+				raw, _ := json.Marshal(map[string]any{"turn": map[string]string{"id": turn}})
+				a.receiveCodex(codexFrame{Method: "turn/started", Params: raw})
+			}
+			select {
+			case reply := <-replies:
+				if variant == "matching" {
+					if reply.err != nil || reply.result.(map[string]string)["decision"] != "accept" {
+						t.Fatalf("%+v", reply)
+					}
+				} else if reply.err == nil {
+					t.Fatalf("unobserved/foreign turn approved: %+v", reply)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("approval waiter did not settle")
+			}
+		})
+	}
+}

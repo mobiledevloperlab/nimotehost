@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"sync"
+	"time"
 
 	acp "github.com/coder/acp-go-sdk"
 )
@@ -158,6 +159,37 @@ func (a *structuredAgent) handleAgentRPC(ctx context.Context, method string, par
 		}
 		if json.Unmarshal(params, &native) == nil && native.ThreadID == a.thread && native.TurnID != "" {
 			a.turn = native.TurnID
+		}
+	}
+	// The SDK dispatches requests concurrently with its ordered notification
+	// queue. Wait for an owned prompt's turn identity to be observed, rather
+	// than trusting the turn ID supplied by an approval request.
+	if a.acp == nil && a.attachment == nil && a.busy && a.turn == "" && a.rpc.turnReady != nil {
+		var permission struct {
+			Thread string `json:"threadId"`
+			Turn   string `json:"turnId"`
+		}
+		if json.Unmarshal(params, &permission) == nil && permission.Thread == a.thread && permission.Turn != "" {
+			ready := a.rpc.turnReady
+			a.mu.Unlock()
+			timer := time.NewTimer(5 * time.Second)
+			select {
+			case <-ready:
+			case <-ctx.Done():
+				timer.Stop()
+				return nil, acp.NewRequestCancelled(nil)
+			case <-a.done:
+				timer.Stop()
+				return nil, acp.NewRequestCancelled(nil)
+			case <-timer.C:
+				return nil, acp.NewRequestCancelled(nil)
+			}
+			timer.Stop()
+			a.mu.Lock()
+			if a.closed || a.stopRequested.Load() || ctx.Err() != nil {
+				a.mu.Unlock()
+				return nil, acp.NewRequestCancelled(nil)
+			}
 		}
 	}
 	if !a.validPermissionContext(params) {
@@ -311,6 +343,7 @@ func codexWireFrame(data []byte) ([]byte, error) {
 }
 
 type agentRPCState struct {
+	turnReady      chan struct{}
 	ready          chan struct{}
 	readyOnce      sync.Once
 	queue          chan []map[string]any
@@ -346,4 +379,12 @@ type rpcConfiguredReader struct {
 func (r *rpcConfiguredReader) Read(p []byte) (int, error) {
 	<-r.configured
 	return r.Reader.Read(p)
+}
+
+// Caller holds a.mu. Only observed protocol state can release pending approvals.
+func (a *structuredAgent) signalTurnReady() {
+	if a.rpc.turnReady != nil {
+		close(a.rpc.turnReady)
+		a.rpc.turnReady = nil
+	}
 }

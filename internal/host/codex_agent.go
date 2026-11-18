@@ -67,6 +67,9 @@ func (a *structuredAgent) receiveCodexLocked(f codexFrame) {
 			}
 			_ = json.Unmarshal(f.Params, &p)
 			a.turn = p.Turn.ID
+			if a.turn != "" {
+				a.signalTurnReady()
+			}
 			a.busy = true
 		}
 		if f.Method == "thread/compacted" && a.compacting {
@@ -77,6 +80,7 @@ func (a *structuredAgent) receiveCodexLocked(f codexFrame) {
 			a.emit("turn_completed", map[string]string{"status": "completed"})
 		}
 		if f.Method == "turn/completed" {
+			a.signalTurnReady()
 			a.rejectPendingPermissions()
 			a.lastTurnStatus = "unknown"
 			var p struct {
@@ -120,6 +124,7 @@ func (a *structuredAgent) receiveCodexLocked(f codexFrame) {
 			a.completeStartup(fmt.Errorf("app-server handshake rejected: %s", f.Error))
 		}
 		if a.pending[id] == "prompt" || a.pending[id] == "compact" {
+			a.signalTurnReady()
 			a.lastTurnStatus = "failed"
 			a.compacting = false
 			a.busy = false
@@ -218,6 +223,7 @@ func (a *structuredAgent) receiveCodexLocked(f codexFrame) {
 			_ = json.Unmarshal(f.Result, &r)
 			if r.Turn.ID != "" {
 				a.turn = r.Turn.ID
+				a.signalTurnReady()
 			}
 		}
 		delete(a.pending, id)
@@ -348,6 +354,8 @@ func (a *structuredAgent) message(req AgentMessage) error {
 		a.pending[id] = "compact"
 		a.emit("turn_started", map[string]string{"id": id})
 	case "prompt":
+		a.turn = ""
+		a.rpc.turnReady = make(chan struct{})
 		a.busy = true
 		a.lastTurnStatus = ""
 		a.pending[id] = "prompt"
