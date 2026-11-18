@@ -1,37 +1,40 @@
 name: Host CI
 on:
   push:
-    branches: ["**"]
+    branches: [master]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
     inputs:
+      edition:
+        description: Packages to build
+        type: choice
+        default: both
+        options: [cli, gui, both]
       version:
         description: Distribution version (starts with a digit)
         default: 2.4.0-dev
         required: true
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch') }}
 permissions:
   contents: read
 env:
   RELEASE_GO_VERSION: '1.27.4'
+  HOST_VERSION: ${{ inputs.version || '2.4.0-dev' }}
 jobs:
   native:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    name: native (ubuntu-latest)
+    if: github.event_name != 'workflow_dispatch' || inputs.edition != 'gui'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
       - name: Installer help (Unix)
-        if: runner.os != 'Windows'
         run: sh scripts/install.sh --help
-      - name: Installer help (Windows)
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: ./scripts/install.ps1 -Help
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.x'
@@ -39,8 +42,24 @@ jobs:
       - run: go mod verify
       - run: go test -mod=readonly -race ./...
       - run: go vet ./...
-      - run: go run ./tools/build
+  desktop-tests:
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: cmd/nimotehost-gui/go.mod
+          cache-dependency-path: |
+            go.sum
+            cmd/nimotehost-gui/go.sum
+      - name: Desktop unit checks
+        working-directory: cmd/nimotehost-gui
+        env:
+          CGO_ENABLED: '0'
+        run: go test -mod=readonly -tags ci ./...
   clean-source:
+    if: (github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && inputs.edition != 'gui')
     strategy:
       matrix:
         go: [minimum, stable]
@@ -54,8 +73,7 @@ jobs:
           cache: false
       - run: sh scripts/check-clean-build.sh
   cross-build:
-    env:
-      HOST_VERSION: ${{ inputs.version || '2.4.0-dev' }}
+    if: (github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && inputs.edition != 'gui')
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -73,11 +91,9 @@ jobs:
         with:
           go-version: ${{ env.RELEASE_GO_VERSION }}
       - name: Use tag version
+        if: github.event_name == 'push' && github.ref_type == 'tag'
         shell: bash
-        run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "HOST_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
-          fi
+        run: echo "HOST_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
       - run: go run ./tools/build -os "$TARGET_OS" -arch "$TARGET_ARCH" -version "$HOST_VERSION"
         env:
           TARGET_OS: ${{ matrix.os }}
@@ -85,11 +101,14 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           if-no-files-found: error
+          overwrite: true
+          compression-level: 0
           name: nimotehost-${{ matrix.os }}-${{ matrix.arch }}
           path: |
             dist/nimotehost-*-${{ matrix.os }}-${{ matrix.arch }}.*
 
   source-export:
+    if: (github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && inputs.edition != 'gui')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -110,10 +129,13 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           if-no-files-found: error
+          overwrite: true
+          compression-level: 0
           name: nimotehost-source
           path: dist/public/nimotehost-source.tar.gz
 
   desktop:
+    if: (github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && inputs.edition != 'cli')
     strategy:
       fail-fast: false
       matrix:
@@ -131,8 +153,6 @@ jobs:
             os: darwin
             arch: arm64
     runs-on: ${{ matrix.runner }}
-    env:
-      HOST_VERSION: ${{ inputs.version || '2.4.0-dev' }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
@@ -156,18 +176,10 @@ jobs:
           'CC=clang' >> $env:GITHUB_ENV
           'CXX=clang++' >> $env:GITHUB_ENV
       - name: Use tag version
+        if: github.event_name == 'push' && github.ref_type == 'tag'
         shell: bash
-        run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "HOST_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
-          fi
-      - name: Native Host checks
-        shell: bash
-        run: |
-          go test -mod=readonly ./...
-          go vet ./...
-      - name: Desktop unit checks
-        working-directory: cmd/nimotehost-gui
+        run: echo "HOST_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+      - name: Native Host and desktop checks
         shell: bash
         run: |
           race=(-race)
@@ -175,19 +187,28 @@ jobs:
           if [[ "$(go env GOOS)/$(go env GOARCH)" == "windows/arm64" ]]; then
             race=()
           fi
-          go test -mod=readonly "${race[@]}" -tags ci ./...
+          go test -mod=readonly "${race[@]}" ./...
           go vet ./...
+          go -C cmd/nimotehost-gui test -mod=readonly "${race[@]}" -tags ci ./...
+          go -C cmd/nimotehost-gui vet ./...
+      - name: Installer help (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./scripts/install.ps1 -Help
       - name: Build CLI and native desktop bundle
         shell: bash
         run: go run ./tools/build -gui -version "$HOST_VERSION"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           if-no-files-found: error
+          overwrite: true
+          compression-level: 0
           name: nimotehost-gui-${{ matrix.os }}-${{ matrix.arch }}
           path: |
             dist/nimotehost-gui-*-${{ matrix.os }}-${{ matrix.arch }}.*
 
   linux-desktop:
+    if: (github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && inputs.edition != 'cli')
     strategy:
       fail-fast: false
       matrix:
@@ -199,7 +220,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     container: ubuntu:22.04
     env:
-      HOST_VERSION: ${{ inputs.version || '2.4.0-dev' }}
       DEBIAN_FRONTEND: noninteractive
     steps:
       - name: Install baseline desktop dependencies
@@ -212,11 +232,9 @@ jobs:
             go.sum
             cmd/nimotehost-gui/go.sum
       - name: Use tag version
+        if: github.event_name == 'push' && github.ref_type == 'tag'
         shell: bash
-        run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "HOST_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
-          fi
+        run: echo "HOST_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
       - name: Desktop unit checks
         working-directory: cmd/nimotehost-gui
         run: go test -mod=readonly -tags ci ./...
@@ -230,23 +248,72 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           if-no-files-found: error
+          overwrite: true
+          compression-level: 0
           name: nimotehost-gui-linux-${{ matrix.arch }}
           path: dist/nimotehost-gui-*-linux-${{ matrix.arch }}.*
 
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [native, clean-source, cross-build, source-export, desktop, linux-desktop]
+  release-cli:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: [native, clean-source, cross-build, source-export]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
+          pattern: nimotehost-{linux,darwin,windows}-*
           path: release-assets
           merge-multiple: true
-      - name: Publish both editions from this tag
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: nimotehost-source
+          path: release-assets
+      - name: Publish CLI packages and source archive
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: gh release create "$GITHUB_REF_NAME" release-assets/* --verify-tag --generate-notes
+        run: |
+          shopt -s nullglob
+          assets=(release-assets/*)
+          if (( ${#assets[@]} != 17 )); then
+            echo "Expected eight CLI archives with checksums and one source archive" >&2
+            exit 1
+          fi
+          (cd release-assets && sha256sum --check --strict -- *.sha256)
+          if is_draft=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft 2>/dev/null); then
+            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+            if [[ "$is_draft" == true ]]; then
+              gh release edit "$GITHUB_REF_NAME" --draft=false
+            fi
+          else
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" --verify-tag --generate-notes
+          fi
+
+  release-gui:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: [release-cli, desktop, linux-desktop]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: nimotehost-gui-*
+          path: release-assets
+          merge-multiple: true
+      - name: Add GUI packages to the same release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          shopt -s nullglob
+          assets=(release-assets/*)
+          if (( ${#assets[@]} != 12 )); then
+            echo "Expected six GUI archives with checksums" >&2
+            exit 1
+          fi
+          (cd release-assets && sha256sum --check --strict -- *.sha256)
+          gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
