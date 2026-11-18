@@ -535,13 +535,39 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respond(w, 200, receipt)
 			return
 		}
+	case action == "input-stream" && r.Method == http.MethodPost:
+		var req struct{}
+		if !readJSON(w, r, &req) {
+			return
+		}
+		var streamID string
+		streamID, err = s.manager.OpenInputStream(id, operation("session.input/"+id))
+		if err == nil {
+			respond(w, 200, map[string]string{"stream_id": streamID})
+			return
+		}
 	case action == "input" && r.Method == http.MethodPost:
 		var req struct {
 			Data      []byte `json:"data"`
 			RequestID string `json:"request_id,omitempty"`
+			StreamID  string `json:"stream_id,omitempty"`
+			Sequence  uint64 `json:"sequence,omitempty"`
 		}
 		if !readJSON(w, r, &req) {
 			return
+		}
+		if req.StreamID != "" || req.Sequence != 0 {
+			if req.RequestID != "" {
+				fail(w, 400, "stream input cannot include request_id")
+				return
+			}
+			var receipt inputStreamReceipt
+			receipt, err = s.manager.StreamInput(id, operation("session.input/"+id), req.StreamID, req.Sequence, req.Data)
+			if err == nil {
+				respond(w, 200, receipt)
+				return
+			}
+			break
 		}
 		var receipt mutationReceipt
 		receipt, err = runOnce(s.manager, req.RequestID, operation("session.input/"+id), req, func() (mutationReceipt, error) {

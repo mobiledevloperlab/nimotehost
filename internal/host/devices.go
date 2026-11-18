@@ -297,7 +297,7 @@ func (d Device) allows(method, path string) bool {
 		if len(parts) == 1 {
 			return method == "DELETE"
 		}
-		return method == "POST" && oneOf(parts[1], "cancel", "agent-message", "input", "resize")
+		return method == "POST" && oneOf(parts[1], "cancel", "agent-message", "input", "input-stream", "resize")
 	}
 	if d.Role != "session_operator" || method != "POST" {
 		return false

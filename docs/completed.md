@@ -86,6 +86,7 @@ Cross-platform `nimotehost rpc-encoded <base64(JSON)>` avoids shell interpolatio
 | DELETE /v1/sessions/{id} | Delete finished sessions, output and summaries |
 | POST /v1/sessions/{id}/cancel | Terminate the owned process tree; external connections detach |
 | POST /v1/sessions/{id}/input | Base64 terminal bytes |
+| POST /v1/sessions/{id}/input-stream | Allocate an ephemeral terminal input stream with JSON body `{}` |
 | POST /v1/sessions/{id}/resize | rows/cols, each 1..1000 |
 | GET /v1/sessions/{id}/output?offset=0 | data/start_offset/next_offset; wait_ms=0..1000 |
 | GET /v1/sessions/{id}/agent-state | cursor/ready/busy/status/approvals/controls |
@@ -129,6 +130,7 @@ Example:
 | --- | --- |
 | mutation_idempotency_v1 | Optional create/input keys; structured messages already require keys |
 | mutation_expiry_v1 | Seven-day keys, safe receipt rotation and status capacity diagnostics |
+| terminal_input_stream_v1 | Optional ordered terminal input with memory receipts bound to the live session and authenticated principal |
 | agent_status_v1 | Agent state separate from process state; unknown native stop reasons remain unknown |
 | session_task_v1 | Required task.id ≤512 bytes, optional label ≤160; never executes the original Task command |
 | session_activity_v1 | Increasing per-session sequence, ≤256 summaries; expired/future cursors require resync |
@@ -136,6 +138,10 @@ Example:
 | rpc_stream / agent_events_v1 / agent_controls_v1 | Separately negotiated bridge/events/controls |
 
 Gate fields by capability. `agent_structured_approval=false` remains conservative pending broader real acceptance; it does not mean Codex/ACP approval code is absent.
+
+For `terminal_input_stream_v1`, allocate a stream and send `{data,stream_id,sequence}` to the existing input endpoint, without `request_id`. Sequences start at 1 and increase per stream (maximum 2^53−1). A successful response contains `{ok:true,stage:"terminal_written",stream_id,sequence}`. Only the next sequence writes; repeating the latest sequence with identical bytes returns its receipt, changed bytes conflict, and older/skipped sequences fail. A partial or failed write poisons the stream. Clients validate receipts, serialize chunks, and never automatically replay uncertain input or replace a failed stream. All terminal writes, including legacy input, serialize per session.
+
+Streams are allocated by the daemon and never reconstructed from incoming frames. Their state is memory-only because terminal processes do not survive daemon restart. At most 64 streams are retained per session; allocation evicts the least recently used stream. Unknown, evicted, wrong-principal and restarted streams fail without writing. Reconnect and inspect the terminal before typing again. Existing request-ID input and its durable receipts remain compatible. NimoteCode uses this extension only with an established rpc-stream; one-shot fallback keeps durable receipts, and exposes negotiation failures through `HostClient.rpcNegotiationError`.
 
 Request IDs bind operation/session/content. Reserve synchronously before effects, persist receipts afterward, and return the original receipt on retry rather than a fresh snapshot. Create receipts contain start_request_id. Hosts advertising expiry accept `v2.<Unix-seconds>.<64-lowercase-random-hex>`; Go uses `host.NewRequestID()`. GUI negotiates in the background for approvals/resume; old Hosts receive legacy opaque keys, and failed negotiation prevents mutation.
 
