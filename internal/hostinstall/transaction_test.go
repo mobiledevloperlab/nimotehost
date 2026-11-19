@@ -228,3 +228,26 @@ func TestActivateFailureRestoresOldDirectory(t *testing.T) {
 		t.Fatalf("old bundle not restored: %s %v", data, err)
 	}
 }
+
+func TestRemoveKeepsStateOutsideTheInstalledBundle(t *testing.T) {
+	ctx := context.Background()
+	target := bundle(t, "installed")
+	state := filepath.Join(t.TempDir(), "state")
+	if err := os.WriteFile(state, []byte("keep"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := Lock(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Close()
+	if err := tx.Remove(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(target); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("installation still exists: %v", err)
+	}
+	if data, err := os.ReadFile(state); err != nil || string(data) != "keep" {
+		t.Fatalf("state changed: %q %v", data, err)
+	}
+}

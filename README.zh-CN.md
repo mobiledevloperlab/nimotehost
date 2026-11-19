@@ -25,6 +25,8 @@
 
 ---
 
+SSH 自动部署、健康检查和安全卸载见 [部署与维护指南](docs/deployment.md)。
+
 ## 项目简介
 
 NimoteHost 主要与 [NimoteCode](https://github.com/mobiledevloperlab/nimotecode) 配合使用，

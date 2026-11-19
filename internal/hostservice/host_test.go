@@ -52,10 +52,18 @@ func TestWindowsHostTaskIsPerUserAndUnprivileged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, text := range []string{"InteractiveToken", "LeastPrivilege", "<Arguments>start</Arguments>", "<ExecutionTimeLimit>PT0S"} {
+	for _, text := range []string{"InteractiveToken", "LeastPrivilege", "<Arguments>start</Arguments>", "<ExecutionTimeLimit>PT0S", "<RestartOnFailure><Interval>PT1M</Interval><Count>3</Count>"} {
 		if !strings.Contains(decodeTaskXML(t, data), text) {
 			t.Fatal(text)
 		}
+	}
+	if err := service.CheckExecutable(); err != nil {
+		t.Fatal(err)
+	}
+	unrelated := *service
+	unrelated.config.Executable = filepath.Join(t.TempDir(), "not-the-installed-host.exe")
+	if err := unrelated.CheckExecutable(); err == nil {
+		t.Fatal("accepted a service definition for another executable")
 	}
 	if err := service.Restart(context.Background()); err != nil {
 		t.Fatal(err)
@@ -323,6 +331,21 @@ func TestServiceCommandDiagnosticChild(t *testing.T) {
 			fmt.Fprintln(os.Stdout, "unrelated environment output")
 			fmt.Fprintln(os.Stderr, "native registration detail")
 			os.Exit(7)
+		}
+	}
+}
+
+func TestLaunchAgentStopToleratesAnUnloadedService(t *testing.T) {
+	for _, probe := range []error{errors.New("Could not find service"), errors.New("Permission denied"), nil} {
+		service := newTestService(t, "darwin", func(_ context.Context, _ string, args ...string) error {
+			if args[0] == "print" {
+				return probe
+			}
+			return errors.New("Boot-out failed")
+		})
+		err := service.Stop(context.Background())
+		if (err == nil) != (probe != nil && probe.Error() == "Could not find service") {
+			t.Fatalf("probe=%v stop=%v", probe, err)
 		}
 	}
 }

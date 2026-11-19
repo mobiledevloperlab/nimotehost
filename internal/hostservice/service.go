@@ -7,6 +7,7 @@ package hostservice
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"unicode/utf16"
 )
 
 const label = "com.nimotehost"
@@ -113,11 +115,7 @@ func New(config Config) (*Service, error) {
 
 // Installed reports whether this user has a service definition, without changing it.
 func (s *Service) Installed() (bool, error) {
-	path := s.definitionPath()
-	if s.config.OS == "windows" {
-		path = filepath.Join(s.config.ConfigDir, "nimotehost", "service.xml")
-	}
-	info, err := os.Stat(path)
+	info, err := os.Stat(s.definitionPath())
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
@@ -128,6 +126,41 @@ func (s *Service) Installed() (bool, error) {
 		return false, errors.New("Host service definition is not a regular file")
 	}
 	return true, nil
+}
+
+// CheckExecutable rejects service definitions pointing outside the managed bundle.
+func (s *Service) CheckExecutable() error {
+	path := s.definitionPath()
+	expected := "<string>" + xmlEscape(s.config.Executable) + "</string>"
+	if s.config.OS == "linux" {
+		expected = "ExecStart=" + systemdQuote(s.config.Executable) + " start"
+	}
+	if s.config.OS == "windows" {
+		expected = "<Command>" + xmlEscape(s.config.Executable) + "</Command>"
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if s.config.OS == "windows" {
+		if len(data) < 2 || len(data)%2 != 0 || binary.LittleEndian.Uint16(data) != 0xfeff {
+			return errors.New("invalid Windows service definition")
+		}
+		units := make([]uint16, (len(data)-2)/2)
+		for i := range units {
+			units[i] = binary.LittleEndian.Uint16(data[2+2*i:])
+		}
+		data = []byte(strings.ToLower(string(utf16.Decode(units))))
+		expected = strings.ToLower(expected)
+	}
+	if s.config.OS == "linux" {
+		expected = "\n" + expected + "\n"
+		data = append(append([]byte{'\n'}, data...), '\n')
+	}
+	if !strings.Contains(string(data), expected) {
+		return errors.New("service definition points outside the managed bundle")
+	}
+	return nil
 }
 
 // Diagnostics describes the native service manager's troubleshooting command.
@@ -165,13 +198,27 @@ func (s *Service) Stop(ctx context.Context) error {
 			return s.managerError("stop", err)
 		}
 	case "darwin":
-		if err := s.run(ctx, "launchctl", "bootout", fmt.Sprintf("gui/%d", s.config.UID), s.definitionPath()); err != nil {
+		if err := s.stopLaunchAgent(ctx, s.definitionPath()); err != nil {
 			return s.managerError("stop", err)
 		}
 	}
 	// On Windows the authenticated shutdown ends the scheduled task. Setup retries
 	// directory replacement until Windows releases the executable handle.
 	return nil
+}
+
+// A failed or stopped service can already be unloaded during rollback.
+func (s *Service) stopLaunchAgent(ctx context.Context, path string) error {
+	domain := fmt.Sprintf("gui/%d", s.config.UID)
+	err := s.run(ctx, "launchctl", "bootout", domain, path)
+	if err == nil {
+		return nil
+	}
+	probe := s.run(ctx, "launchctl", "print", domain+"/"+s.label())
+	if probe != nil && strings.Contains(probe.Error(), "Could not find service") {
+		return nil
+	}
+	return err
 }
 
 // Install writes and enables a per-user background service, then starts it.
@@ -243,7 +290,7 @@ func (s *Service) Uninstall(ctx context.Context) error {
 		if err := s.run(ctx, "systemctl", "--user", "daemon-reload"); err != nil {
 			return s.managerError("reload", err)
 		}
-	} else if err := s.run(ctx, "launchctl", "bootout", fmt.Sprintf("gui/%d", s.config.UID), path); err != nil {
+	} else if err := s.stopLaunchAgent(ctx, path); err != nil {
 		return s.managerError("stop", err)
 	}
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -289,6 +336,9 @@ func (s *Service) Restart(ctx context.Context) error {
 }
 
 func (s *Service) definitionPath() string {
+	if s.config.OS == "windows" {
+		return filepath.Join(s.config.ConfigDir, "nimotehost", "service.xml")
+	}
 	if s.config.OS == "linux" {
 		return filepath.Join(s.config.ConfigDir, "systemd", "user", s.unitName())
 	}

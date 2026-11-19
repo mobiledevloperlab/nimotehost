@@ -17,6 +17,10 @@ import (
 
 const helpText = `NimoteHost — run tasks and terminals over your existing SSH connection.
 
+Deployment (JSON, run as your normal user):
+  nimotehost deploy <status|health|install|upgrade|start|stop|uninstall>
+  nimotehost deploy help   Show deployment options and usage
+
 Setup (run as your normal user):
   nimotehost setup         Verify this bundle, install at a fixed path and start Host
 

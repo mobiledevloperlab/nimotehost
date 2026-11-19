@@ -26,10 +26,13 @@ func main() {
 	defer cancel()
 	if err := run(ctx, os.Args[1:], os.Stdin, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		os.Exit(deploymentExit(err))
 	}
 }
 func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
+	if len(args) > 0 && args[0] == "deploy" {
+		return deploy(ctx, args[1:], stdout)
+	}
 	if len(args) == 2 && args[0] == "device-bridge" {
 		return deviceBridge(ctx, args[1], stdin, stdout)
 	}

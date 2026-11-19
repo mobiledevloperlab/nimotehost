@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Nimote contributors
 
-// Package hostinstall stages complete, verified distributions for per-user setup.
-// It never downloads code, extracts archives, changes SSH, or handles credentials.
+// Package hostinstall resolves and verifies release assets and stages complete
+// distributions for per-user setup. The CLI owns service and SSH configuration.
 package hostinstall
 
 import (

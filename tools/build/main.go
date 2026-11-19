@@ -19,6 +19,8 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+
+	"github.com/mobiledevloperlab/nimotehost/pkg/hostclient"
 )
 
 const modulePath = "github.com/mobiledevloperlab/nimotehost"
@@ -278,8 +280,9 @@ func build(targetOS, arch, version string) error {
 	}
 	manifest := struct {
 		Version, OS, Arch, SHA256 string
+		Protocol, MinProtocol     int
 		BuildInfo                 any
-	}{version, targetOS, arch, fmt.Sprintf("%x", sha256.Sum256(binaryData)), info}
+	}{version, targetOS, arch, fmt.Sprintf("%x", sha256.Sum256(binaryData)), hostclient.Protocol, hostclient.Protocol, info}
 	data, err = json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return err

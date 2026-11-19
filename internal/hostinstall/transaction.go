@@ -15,6 +15,8 @@ import (
 
 // Transaction holds an exclusive setup lock. Old distributions are retained
 // beside the destination after a successful update; runtime state is never moved.
+var ErrLocked = errors.New("another setup may be running")
+
 type Transaction struct {
 	Target string
 	Backup string
@@ -36,12 +38,9 @@ func Prepare(ctx context.Context, source, target string) (*Transaction, error) {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+	tx, err := Lock(target)
+	if err != nil {
 		return nil, err
-	}
-	tx := &Transaction{Target: target, lock: target + ".setup-lock"}
-	if err := os.Mkdir(tx.lock, 0700); err != nil {
-		return nil, fmt.Errorf("cannot acquire setup lock %s (another setup may be running): %w", tx.lock, err)
 	}
 	stage, err := os.MkdirTemp(filepath.Dir(target), ".nimotehost-stage-")
 	if err != nil {
@@ -51,6 +50,21 @@ func Prepare(ctx context.Context, source, target string) (*Transaction, error) {
 	tx.stage = stage
 	if err := copyVerified(ctx, source, stage); err != nil {
 		_ = tx.Close()
+		return nil, err
+	}
+	return tx, nil
+}
+
+// Lock serializes fixed-location setup and removal.
+func Lock(target string) (*Transaction, error) {
+	if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+		return nil, err
+	}
+	tx := &Transaction{Target: target, lock: target + ".setup-lock"}
+	if err := os.Mkdir(tx.lock, 0700); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return nil, fmt.Errorf("%w: %s", ErrLocked, tx.lock)
+		}
 		return nil, err
 	}
 	return tx, nil
@@ -124,6 +138,24 @@ func (tx *Transaction) Rollback(ctx context.Context) error {
 		}
 	}
 	tx.active = false
+	return nil
+}
+
+// Remove detaches the complete installation before deleting any file.
+func (tx *Transaction) Remove(ctx context.Context) error {
+	removed, err := os.MkdirTemp(filepath.Dir(tx.Target), ".nimotehost-removing-")
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(removed); err != nil {
+		return err
+	}
+	if err := rename(ctx, tx.Target, removed); err != nil {
+		return err
+	}
+	if err := os.RemoveAll(removed); err != nil {
+		return fmt.Errorf("installation detached; clean up %s: %w", removed, err)
+	}
 	return nil
 }
 

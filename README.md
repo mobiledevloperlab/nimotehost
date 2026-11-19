@@ -25,6 +25,8 @@
 
 ---
 
+See [deployment and maintenance](docs/deployment.md) for SSH automation, health checks and safe removal.
+
 ## Overview
 
 NimoteHost is primarily designed to work with [NimoteCode](https://github.com/mobiledevloperlab/nimotecode),

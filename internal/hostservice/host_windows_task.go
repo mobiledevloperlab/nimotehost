@@ -22,7 +22,7 @@ func (s *Service) installWindows(ctx context.Context, start bool) error {
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(s.config.ConfigDir, "nimotehost", "service.xml")
+	path := s.definitionPath()
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
@@ -34,7 +34,7 @@ func (s *Service) installWindows(ctx context.Context, start bool) error {
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
 <Triggers><LogonTrigger><Enabled>true</Enabled><UserId>%s</UserId></LogonTrigger></Triggers>
 <Principals><Principal id="Author"><UserId>%s</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
-<Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><ExecutionTimeLimit>PT0S</ExecutionTimeLimit></Settings>
+<Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><ExecutionTimeLimit>PT0S</ExecutionTimeLimit><RestartOnFailure><Interval>PT1M</Interval><Count>3</Count></RestartOnFailure></Settings>
 <Actions Context="Author"><Exec><Command>%s</Command><Arguments>start</Arguments></Exec></Actions></Task>`, xmlEscape(account.Uid), xmlEscape(account.Uid), xmlEscape(s.config.Executable))
 	if err := writePrivateFile(path, encodeTaskXML(document)); err != nil {
 		return err
@@ -58,7 +58,7 @@ func (s *Service) installWindows(ctx context.Context, start bool) error {
 	return nil
 }
 func (s *Service) uninstallWindows(ctx context.Context) error {
-	path := filepath.Join(s.config.ConfigDir, "nimotehost", "service.xml")
+	path := s.definitionPath()
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return nil
 	} else if err != nil {
