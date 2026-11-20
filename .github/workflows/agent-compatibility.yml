@@ -2,8 +2,8 @@ name: Agent compatibility monitor
 
 on:
   schedule:
-    # UTC 00:23, 06:23, 12:23, 18:23; avoid the busy top of the hour.
-    - cron: '23 */6 * * *'
+    # Daily at UTC 00:23; avoid the busy top of the hour.
+    - cron: '23 0 * * *'
   workflow_dispatch:
     inputs:
       force:

@@ -259,7 +259,7 @@ x64 MinGW compiler. See [MSYS2 ARM64](https://www.msys2.org/docs/arm64/).
 ## Agent upstream monitoring
 
 The [compatibility workflow](.github/workflows/agent-compatibility.yml) checks upstream releases
-every six hours (00:23, 06:23, 12:23 and 18:23 UTC). On its first run or a version change,
+once a day at 00:23 UTC. On its first run or a version change,
 it temporarily installs exact versions of Codex, OpenCode, the Claude ACP adapter and Claude Code,
 checks real structured session initialization, runs existing Host Agent/protocol/approval regressions, and exports
 Codex JSON Schema. It sends no prompts and makes no model calls. Claude Agent SDK, ACP SDK,

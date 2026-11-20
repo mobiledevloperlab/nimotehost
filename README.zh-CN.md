@@ -205,8 +205,8 @@ Windows ARM64 使用 MSYS2 CLANGARM64（`CC=clang`、`CXX=clang++`），不能�
 
 ## Agent 上游监测
 
-[兼容性监测工作流](.github/workflows/agent-compatibility.yml)每 6 小时运行一次
-（UTC 00:23、06:23、12:23、18:23）。首次运行或上游版本变化时，临时安装指定版本的
+[兼容性监测工作流](.github/workflows/agent-compatibility.yml)每天运行一次
+（UTC 00:23，北京时间 08:23）。首次运行或上游版本变化时，临时安装指定版本的
 Codex、OpenCode、Claude ACP 适配器和 Claude Code，检查真实结构化会话初始化、
 运行 Host 现有 Agent/协议/审批回归测试，并导出 Codex JSON Schema；不发送提示词、不调用模型。
 同时监测 Claude Agent SDK、ACP SDK 和 ACP Go SDK 的最新发布，但不会自动升级项目依赖。
