@@ -1,5 +1,5 @@
 .PHONY: build desktop release check export-source
-VERSION ?= 2.4.0
+VERSION ?= 2.4.1
 build:
 	go run ./tools/build -version $(VERSION)
 desktop:

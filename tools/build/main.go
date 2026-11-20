@@ -43,7 +43,7 @@ type module struct {
 func main() {
 	targetOS := flag.String("os", runtime.GOOS, "linux, darwin or windows")
 	arch := flag.String("arch", runtime.GOARCH, "amd64, arm64, or 386 (Linux/Windows CLI only)")
-	version := flag.String("version", "2.4.0", "release version")
+	version := flag.String("version", "2.4.1", "release version")
 	gui := flag.Bool("gui", false, "also build the native Fyne desktop bundle (requires CGO and a native SDK)")
 	flag.Parse()
 	if *gui {

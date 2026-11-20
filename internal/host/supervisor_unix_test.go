@@ -69,17 +69,25 @@ func TestHostSIGKILLReapsOwnedUnixProcessGroups(t *testing.T) {
 				t.Fatal("owner fixture never started")
 			}
 			var taskPID int
+			heartbeatStarted := false
 			deadline := time.Now().Add(5 * time.Second)
 			for time.Now().Before(deadline) {
 				raw, _ := os.ReadFile(filepath.Join(dir, "task-pid"))
 				taskPID, _ = strconv.Atoi(string(raw))
 				if taskPID > 0 {
-					break
+					// The PID is written before the background descendant starts.
+					// Observe its heartbeat before killing the owner so the cleanup
+					// assertion always exercises a running descendant.
+					heartbeat, _ := os.ReadFile(filepath.Join(dir, "heartbeat"))
+					if len(heartbeat) > 0 {
+						heartbeatStarted = true
+						break
+					}
 				}
 				time.Sleep(10 * time.Millisecond)
 			}
-			if taskPID <= 0 {
-				t.Fatal("target never started")
+			if taskPID <= 0 || !heartbeatStarted {
+				t.Fatal("target or descendant heartbeat never started")
 			}
 			if err := owner.Process.Kill(); err != nil {
 				t.Fatal(err)
