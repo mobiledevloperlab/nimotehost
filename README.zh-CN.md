@@ -21,7 +21,7 @@
   <a href="SECURITY.zh-CN.md">安全说明</a>
 </sub></p>
 
-<p align="center"><sub>2.4.0 开发预览版 · Apache-2.0 开源</sub></p>
+<p align="center"><sub>2.4.1 开发预览版 · Apache-2.0 开源</sub></p>
 
 ---
 
@@ -99,7 +99,7 @@ sh scripts/install.sh
 
 ```sh
 ./scripts/build-release.sh
-# 或 make release VERSION=2.4.0
+# 或 make release VERSION=2.4.1
 # Windows：python scripts/build-release.py --arch amd64
 ```
 
@@ -113,7 +113,7 @@ Linux、Windows 的 GUI 请分别在对应架构的机器上运行 `--arch amd64
 # 三平台 CLI：32 位 x86、x64、ARM64（macOS 自动跳过 386）
 ./scripts/build-release.sh --cli-only --os all --arch 386,amd64,arm64
 # 指定版本
-./scripts/build-release.sh --version 2.4.0
+./scripts/build-release.sh --version 2.4.1
 # 在具体分发目录内验证
 shasum -a 1 -c SHA1SUMS
 ```
@@ -138,7 +138,7 @@ go run ./tools/build
 指定其他目标平台和版本：
 
 ```sh
-go run ./tools/build -os windows -arch arm64 -version 2.4.0
+go run ./tools/build -os windows -arch arm64 -version 2.4.1
 ```
 
 二进制分发包包含简短的中英文安装说明、当前平台安装脚本、许可证、模块清单、构建信息和 SHA256SUMS。
@@ -254,7 +254,7 @@ CLI 与 GUI 复用现有 Go Host、认证本地 RPC 和三平台用户服务；F
 `cmd/nimotehost-gui` 独立模块中，CLI 不引入图形依赖。
 
 ```sh
-go run ./tools/build -gui -version 2.4.0
+go run ./tools/build -gui -version 2.4.1
 ```
 
 需在目标系统本机构建并安装 C 编译器/桌面 SDK。产物为

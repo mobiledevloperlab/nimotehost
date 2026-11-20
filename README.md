@@ -21,7 +21,7 @@
   <a href="SECURITY.md">Security</a>
 </sub></p>
 
-<p align="center"><sub>2.4.0 development preview · Open source under Apache-2.0</sub></p>
+<p align="center"><sub>2.4.1 development preview · Open source under Apache-2.0</sub></p>
 
 ---
 
@@ -119,7 +119,7 @@ This works from PowerShell as well as Unix shells. Run the generated binary at
 For other targets or a versioned distribution:
 
 ```sh
-go run ./tools/build -os windows -arch arm64 -version 2.4.0
+go run ./tools/build -os windows -arch arm64 -version 2.4.1
 ```
 
 Binary distributions include concise English/Chinese installation instructions, the
@@ -154,7 +154,7 @@ not compile or download Fyne. No mobile protocol or public transport is changed.
 
 ```sh
 # Native desktop SDK / C compiler required; also builds the CLI distribution
-go run ./tools/build -gui -version 2.4.0
+go run ./tools/build -gui -version 2.4.1
 # Or: make desktop
 ```
 

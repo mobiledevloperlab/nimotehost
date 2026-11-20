@@ -2,7 +2,12 @@
 
 **English** | [Simplified Chinese](CHANGELOG.zh-CN.md)
 
-## Unreleased — 2.4.0
+## 2.4.1
+
+- Wait for a running descendant heartbeat before the Host SIGKILL cleanup test terminates its owner, avoiding a fixture startup race.
+- Cancel superseded release builds when the same version tag is updated.
+
+## 2.4.0
 
 - Refine desktop spacing, labeled sidebar navigation, status and metric cards, and light/dark palettes; open current approvals directly and cover contrast and control sizing.
 

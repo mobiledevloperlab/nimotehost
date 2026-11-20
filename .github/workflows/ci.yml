@@ -13,7 +13,7 @@ on:
         options: [cli, gui, both]
       version:
         description: Distribution version (starts with a digit)
-        default: 2.4.0-dev
+        default: 2.4.1-dev
         required: true
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
@@ -24,7 +24,7 @@ env:
   GOWORK: 'off'
   GOFLAGS: '-mod=readonly'
   RELEASE_GO_VERSION: '1.27.4'
-  HOST_VERSION: ${{ inputs.version || '2.4.0-dev' }}
+  HOST_VERSION: ${{ inputs.version || '2.4.1-dev' }}
 jobs:
   native:
     name: native (ubuntu-latest)
