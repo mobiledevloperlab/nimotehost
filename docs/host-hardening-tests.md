@@ -140,3 +140,33 @@ Host inbox, verification cards, concurrent-workspace risks, history continuation
 - Real-font/theme screenshot tests covered English/Chinese light/dark inbox/verification/dispatch; these are UI artifacts, not device evidence. Android debug APK built.
 
 GitHub tests used fixtures, temporary Git repositories and local bare remotes, not actual PRs. Agent fixtures are not model acceptance. ADB found no devices; no APK installation or device operation ran. No real test Issue, usable Host gh authorization or isolated real Agent profile was supplied, so Issue→development→verification→PR→phone review and real interruption recovery remain unaccepted.
+
+## Post-November-17 native regression (2026-11-19)
+
+Tested tracked source at `c86631d`, including all 16 commits dated November 17–19 (three dated November 18–19). Coverage includes ordered terminal input, oversized RPC streams, cancellation/output polling, structured errors, deployment transactions, distribution contents, and tool discovery/refresh. A subsequent test-only correction is described below; production source was unchanged.
+
+All three environments in the local environment inventory were reached: macOS Darwin 25.2.0 arm64, Debian Linux 6.12.117 amd64, and Windows amd64. Initial direct Python TCP connection failures were a test-driver limitation: system SSH/netcat worked, and SSH authentication succeeded through a netcat transport. They were not evidence that either remote machine was offline.
+
+Go 1.27.4 is available from persistent paths: the existing Homebrew installation through `/usr/local/bin/go` on macOS, `/usr/local/go` through `/usr/local/bin/go` on Linux, and `C:\Program Files\go\bin` in the Windows machine PATH. macOS SSH shells also load `/usr/local/bin` from the user shell configuration. Windows test shells refreshed their process PATH from the machine/user registry; existing processes retain their inherited PATH. Newly installed SDK archives were checked against official SHA256 metadata. Remote tests used a file proxy containing repository-pinned public modules; go.mod/go.sum and module verification were retained.
+
+| Check | Result |
+| --- | --- |
+| macOS clean tracked source `make check` | PASS: 19 Python tests, module verification, full readonly race suite and vet |
+| macOS desktop `go test -mod=readonly -tags ci ./...` and corresponding vet | PASS; existing duplicate `-lobjc` warning |
+| macOS isolated tool-environment integration, configured CLI and Homebrew Codex variants | PASS: daemon-owned discovery, caller PATH independence, sibling Node in a path with spaces, hot refresh retaining a live task, invalid-refresh rollback, clean shutdown |
+| Linux full native readonly race suite | PASS: 585 test/subtest passes, 15 skips, zero failures; counts include helper tests and fuzz seeds |
+| Linux Python/module verification/vet/native distribution/tool-environment integration | PASS |
+| Windows module verification/vet/native distribution | PASS |
+| Windows native full race rerun after test-only correction | PASS: 515 test/subtest passes, 18 skips, zero failures; `go test -race -count=1 -json ./...` and final vet both exited 0 |
+| Three-target CLI distribution build: darwin-arm64, linux-amd64, windows-amd64 | PASS: each archive readable and all 33 manifest checksums verified independently |
+| Linux/Windows amd64 test compilation | PASS; native runs above provide separate execution evidence |
+
+The initial macOS working-tree `make check` failed documentation checks because an existing untracked `docs/opensource.md` contains Chinese. That file and the other pre-existing untracked files were preserved. Clean tracked-source checks passed; the original working tree is not claimed to pass unchanged.
+
+The initial Windows race suite recorded 514 passes, 18 skips and one failed assertion in `TestToolEnvironmentOwnerRefreshAndConcurrentReads`. A substring check for `environment"` incorrectly matched the legitimate JSON value `windows_environment`. The test now parses JSON and checks the exact `environment` field, retaining the raw-environment exposure assertion. The corrected tool tests passed under race on macOS and Linux; the Windows test also passed individually in 32.384 seconds.
+
+The first corrected Windows full rerun emitted passing results for every test but its Go driver did not finish after the Host package exited. That test driver alone was stopped after preserving the output. A subsequent full run with `-count=1` disabled test-result caching and completed with exit 0, followed by successful vet. This establishes the final suite result but does not establish the cause of the earlier driver stall.
+
+Windows Python checks did not all pass: 19 tests produced two failures, one error and one skip. Documentation reading used the native GBK default; rerunning that check with `python -X utf8` passed. The glibc fixture assumes a POSIX executable `readelf` script, and source export assumes Bash plus a working `python3`; those checks failed in the native Windows tool environment. Their successful Unix results do not make the Windows invocations passes. No assertions were removed or converted into new skips.
+
+Existing opt-in skips remain: installed Agent/model handshakes, live model approval/resume, Linux root/cgroup cases and private restricted-sshd acceptance were not explicitly enabled. Windows also retained platform/privilege skips for Unix fixtures and symlink creation. No reboot, real service installation/uninstallation, destructive deployment acceptance script, real model call, phone acceptance or graphical desktop interaction ran. Service/install unit and fixture integration tests do not substitute for those acceptance scenarios. Test source, logs and temporary file proxies remain in the dedicated remote `nimotehost-validation-c86631d` directories; local logs use `/tmp/nimotehost-validation-*`.

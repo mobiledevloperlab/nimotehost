@@ -174,8 +174,16 @@ func TestToolEnvironmentOwnerRefreshAndConcurrentReads(t *testing.T) {
 			t.Fatal("tool diagnostics exposed to device observer", path)
 		}
 	}
-	if w := request("GET", "/v1/tools", s.token); w.Code != 200 || strings.Contains(w.Body.String(), "environment\"") {
+	w := request("GET", "/v1/tools", s.token)
+	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
+	}
+	var status map[string]json.RawMessage
+	if err := json.Unmarshal(w.Body.Bytes(), &status); err != nil {
+		t.Fatal(err)
+	}
+	if _, exposed := status["environment"]; exposed {
+		t.Fatal("tool diagnostics exposed the raw environment", w.Body.String())
 	}
 	if w := request("POST", "/v1/tools/refresh", s.token); w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
@@ -184,7 +192,7 @@ func TestToolEnvironmentOwnerRefreshAndConcurrentReads(t *testing.T) {
 		t.Fatal(w.Code)
 	}
 	r.mu.Lock()
-	w := request("POST", "/v1/tools/refresh", s.token)
+	w = request("POST", "/v1/tools/refresh", s.token)
 	r.mu.Unlock()
 	if w.Code != http.StatusConflict {
 		t.Fatal("concurrent refresh must not queue shell processes", w.Code)
