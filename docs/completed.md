@@ -88,6 +88,9 @@ Cross-platform `nimotehost rpc-encoded <base64(JSON)>` avoids shell interpolatio
 | --- | --- |
 | GET /v1/capabilities | version/protocol/min_protocol/platform/arch/host_id/features/tools |
 | GET /v1/status | Host status |
+| GET /v1/tools | Owner-only tool search paths, sources and refresh status |
+| POST /v1/tools/refresh | Owner-only reload of tools.json and tool environment; running sessions continue |
+| GET /v1/agents | Owner-only bounded Agent version probes in the daemon environment |
 | GET /v1/sessions?after=revision | Full or process-metadata snapshots |
 | POST /v1/sessions | Create task/terminal/agent sessions |
 | GET /v1/sessions/{id} | Session, Agent state and activity sequence |

@@ -27,6 +27,7 @@ type AgentMessage struct {
 }
 
 type structuredAgent struct {
+	isolated                bool
 	attachment              *ExternalAttachment
 	attachmentReady         bool
 	attachmentStateObserved bool

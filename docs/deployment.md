@@ -43,6 +43,88 @@ Bundle updates use the existing idle-shutdown barrier. Hosts without that capabi
 | macOS | LaunchAgent runs in the GUI login domain and starts at login after reboot. It can outlive a separate SSH connection while that domain exists. A headless SSH-only account without an active GUI domain is unsupported |
 | Windows | Least-privilege interactive scheduled task starts at logon. It can outlive SSH disconnect while that user session exists. A machine with no interactive login cannot start this task through SSH. New task registration allows up to three retries after failure |
 
+## Tool discovery and execution environment
+
+Host resolves CLI tools at startup independently of whether it was started by a
+desktop application, SSH, a terminal, or the login service. Tool discovery and
+owned command launches share the same resolver and PATH. Existing service PATH
+settings remain valid; users do not need to reinstall the service to refresh tools.
+
+Resolution order is: explicit executable override, configured search directories,
+resolved user shell PATH, inherited PATH, then platform fallback directories.
+Unix resolves the account's login shell with a five-second budget, bounded output,
+and discovery-process-group cleanup. Common Homebrew/MacPorts, user-local, Cargo,
+Volta, asdf, mise, Bun, and pnpm directories are fallbacks. NVM/fnm installations
+use the version activated by the user's shell; Host never selects the highest
+installed version or scans every version directory. Shell failure does not stop
+Host; platform and inherited paths remain available. Windows refreshes user/system
+PATH from the registry, adds common CLI installation directories, and supports
+registered App Paths executable locations. Windows has no POSIX shell probe.
+
+Add optional `tools.json` beside `config.json` in the private Host state directory
+(Unix mode 0600; Windows current-user ACL):
+
+```json
+{
+  "executables": {"codex": "/absolute/path/to/codex"},
+  "search_paths": ["/absolute/path/to/custom/bin"],
+  "disable_shell": false
+}
+```
+
+Use Windows absolute paths with JSON escaping on Windows. `disable_shell` disables
+the Unix shell probe. A missing explicit executable fails with a diagnostic instead
+of switching to a different installed version. Search directories must be absolute;
+empty or relative PATH entries are ignored. Same-name executables follow directory
+precedence. No applications are installed automatically. Shell aliases/functions,
+arbitrary unregistered installation locations, and inactive version-manager
+versions require an executable override or a configured directory.
+
+`nimotehost tools status` reports search directories, their sources, last refresh,
+and shell resolution status. `nimotehost tools refresh` rereads `tools.json` and
+resolves the environment in the running daemon. Failed config validation preserves
+the previous working snapshot. Concurrent explicit refresh returns HTTP 409 instead
+of queuing more shell probes. Capabilities polling never launches a shell. New
+files in known directories are visible immediately; a command lookup miss retries
+environment resolution at most once every 30 seconds. The command itself is never
+rerun after execution has begun. Explicit refresh handles version changes when the
+previous installation still exists. Running sessions retain their original process
+environments. Refresh does not stop sessions or change service definitions.
+
+`nimotehost agents` probes the running Host, with local fallback only if it is
+stopped. `nimotehost agents-local` explicitly probes this process. Older daemons
+without the diagnostic endpoint should be upgraded or inspected with
+`capabilities`; an API rejection is not silently replaced by local results.
+Agent discovery includes `path_source` and `discovery_error`; version probe status
+is separate from installed status and from a successful protocol handshake.
+
+Owner-only endpoints are `GET /v1/tools`, `POST /v1/tools/refresh`, and
+`GET /v1/agents`. They do not expose environment variable values or shell output.
+Only PATH and known runtime-selector variables are imported from the shell;
+credentials, loader settings, and unrelated shell variables are not imported.
+Existing plugin environments and independent-identity session environments retain
+their own restrictions. Executable paths and their dependency PATH come from the
+same immutable snapshot, even when another request refreshes discovery.
+
+Regression coverage lives in `internal/host/tool_environment*_test.go`: precedence,
+runtime dependencies, shell output/timeout handling, atomic refresh, configuration
+validation, owner authorization, explicit relative commands, and identity isolation.
+Windows-specific tests cover case-insensitive overrides, batch launchers and rejection
+of ambient workspace executables. Run native process acceptance without installing
+or stopping the user's existing Host:
+
+```sh
+go build -o /tmp/nimotehost-tool-env-review ./cmd/nimotehost
+python3 scripts/test-tool-environment.py --binary /tmp/nimotehost-tool-env-review
+```
+
+On macOS ARM64 with Codex installed in Homebrew, add `--check-homebrew-codex` to
+verify the original system-only PATH failure scenario against the installed CLI.
+The fixture uses a temporary HOME, private state and an ephemeral loopback port;
+it verifies daemon-versus-caller discovery, refresh, sibling Node dependency,
+invalid-config recovery and preservation of an existing session. It prints its
+artifact directory and shuts down its own daemon on success or failure.
+
 ## JSON contract
 
 Deployment commands write one JSON object on stdout. Error messages may also appear on stderr. Keep stdout as the deployment audit record. `deploy help` prints human-readable usage. Existing CLI and RPC formats retain their own contracts.

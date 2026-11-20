@@ -280,6 +280,10 @@ Linux `nimotehost-gui`。Linux 桌面入口文件要求 GUI 位于 PATH 中，�
 配置复用 OS 用户配置目录下的 `nimotehost/config.json`，默认 `127.0.0.1:47831`，
 修改端口和日志级别前需停止 Host。GUI 语言、主题与 Linux 托盘偏好由 Fyne 单独持久化。
 
+Host 自动解析用户 Shell 和常见安装目录，统一 Agent 检测与启动环境。
+安装新工具后可运行 `nimotehost tools refresh` 重新检测，已有会话继续运行。
+特殊安装位置可通过独立的 `tools.json` 指定，详见[工具发现与环境配置](docs/deployment.md#tool-discovery-and-execution-environment)。
+
 Windows/macOS 关闭窗口隐藏到托盘；Linux 默认关闭窗口仅退出 GUI，确认有托盘支持
 后可在设置启用。退出 GUI 不停止 Host、SSH 或后台任务；明确停止或重启才结束
 Host 任务。完整控制仍依赖 SSH 系统账号；设备页已支持独立只读设备身份和撤销，

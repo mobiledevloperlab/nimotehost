@@ -28,7 +28,10 @@ Advanced setup (binary already at a fixed installation path):
   nimotehost install       Install and start the background service; wait until ready
   nimotehost status        Check the running Host (JSON)
   nimotehost capabilities  Show available features and installed Agent CLIs (JSON)
-  nimotehost agents        Probe installed Agent versions (bounded local diagnostic)
+  nimotehost agents        Probe Agent versions in Host (local fallback if stopped)
+  nimotehost agents-local  Probe Agent versions in this process explicitly
+  nimotehost tools status  Show Host tool search paths and discovery status
+  nimotehost tools refresh Reload tools.json and refresh Host tool discovery
   nimotehost repair inspect
                            Inspect stopped Host state without changing it
   nimotehost repair apply <plan-id>

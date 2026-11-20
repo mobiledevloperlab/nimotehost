@@ -302,6 +302,24 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 	if err := validateExecutionIdentity(req.Identity, req.Directory, m.limits); err != nil {
 		return Session{}, err
 	}
+	// Resolve before taking the session lock: a shell refresh on a missing tool
+	// must not block cancellation or status updates for existing sessions.
+	cmd := exec.Command(req.Command, req.Args...)
+	cmd.Dir = req.Directory
+	cmd.WaitDelay = 2 * time.Second
+	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	if req.Identity != nil {
+		cmd.Env = identityEnvironment(req.Identity, req.Directory)
+	}
+	if req.Interaction == "structured" && req.Attach == nil {
+		if err := configureStructuredCommand(cmd, &structuredAgent{provider: req.Agent, isolated: req.Identity != nil}); err != nil {
+			return Session{}, err
+		}
+	} else if req.Identity == nil && req.Attach == nil && activeToolEnvironment.Load() != nil {
+		if err := configureToolCommand(cmd, req.Command); err != nil {
+			return Session{}, err
+		}
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed {
@@ -355,9 +373,6 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 		return Session{}, err
 	}
 	output := &outputWriter{file: f}
-	cmd := exec.Command(req.Command, req.Args...)
-	cmd.Dir = req.Directory
-	cmd.WaitDelay = 2 * time.Second
 	record := Session{SourceDirectory: req.sourceDirectory, BaseCommit: req.baseCommit, ExecutionPolicy: req.ExecutionPolicy, CompatibilityFallback: req.fallbackReason, Interaction: req.Interaction, ID: id, ConversationID: resumeConversationID(req.Resume), Kind: req.Kind, Agent: req.Agent, Command: req.Command, Args: append([]string(nil), req.Args...), Directory: req.Directory, State: "running", Started: time.Now().UTC()}
 	if req.Attach != nil {
 		connection := req.Attach.ExternalConnection
@@ -385,12 +400,9 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 		os.Remove(filepath.Join(m.dir, id+".json"))
 		return Session{}, err
 	}
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
-	if req.Identity != nil {
-		cmd.Env = identityEnvironment(req.Identity, req.Directory)
-	}
 	if req.Interaction == "structured" {
 		item.agent = newStructuredAgent(req.Agent, output, req.Directory, record.ConversationID)
+		item.agent.isolated = req.Identity != nil
 		item.agent.attachment = req.Attach
 		item.agent.executionPolicy = req.ExecutionPolicy
 		item.agent.onExecutionPolicy = func(policy string) error { return m.setExecutionPolicy(item, policy) }
@@ -408,7 +420,7 @@ func (m *Manager) start(req StartRequest) (Session, error) {
 				err = errors.New("external live attachment is unsupported")
 			}
 		} else {
-			item.process, err = startStructuredAgent(cmd, item.agent, limits)
+			item.process, err = startConfiguredStructuredAgent(cmd, item.agent, limits)
 		}
 	} else {
 		item.process, item.terminal, err = startProcess(cmd, req.Kind != "task", output, limits)

@@ -201,6 +201,12 @@ managed. Runtime logs are owner-private and bounded at 64 KiB; diagnostic export
 exclude logs, credentials, command arguments and session contents. GUI preferences
 (language, theme, Linux tray) are stored separately by Fyne.
 
+Host resolves the user shell and common installation directories so Agent discovery
+and launches share an execution environment. After installing a tool, run
+`nimotehost tools refresh` without interrupting existing sessions. Custom executable
+locations belong in the separate `tools.json`; see
+[tool discovery and environment configuration](docs/deployment.md#tool-discovery-and-execution-environment).
+
 Sessions and structured Agent approvals use live existing RPC data. Devices manages restricted read-only identities and revocation; unrestricted
 SSH accounts remain outside device isolation. SSH health is reported as externally managed rather than guessed.
 See [desktop audit, build prerequisites and limits](docs/completed.md#desktop-architecture-audit)

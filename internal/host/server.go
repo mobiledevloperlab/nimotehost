@@ -234,6 +234,22 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.servePlugins(w, r)
 		return
 	}
+	if r.URL.Path == "/v1/tools" || r.URL.Path == "/v1/tools/refresh" {
+		s.serveToolEnvironment(w, r, owner)
+		return
+	}
+	if r.URL.Path == "/v1/agents" {
+		if !owner {
+			fail(w, 403, "agent diagnostics require Host owner authorization")
+			return
+		}
+		if r.Method != http.MethodGet {
+			fail(w, 405, "agent diagnostics require GET")
+			return
+		}
+		respond(w, 200, InspectAgents(r.Context()))
+		return
+	}
 	scoped := !owner && device.Role != "observer"
 	if device.Role == "session_controller" && strings.HasPrefix(r.URL.Path, "/v1/sessions/") {
 		id := strings.Split(strings.TrimPrefix(r.URL.Path, "/v1/sessions/"), "/")[0]

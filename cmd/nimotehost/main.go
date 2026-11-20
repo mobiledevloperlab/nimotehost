@@ -42,6 +42,24 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 	if len(args) >= 1 && args[0] == "devices" {
 		return devicesCommand(args[1:], stdout)
 	}
+	if len(args) == 2 && args[0] == "tools" {
+		path, method := "/v1/tools", "GET"
+		if args[1] == "refresh" {
+			path, method = "/v1/tools/refresh", "POST"
+		} else if args[1] != "status" {
+			return errors.New("usage: nimotehost tools <status|refresh>")
+		}
+		dir, err := host.DefaultDir()
+		if err != nil {
+			return err
+		}
+		data, err := host.Call(ctx, dir, host.RPCRequest{Method: method, Path: path})
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintln(stdout, string(data))
+		return err
+	}
 	if len(args) == 2 && args[0] == "rpc-encoded" {
 		data, err := base64.StdEncoding.DecodeString(args[1])
 		if err != nil {
@@ -81,6 +99,19 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 	case "rpc-stream":
 		return host.ServeRPCStream(ctx, dir, stdin, stdout)
 	case "agents":
+		data, err := host.Call(ctx, dir, host.RPCRequest{Method: "GET", Path: "/v1/agents"})
+		if err == nil {
+			_, err = fmt.Fprintln(stdout, string(data))
+			return err
+		}
+		if !hostUnavailable(err) {
+			return err
+		}
+		fallthrough
+	case "agents-local":
+		if err := host.InitializeToolEnvironment(ctx, dir); err != nil {
+			return err
+		}
 		return json.NewEncoder(stdout).Encode(host.InspectAgents(ctx))
 	case "mcp":
 		return host.ServeMCP(ctx, dir, stdin, stdout, os.Getenv("NIMOTEHOST_MCP_WRITE") == "1")
@@ -99,6 +130,9 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 			return err
 		}
 		slog.SetDefault(slog.New(slog.NewTextHandler(io.MultiWriter(os.Stderr, log), &slog.HandlerOptions{Level: level})))
+		if err = host.InitializeToolEnvironment(ctx, dir); err != nil {
+			return err
+		}
 		err = host.Serve(ctx, dir, stdout)
 		if err != nil {
 			slog.Error("Host failed", "error", err)

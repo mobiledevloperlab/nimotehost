@@ -166,5 +166,10 @@ func configureStructuredCommand(cmd *exec.Cmd, a *structuredAgent) error {
 	if !ok {
 		return errors.New("unknown Agent adapter")
 	}
+	if a.isolated {
+		if native, ok := adapter.(cliAgentAdapter); ok {
+			return native.configureCommand(cmd, false)
+		}
+	}
 	return adapter.ConfigureCommand(cmd)
 }

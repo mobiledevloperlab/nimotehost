@@ -38,11 +38,11 @@ func acpHistoryRPC(ctx context.Context, agent, cwd, method string, params any) (
 		return nil, acpHistoryReplay{}, errors.New("unsupported ACP history provider")
 	}
 	cmd := exec.CommandContext(ctx, adapter.Executable())
+	cmd.Dir = cwdOrHome(cwd)
+	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 	if err := adapter.ConfigureCommand(cmd); err != nil {
 		return nil, acpHistoryReplay{}, err
 	}
-	cmd.Dir = cwdOrHome(cwd)
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 	in, out, cleanup, err := startAgentQuery(ctx, cmd)
 	if err != nil {
 		return nil, acpHistoryReplay{}, err

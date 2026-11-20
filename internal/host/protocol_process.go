@@ -12,6 +12,10 @@ func startStructuredAgent(cmd *exec.Cmd, a *structuredAgent, options ...Resource
 	if err := configureStructuredCommand(cmd, a); err != nil {
 		return nil, err
 	}
+	return startConfiguredStructuredAgent(cmd, a, options...)
+}
+
+func startConfiguredStructuredAgent(cmd *exec.Cmd, a *structuredAgent, options ...ResourceLimits) (processHandle, error) {
 	a.prepareRPCTransport()
 	process, input, err := startProtocolProcess(cmd, &agentLines{writer: a.rpc.writer, onError: a.fail, ready: a.rpc.ready}, &a.diagnostics, options...)
 	if err != nil {

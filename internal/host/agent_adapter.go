@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -30,15 +29,24 @@ func (d cliAgentAdapter) ProtocolVersion() int { return d.version }
 func (d cliAgentAdapter) Executable() string   { return d.executable }
 func (d cliAgentAdapter) Protocol() string     { return d.protocol }
 func (d cliAgentAdapter) ConfigureCommand(cmd *exec.Cmd) error {
-	path, err := exec.LookPath(d.executable)
+	return d.configureCommand(cmd, true)
+}
+
+func (d cliAgentAdapter) configureCommand(cmd *exec.Cmd, discover bool) error {
+	var err error
+	if discover {
+		err = configureToolCommand(cmd, d.executable)
+	} else {
+		cmd.Path, err = exec.LookPath(d.executable)
+		cmd.Err = err
+	}
 	if err != nil {
 		if d.executable == "claude-agent-acp" {
 			return fmt.Errorf("Claude ACP adapter is not installed: %w", err)
 		}
 		return err
 	}
-	cmd.Path, cmd.Err = path, nil
-	cmd.Args = append([]string{path}, d.args...)
+	cmd.Args = append([]string{cmd.Path}, d.args...)
 	return nil
 }
 func lookupAgentAdapter(provider string) (agentAdapter, bool) {
@@ -57,6 +65,8 @@ func lookupAgentAdapter(provider string) (agentAdapter, bool) {
 var _ agentAdapter = cliAgentAdapter{}
 
 type AgentInstallation struct {
+	PathSource          string                       `json:"path_source,omitempty"`
+	DiscoveryError      string                       `json:"discovery_error,omitempty"`
 	SessionCapabilities *ExternalSessionCapabilities `json:"session_capabilities,omitempty"`
 	CLIPath             string                       `json:"cli_path,omitempty"`
 	CLIDiscovered       bool                         `json:"cli_discovered"`
@@ -76,8 +86,8 @@ func installedAgents() map[string]AgentInstallation {
 	result := make(map[string]AgentInstallation, 3)
 	for _, name := range []string{"codex", "claude", "opencode"} {
 		d, _ := lookupAgentAdapter(name)
-		path, err := exec.LookPath(d.Executable())
-		cliPath, cliErr := exec.LookPath(name)
+		path, source, err := resolveTool(d.Executable(), false)
+		cliPath, _, cliErr := resolveTool(name, false)
 		result[name] = AgentInstallation{CLIPath: cliPath, CLIDiscovered: cliErr == nil, History: "requires_successful_protocol_query", Resume: "requires_successful_protocol_handshake", LiveAttachReason: "arbitrary process attachment is not supported by installed adapters", Path: path, Protocol: d.Protocol(), ProtocolVersion: d.ProtocolVersion(), Installed: err == nil, ProbeStatus: "not_probed"}
 		adapter, _ := lookupExternalSessionAdapter(name)
 		caps := adapter.SessionCapabilities()
@@ -90,6 +100,10 @@ func installedAgents() map[string]AgentInstallation {
 			}
 		}
 		info := result[name]
+		info.PathSource = source
+		if err != nil {
+			info.DiscoveryError = err.Error()
+		}
 		info.SessionCapabilities = &caps
 		result[name] = info
 	}
@@ -114,8 +128,14 @@ func InspectAgents(ctx context.Context) map[string]AgentInstallation {
 			continue
 		}
 		probeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		cmd := exec.Command(info.Path, "--version")
-		cmd.Env = os.Environ()
+		adapter, _ := lookupAgentAdapter(name)
+		cmd := exec.Command(adapter.Executable(), "--version")
+		if err := configureToolCommandWithRefresh(cmd, adapter.Executable(), false); err != nil {
+			info.ProbeStatus = "failed"
+			result[name] = info
+			cancel()
+			continue
+		}
 		cmd.WaitDelay = time.Second
 		var output agentDiagnostics
 		process, terminal, err := startProcess(cmd, false, &output)

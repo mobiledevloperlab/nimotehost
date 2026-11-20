@@ -47,6 +47,11 @@ func runEvidenceProcessBounded(ctx context.Context, cmd *exec.Cmd, body io.Reade
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if activeToolEnvironment.Load() != nil {
+		if err := configureToolCommand(cmd, cmd.Args[0]); err != nil {
+			return nil, err
+		}
+	}
 	select {
 	case evidenceProcessSlots <- struct{}{}:
 		defer func() { <-evidenceProcessSlots }()

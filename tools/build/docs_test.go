@@ -91,7 +91,8 @@ func TestImplementedRPCReference(t *testing.T) {
 		actual = append(actual, match[1]+" "+strings.TrimSpace(match[2]))
 	}
 	expected := []string{
-		"GET /v1/capabilities", "GET /v1/status", "GET /v1/sessions?after=revision",
+		"GET /v1/capabilities", "GET /v1/status",
+		"GET /v1/tools", "POST /v1/tools/refresh", "GET /v1/agents", "GET /v1/sessions?after=revision",
 		"POST /v1/sessions", "GET /v1/sessions/{id}", "DELETE /v1/sessions/{id}",
 		"POST /v1/sessions/{id}/cancel", "POST /v1/sessions/{id}/input", "POST /v1/sessions/{id}/input-stream", "POST /v1/sessions/{id}/resize",
 		"GET /v1/sessions/{id}/output?offset=0", "GET /v1/sessions/{id}/agent-state",
