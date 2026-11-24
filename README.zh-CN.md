@@ -21,7 +21,7 @@
   <a href="SECURITY.zh-CN.md">安全说明</a>
 </sub></p>
 
-<p align="center"><sub>2.5.0-community 开发预览版 · Apache-2.0 开源</sub></p>
+<p align="center"><sub>2.5.0-community · Apache-2.0 开源</sub></p>
 
 ---
 
@@ -186,7 +186,7 @@ GUI 构建需要对应系统的原生工具链。发现机制不依赖 CPU 架�
 [Host CI](.github/workflows/ci.yml) 在拉取请求和推送到 `master` / `main` 时，
 运行测试、干净源码检查、八种 CLI 目标及六种原生桌面目标的构建。
 手动运行时可选择 `cli`、`gui` 或 `both`；从运行页面的 `Artifacts` 下载构建产物。
-推送 `community-vMAJOR.MINOR.PATCH` 标签会构建社区版，并发布为 GitHub 预发行版。CLI 检查通过后先发布 CLI 包和源码归档，桌面构建通过后追加到同一个预发行版。追加桌面包要求仓库关闭不可变发布设置。
+推送 `community-vMAJOR.MINOR.PATCH` 标签会构建社区版，并发布为 GitHub 稳定版。仓库的 **Latest** 继续供旧完整版 Host 客户端使用。CLI 检查通过后先发布 CLI 包和源码归档，桌面构建通过后追加到同一 Release。追加桌面包要求仓库关闭不可变发布设置。
 
 | 系统 | CLI | 桌面包 |
 | --- | --- | --- |

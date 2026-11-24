@@ -38,7 +38,7 @@ func TestCommunityReleaseSelection(t *testing.T) {
 				}
 				name := prefix + "2.5.0-community-" + platform.os + "-" + platform.arch + platform.extension
 				asset := ReleaseAsset{Name: name, URL: "https://github.com/" + repository + "/releases/download/community-v2.5.0/" + name, State: "uploaded", Size: 10, Digest: fmt.Sprintf("sha256:%064x", 1)}
-				r := releaseMetadata{Tag: "community-v2.5.0", Prerelease: true, Assets: []ReleaseAsset{asset}}
+				r := releaseMetadata{Tag: "community-v2.5.0", Assets: []ReleaseAsset{asset}}
 				got, err := r.selectAsset("community-v2.5.0", platform.os, platform.arch, desktop)
 				if err != nil || got != asset {
 					t.Fatalf("%+v, %v", got, err)
@@ -54,9 +54,9 @@ func TestCommunityReleaseSelection(t *testing.T) {
 				if _, err := r.selectAsset("", platform.os, platform.arch, desktop); !errors.Is(err, ErrRelease) {
 					t.Fatalf("draft: %v", err)
 				}
-				r.Draft, r.Prerelease = false, false
+				r.Draft, r.Prerelease = false, true
 				if _, err := r.selectAsset("", platform.os, platform.arch, desktop); !errors.Is(err, ErrRelease) {
-					t.Fatalf("non-prerelease: %v", err)
+					t.Fatalf("prerelease: %v", err)
 				}
 			}
 		})
@@ -165,9 +165,10 @@ func TestCommunityLookupSelectsPublishedPackageForTarget(t *testing.T) {
 	rows := []releaseMetadata{
 		{Tag: "v2.4.1"},
 		{Tag: "v2.5.0-rc.1", Prerelease: true},
-		{Tag: "community-v2.5.2", Prerelease: true, Draft: true},
-		{Tag: cliTag, Prerelease: true, Assets: []ReleaseAsset{asset(cliTag, "nimotehost-")}},
-		{Tag: desktopTag, Prerelease: true, Assets: []ReleaseAsset{asset(desktopTag, "nimotehost-gui-")}},
+		{Tag: "community-v2.5.3", Draft: true},
+		{Tag: "community-v2.5.2", Prerelease: true, Assets: []ReleaseAsset{asset("community-v2.5.2", "nimotehost-")}},
+		{Tag: cliTag, Assets: []ReleaseAsset{asset(cliTag, "nimotehost-")}},
+		{Tag: desktopTag, Assets: []ReleaseAsset{asset(desktopTag, "nimotehost-gui-")}},
 	}
 	client := &http.Client{Transport: releaseTestTransport(func(r *http.Request) (*http.Response, error) {
 		var body []byte
@@ -175,7 +176,7 @@ func TestCommunityLookupSelectsPublishedPackageForTarget(t *testing.T) {
 		case releaseAPI + "?per_page=30":
 			body, _ = json.Marshal(rows)
 		case releaseAPI + "/tags/" + cliTag:
-			body, _ = json.Marshal(rows[3])
+			body, _ = json.Marshal(rows[4])
 		default:
 			t.Fatalf("wrong release endpoint: %s", r.URL)
 		}

@@ -23,14 +23,14 @@ desktop user. On Windows, run the bundled PowerShell script or
 nimotehost.exe setup. The Host service keeps the existing label and fixed CLI
 path.
 
-The Community workflow publishes only community-vMAJOR.MINOR.PATCH tags
-as GitHub prereleases. Community CLI and GUI discover them independently.
+The Community workflow publishes stable releases for
+`community-vMAJOR.MINOR.PATCH` tags. Community CLI and GUI discover them independently.
 For a specific version, use an extracted bootstrap outside the install path.
 
     nimotehost deploy upgrade --version community-v2.5.0
 
-GitHub's stable release lookup is reserved for legacy full Host clients.
-The existing v2.4.1 tag and its published artifacts remain available.
+GitHub's repository-wide Latest release remains v2.4.1 for legacy full Host
+clients. Community clients look up their own release tags.
 
 Installed Connect Hosts use the Connect bundle for updates and removal.
 Community setup checks the installed edition before stopping a service or
