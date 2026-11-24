@@ -21,7 +21,7 @@
   <a href="SECURITY.md">Security</a>
 </sub></p>
 
-<p align="center"><sub>2.5.0-community development preview · Open source under Apache-2.0</sub></p>
+<p align="center"><sub>2.5.0-community · Open source under Apache-2.0</sub></p>
 
 ---
 
@@ -236,9 +236,9 @@ Read [implemented functionality and protocol](docs/completed.md),
 builds and six native desktop target builds on pull requests and pushes to `master`
 or `main`. Run it manually with `cli`, `gui`, or `both`. Download build outputs from
 the run's **Artifacts** section. A `community-vMAJOR.MINOR.PATCH` tag builds Community packages and publishes
-them as a GitHub prerelease. CLI and source assets appear after the CLI checks
-pass. Desktop assets are added after their native builds pass. Adding desktop packages
-requires immutable releases to be disabled in the repository settings.
+them as a stable GitHub release after the CLI, source, and native desktop
+packages are verified and uploaded. The repository-wide **Latest** release
+serves legacy full Host clients.
 
 | Platform | CLI | Desktop |
 | --- | --- | --- |

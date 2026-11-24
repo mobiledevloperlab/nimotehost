@@ -126,7 +126,7 @@ func getReleaseMetadata(ctx context.Context, client *http.Client, endpoint strin
 }
 
 func (r releaseMetadata) validCommunityRelease(tag string) bool {
-	return !r.Draft && r.Prerelease && CommunityVersion(r.Tag) != "" && (tag == "" || tag == r.Tag)
+	return !r.Draft && !r.Prerelease && CommunityVersion(r.Tag) != "" && (tag == "" || tag == r.Tag)
 }
 
 func (r releaseMetadata) selectAsset(tag, goos, arch string, desktop bool) (ReleaseAsset, error) {

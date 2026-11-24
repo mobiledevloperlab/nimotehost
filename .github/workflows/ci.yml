@@ -339,7 +339,7 @@ jobs:
         with:
           name: nimotehost-source
           path: release-assets
-      - name: Publish CLI packages and source archive
+      - name: Stage CLI packages and source archive
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -353,15 +353,10 @@ jobs:
           fi
           (cd release-assets && sha256sum --check --strict -- *.sha256)
           [[ "$GITHUB_REF_NAME" =~ ^community-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
-          release_flags=(--prerelease --latest=false)
-          if is_draft=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft 2>/dev/null); then
-            gh release edit "$GITHUB_REF_NAME" "${release_flags[@]}"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
-            if [[ "$is_draft" == true ]]; then
-              gh release edit "$GITHUB_REF_NAME" --draft=false "${release_flags[@]}"
-            fi
           else
-            gh release create "$GITHUB_REF_NAME" "${assets[@]}" --verify-tag --generate-notes "${release_flags[@]}"
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" --draft --verify-tag --generate-notes --latest=false
           fi
 
   release-gui:
@@ -377,7 +372,7 @@ jobs:
           pattern: nimotehost-gui-*
           path: release-assets
           merge-multiple: true
-      - name: Add GUI packages to the same release
+      - name: Upload GUI packages and publish the stable release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -391,3 +386,4 @@ jobs:
           fi
           (cd release-assets && sha256sum --check --strict -- *.sha256)
           gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+          gh release edit "$GITHUB_REF_NAME" --draft=false --prerelease=false --latest=false

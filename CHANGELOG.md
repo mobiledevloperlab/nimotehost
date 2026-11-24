@@ -4,7 +4,7 @@
 
 ## 2.5.0 Community
 
-- Publish Community builds on the `community-v*` prerelease channel and keep Host protocol 1.
+- Publish stable Community releases under `community-v*` tags and keep Host protocol 1.
 - Move GitHub Issue orchestration to Nimote Connect. Community retains existing Issue records and worktrees.
 
 ## 2.4.1

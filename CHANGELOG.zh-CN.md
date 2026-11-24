@@ -4,7 +4,7 @@
 
 ## 2.5.0 社区版
 
-- 社区版通过 `community-v*` 预发行渠道发布，继续使用 Host 协议 1。
+- 社区版使用 `community-v*` 标签发布稳定版，继续使用 Host 协议 1。
 - GitHub Issue 编排迁移至 Nimote Connect。社区版保留已有 Issue 记录和工作树。
 
 ## 2.4.1
