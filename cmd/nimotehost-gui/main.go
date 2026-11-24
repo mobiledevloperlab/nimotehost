@@ -27,7 +27,16 @@ func main() {
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}
-	m, err := desktop.New(filepath.Join(filepath.Dir(executable), name))
+	binary := filepath.Join(filepath.Dir(executable), name)
+	if runtime.GOOS != "windows" {
+		if home, err := os.UserHomeDir(); err == nil {
+			installed := filepath.Join(home, ".local", "share", "nimotehost", name)
+			if info, err := os.Stat(installed); err == nil && info.Mode().IsRegular() {
+				binary = installed
+			}
+		}
+	}
+	m, err := desktop.New(binary)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return

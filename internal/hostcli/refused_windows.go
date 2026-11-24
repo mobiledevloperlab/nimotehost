@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Nimote contributors
 
-package main
+package hostcli
 
 import "golang.org/x/sys/windows"
 

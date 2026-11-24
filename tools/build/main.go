@@ -43,7 +43,8 @@ type module struct {
 func main() {
 	targetOS := flag.String("os", runtime.GOOS, "linux, darwin or windows")
 	arch := flag.String("arch", runtime.GOARCH, "amd64, arm64, or 386 (Linux/Windows CLI only)")
-	version := flag.String("version", "2.4.1", "release version")
+	version := flag.String("version", "2.5.0-community", "release version")
+	linkedHost := flag.String("linked-host", "", "package a downstream Nimote Connect Host executable")
 	gui := flag.Bool("gui", false, "also build the native Fyne desktop bundle (requires CGO and a native SDK)")
 	flag.Parse()
 	if *gui {
@@ -52,12 +53,12 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	if err := build(*targetOS, *arch, *version); err != nil {
+	if err := build(*targetOS, *arch, *version, *linkedHost); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	if *gui {
-		if err := buildGUI(*targetOS, *arch, *version); err != nil {
+		if err := buildGUI(*targetOS, *arch, *version, *linkedHost != ""); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
@@ -70,7 +71,7 @@ func validate(targetOS, arch, version string) error {
 	if arch != "amd64" && arch != "arm64" && !((targetOS == "windows" || targetOS == "linux") && arch == "386") {
 		return errors.New("unsupported architecture")
 	}
-	if !regexp.MustCompile(`^[0-9][A-Za-z0-9._-]*$`).MatchString(version) {
+	if !regexp.MustCompile(`^[0-9][A-Za-z0-9._+-]*$`).MatchString(version) {
 		return errors.New("invalid version")
 	}
 	return nil
@@ -173,7 +174,7 @@ func copyTree(source, dest string) error {
 		return copyFile(path, filepath.Join(dest, relative))
 	})
 }
-func build(targetOS, arch, version string) error {
+func build(targetOS, arch, version, linkedHost string) error {
 	if err := validate(targetOS, arch, version); err != nil {
 		return err
 	}
@@ -212,13 +213,31 @@ func build(targetOS, arch, version string) error {
 		name += ".exe"
 	}
 	binary := filepath.Join(output, name)
-	cmd := command("build", "-mod=readonly", "-trimpath", "-buildvcs=false", "-ldflags", "-s -w -X "+modulePath+"/internal/host.Version="+version, "-o", binary, "./cmd/nimotehost")
-	obfuscateBuild(cmd)
-	cmd.Env = append(cmd.Env, "GOOS="+targetOS, "GOARCH="+arch)
-	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return err
+	edition := "community"
+	if linkedHost == "" {
+		cmd := command("build", "-mod=readonly", "-trimpath", "-buildvcs=false", "-ldflags", "-s -w -X "+modulePath+"/internal/host.Version="+version, "-o", binary, "./cmd/nimotehost")
+		obfuscateBuild(cmd)
+		cmd.Env = append(cmd.Env, "GOOS="+targetOS, "GOARCH="+arch)
+		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+		if err := cmd.Run(); err != nil {
+			return err
+		}
+	} else {
+		if !strings.Contains(version, "+connect.") || targetOS == "windows" {
+			return errors.New("linked Nimote Connect Host requires macOS or Linux and a Connect version")
+		}
+		if err := verifyLinkedHost(linkedHost, targetOS, arch); err != nil {
+			return err
+		}
+		if err := copyFile(linkedHost, binary); err != nil {
+			return err
+		}
+		if err := os.Chmod(binary, 0755); err != nil {
+			return err
+		}
+		edition = "connect"
 	}
+
 	for _, name := range []string{"LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.zh-CN.md"} {
 		data, err := os.ReadFile(name)
 		if err != nil {
@@ -274,15 +293,24 @@ func build(targetOS, arch, version string) error {
 	if err != nil {
 		return err
 	}
+	if linkedHost != "" {
+		data, err := json.MarshalIndent(info.Deps, "", "  ")
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(output, "MODULES.json"), append(data, '\n'), 0644); err != nil {
+			return err
+		}
+	}
 	binaryData, err := os.ReadFile(binary)
 	if err != nil {
 		return err
 	}
 	manifest := struct {
-		Version, OS, Arch, SHA256 string
-		Protocol, MinProtocol     int
-		BuildInfo                 any
-	}{version, targetOS, arch, fmt.Sprintf("%x", sha256.Sum256(binaryData)), hostclient.Protocol, hostclient.Protocol, info}
+		Version, OS, Arch, SHA256, Edition string
+		Protocol, MinProtocol              int
+		BuildInfo                          any
+	}{version, targetOS, arch, fmt.Sprintf("%x", sha256.Sum256(binaryData)), edition, hostclient.Protocol, hostclient.Protocol, info}
 	data, err = json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return err
@@ -341,4 +369,22 @@ func moduleManifest(data []byte) ([]byte, error) {
 		modules = append(modules, mod)
 	}
 	return json.MarshalIndent(modules, "", "  ")
+}
+
+func verifyLinkedHost(binary, targetOS, arch string) error {
+	info, err := buildinfo.ReadFile(binary)
+	if err != nil {
+		return err
+	}
+	if info.Path != "github.com/aounma/nimote-connect/cmd/nimotehost" {
+		return errors.New("expected the Nimote Connect Host entry point")
+	}
+	settings := make(map[string]string)
+	for _, setting := range info.Settings {
+		settings[setting.Key] = setting.Value
+	}
+	if settings["GOOS"] != targetOS || settings["GOARCH"] != arch {
+		return errors.New("linked Host binary OS or architecture does not match")
+	}
+	return nil
 }

@@ -60,7 +60,7 @@ func TestFeatureDocumentationLayout(t *testing.T) {
 		if entry.Name() == "nimotehost.png" || entry.Name() == "nimotehost-rounded.png" {
 			continue
 		} // Original brand artwork, not a feature document.
-		if entry.IsDir() && (entry.Name() == "plugin-system" || entry.Name() == "open-source-audit") {
+		if entry.IsDir() && entry.Name() == "plugin-system" {
 			continue
 		}
 		if entry.IsDir() {
@@ -75,7 +75,7 @@ func TestFeatureDocumentationLayout(t *testing.T) {
 			t.Fatalf("%s must document the current state in English", entry.Name())
 		}
 	}
-	if !reflect.DeepEqual(names, []string{"client-api.md", "completed.md", "deployment-audit.md", "deployment.md", "external-agent-sessions-tests.md", "external-agent-sessions.md", "host-hardening-tests.md", "host-hardening.md", "pending.md", "plugin-ui-architecture.md", "plugin-ui-audit.md", "plugin-ui-implementation.md", "plugin-ui-protocol.md"}) {
+	if !reflect.DeepEqual(names, []string{"client-api.md", "community.md", "completed.md", "deployment.md", "external-agent-sessions.md", "host-hardening.md", "pending.md", "plugin-ui-architecture.md", "plugin-ui-implementation.md", "plugin-ui-protocol.md"}) {
 		t.Fatalf("docs must contain the maintained functionality and hardening documents: %v", names)
 	}
 }
@@ -102,7 +102,6 @@ func TestImplementedRPCReference(t *testing.T) {
 		"POST /v1/agent-history",
 		"GET /v1/inbox?view=...", "POST /v1/inbox/{id}",
 		"GET /v1/sessions/{id}/verification", "POST /v1/sessions/{id}/verification", "GET /v1/sessions/{id}/verification-diff", "GET /v1/conflicts",
-		"GET /v1/github-tasks", "POST /v1/github-tasks", "GET /v1/github-tasks/{id}", "POST /v1/github-tasks/{id}/{action}",
 		"POST /v1/extensions", "POST /v1/shutdown-if-idle", "POST /v1/shutdown",
 	}
 	if !reflect.DeepEqual(actual, expected) {

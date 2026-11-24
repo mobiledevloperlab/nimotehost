@@ -189,6 +189,7 @@
   "theme.light": "ライト",
   "theme.system": "システム設定に従う",
   "updates.available": "インストール済み：{{.Installed}}\n最新公開版：{{.Latest}}\n公式ダウンロードページを開きますか？",
+  "updates.connectManaged": "更新には Nimote Connect のインストールパッケージを使用してください。",
   "updates.check": "更新を確認",
   "updates.download": "ダウンロードを開く",
   "updates.error": "更新を確認できませんでした。後でもう一度お試しください。",

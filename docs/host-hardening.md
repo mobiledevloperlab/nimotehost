@@ -27,7 +27,6 @@ read before implementation; existing protections are retained.
 This audit is not release certification. Native macOS/Windows and WSL Linux tests,
 Linux root-only execution-boundary acceptance and real Codex approval/resume are
 recorded separately from remaining native service/restart/SSH/other-Agent gates.
-See the [actual test record](host-hardening-tests.md) for completed runs.
 
 This increment changes no UI/client, adds no cloud service or dependency, and does not treat cross-compilation as native acceptance.
 

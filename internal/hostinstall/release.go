@@ -22,9 +22,10 @@ const maxArchive = 256 << 20
 var stableTag = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 
 var (
-	ErrUnsupported = errors.New("unsupported platform")
-	ErrRelease     = errors.New("release unavailable")
-	ErrIntegrity   = errors.New("archive verification failed")
+	ErrUnsupported      = errors.New("unsupported platform")
+	ErrRelease          = errors.New("release unavailable")
+	ErrIntegrity        = errors.New("archive verification failed")
+	errAssetUnavailable = errors.New("release asset unavailable")
 )
 
 type ReleaseAsset struct {
@@ -66,37 +67,71 @@ func ResolveRelease(ctx context.Context, tag, goos, arch string, desktop bool) (
 	if !Supported(goos, arch) || desktop && arch == "386" {
 		return "", ReleaseAsset{}, fmt.Errorf("%w: %s/%s", ErrUnsupported, goos, arch)
 	}
-	endpoint := "https://api.github.com/repos/" + repository + "/releases/latest"
-	if tag != "" {
-		if !stableTag.MatchString(tag) {
-			return "", ReleaseAsset{}, fmt.Errorf("%w: expected a stable vMAJOR.MINOR.PATCH tag", ErrRelease)
-		}
-		endpoint = "https://api.github.com/repos/" + repository + "/releases/tags/" + tag
+	return communityRelease(ctx, releaseClient(), tag, goos, arch, desktop)
+}
+
+const communityPrefix = "community-"
+const releaseAPI = "https://api.github.com/repos/" + repository + "/releases"
+
+func CommunityVersion(tag string) string {
+	if stable, ok := strings.CutPrefix(tag, communityPrefix); ok && stableTag.MatchString(stable) {
+		return stable[1:] + "-community"
 	}
+	return ""
+}
+
+func communityRelease(ctx context.Context, client *http.Client, tag, goos, arch string, desktop bool) (string, ReleaseAsset, error) {
+	var rows []releaseMetadata
 	var release releaseMetadata
-	err := fetch(ctx, releaseClient(), endpoint, func(r io.Reader) error {
-		data, err := io.ReadAll(io.LimitReader(r, (1<<20)+1))
+	var err error
+	if tag == "" {
+		err = getReleaseMetadata(ctx, client, releaseAPI+"?per_page=30", &rows)
+	} else {
+		if CommunityVersion(tag) == "" {
+			return "", ReleaseAsset{}, fmt.Errorf("%w: expected community-vMAJOR.MINOR.PATCH", ErrRelease)
+		}
+		err = getReleaseMetadata(ctx, client, releaseAPI+"/tags/"+tag, &release)
+		rows = []releaseMetadata{release}
+	}
+	if err != nil {
+		return "", ReleaseAsset{}, err
+	}
+	for _, row := range rows {
+		if !row.validCommunityRelease(tag) {
+			continue
+		}
+		asset, err := row.selectAsset(tag, goos, arch, desktop)
+		if tag != "" || !errors.Is(err, errAssetUnavailable) {
+			return row.Tag, asset, err
+		}
+	}
+	return "", ReleaseAsset{}, fmt.Errorf("%w: no published Community package for %s/%s", ErrRelease, goos, arch)
+}
+
+func getReleaseMetadata(ctx context.Context, client *http.Client, endpoint string, result any) error {
+	return fetch(ctx, client, endpoint, func(r io.Reader) error {
+		const maxMetadata = 4 << 20
+		data, err := io.ReadAll(io.LimitReader(r, maxMetadata+1))
 		if err != nil {
 			return err
 		}
-		if len(data) > 1<<20 {
+		if len(data) > maxMetadata {
 			return fmt.Errorf("%w: metadata exceeds limit", ErrRelease)
 		}
-		if err := json.Unmarshal(data, &release); err != nil {
+		if err := json.Unmarshal(data, result); err != nil {
 			return fmt.Errorf("%w: invalid metadata", ErrRelease)
 		}
 		return nil
 	})
-	if err != nil {
-		return "", ReleaseAsset{}, err
-	}
-	asset, err := release.selectAsset(tag, goos, arch, desktop)
-	return release.Tag, asset, err
+}
+
+func (r releaseMetadata) validCommunityRelease(tag string) bool {
+	return !r.Draft && r.Prerelease && CommunityVersion(r.Tag) != "" && (tag == "" || tag == r.Tag)
 }
 
 func (r releaseMetadata) selectAsset(tag, goos, arch string, desktop bool) (ReleaseAsset, error) {
-	if r.Draft || r.Prerelease || !stableTag.MatchString(r.Tag) || tag != "" && tag != r.Tag {
-		return ReleaseAsset{}, fmt.Errorf("%w: expected a published stable release", ErrRelease)
+	if !r.validCommunityRelease(tag) {
+		return ReleaseAsset{}, fmt.Errorf("%w: expected a published Community release", ErrRelease)
 	}
 	prefix := "nimotehost-"
 	if desktop {
@@ -106,12 +141,12 @@ func (r releaseMetadata) selectAsset(tag, goos, arch string, desktop bool) (Rele
 	if goos == "windows" {
 		ext = ".zip"
 	}
-	name := prefix + r.Tag[1:] + "-" + goos + "-" + arch + ext
+	name := prefix + CommunityVersion(r.Tag) + "-" + goos + "-" + arch + ext
 	for _, asset := range r.Assets {
-		if asset.Name != name {
+		if asset.Name != name || asset.State != "uploaded" {
 			continue
 		}
-		if asset.State != "uploaded" || asset.Size < 1 || asset.Size > maxArchive ||
+		if asset.Size < 1 || asset.Size > maxArchive ||
 			asset.URL != "https://github.com/"+repository+"/releases/download/"+r.Tag+"/"+name {
 			return ReleaseAsset{}, fmt.Errorf("%w: invalid asset metadata for %s", ErrRelease, name)
 		}
@@ -120,7 +155,7 @@ func (r releaseMetadata) selectAsset(tag, goos, arch string, desktop bool) (Rele
 		}
 		return asset, nil
 	}
-	return ReleaseAsset{}, fmt.Errorf("%w: %s is missing", ErrRelease, name)
+	return ReleaseAsset{}, fmt.Errorf("%w: %w: %s", ErrRelease, errAssetUnavailable, name)
 }
 
 func validDigest(s string) bool {

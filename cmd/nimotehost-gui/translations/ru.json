@@ -189,6 +189,7 @@
   "theme.light": "Светлое",
   "theme.system": "Как в системе",
   "updates.available": "Установлено: {{.Installed}}\nПоследний выпуск: {{.Latest}}\nОткрыть официальную страницу загрузки?",
+  "updates.connectManaged": "Устанавливайте обновления с помощью пакета Nimote Connect.",
   "updates.check": "Проверить обновления",
   "updates.download": "Открыть загрузки",
   "updates.error": "Не удалось проверить обновления. Повторите попытку позже.",

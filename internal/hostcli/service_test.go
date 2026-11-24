@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Nimote contributors
 
-package main
+package hostcli
 
 import (
 	"bytes"
@@ -45,7 +45,7 @@ func TestHelpWithoutConfiguration(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "")
 	for _, args := range [][]string{nil, {"help"}, {"--help"}, {"-h"}} {
 		var out bytes.Buffer
-		if err := run(context.Background(), args, strings.NewReader(""), &out); err != nil {
+		if err := runWithExtension(context.Background(), args, strings.NewReader(""), &out, host.Extension{}); err != nil {
 			t.Fatal(err)
 		}
 		if !strings.Contains(out.String(), "install") || !strings.Contains(out.String(), "restart") {
@@ -53,7 +53,7 @@ func TestHelpWithoutConfiguration(t *testing.T) {
 		}
 	}
 	var out bytes.Buffer
-	if err := run(context.Background(), []string{"--version"}, strings.NewReader(""), &out); err != nil {
+	if err := runWithExtension(context.Background(), []string{"--version"}, strings.NewReader(""), &out, host.Extension{}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.HasPrefix(out.String(), "nimotehost ") {

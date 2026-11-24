@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package main
+package hostcli
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 )
 
 const deployUsage = "nimotehost deploy <status|health|install|upgrade|start|stop|uninstall>\n" +
-	"  install, upgrade: [--version vMAJOR.MINOR.PATCH] [--desktop] [--require-protocol N] [--sha256 HEX]\n" +
+	"  install, upgrade: [--version community-vMAJOR.MINOR.PATCH] [--desktop] [--require-protocol N] [--sha256 HEX]\n" +
 	"  uninstall: [--purge-data]\n"
 
 var (
@@ -200,10 +200,23 @@ func runDeployment(ctx context.Context, opts deployOptions, result *deployResult
 		return err
 	}
 	defer func() { operationErr = errors.Join(operationErr, tx.Close()) }()
+	if result.Action == "uninstall" {
+		if err := checkManagedEdition(target); err != nil {
+			return err
+		}
+	}
 	if err := manageDeployment(ctx, opts, result, dir, home, target, name, service, tx); err != nil {
 		return err
 	}
 	return deploymentStatus(ctx, dir, target, service, result)
+}
+
+func checkManagedEdition(target string) error {
+	build, err := readDeployBuild(target)
+	if err == nil && build.Edition == "connect" && host.Edition != "connect" {
+		return fmt.Errorf("%w: Nimote Connect manages this Host installation; use the Connect bundle", errDeployConflict)
+	}
+	return nil
 }
 
 func deploymentStatus(ctx context.Context, dir, target string, service *hostservice.Service, result *deployResult) error {

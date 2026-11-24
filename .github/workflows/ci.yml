@@ -2,7 +2,7 @@ name: Host CI
 on:
   push:
     branches: [master, main]
-    tags: ["v*"]
+    tags: ["community-v*"]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -13,7 +13,7 @@ on:
         options: [cli, gui, both]
       version:
         description: Distribution version (starts with a digit)
-        default: 2.4.1-dev
+        default: 2.5.0-community-dev
         required: true
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
@@ -24,7 +24,7 @@ env:
   GOWORK: 'off'
   GOFLAGS: '-mod=readonly'
   RELEASE_GO_VERSION: '1.27.4'
-  HOST_VERSION: ${{ inputs.version || '2.4.1-dev' }}
+  HOST_VERSION: ${{ inputs.version || '2.5.0-community-dev' }}
 jobs:
   native:
     name: native (ubuntu-latest)
@@ -128,7 +128,7 @@ jobs:
       - name: Use tag version
         if: github.event_name == 'push' && github.ref_type == 'tag'
         shell: bash
-        run: echo "HOST_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+        run: echo "HOST_VERSION=${GITHUB_REF_NAME#community-v}-community" >> "$GITHUB_ENV"
       - run: go run ./tools/build -os "$TARGET_OS" -arch "$TARGET_ARCH" -version "$HOST_VERSION"
         env:
           TARGET_OS: ${{ matrix.os }}
@@ -238,7 +238,7 @@ jobs:
       - name: Use tag version
         if: github.event_name == 'push' && github.ref_type == 'tag'
         shell: bash
-        run: echo "HOST_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+        run: echo "HOST_VERSION=${GITHUB_REF_NAME#community-v}-community" >> "$GITHUB_ENV"
       - name: Native Host and desktop checks
         shell: bash
         run: |
@@ -300,12 +300,12 @@ jobs:
       - name: Use tag version
         if: github.event_name == 'push' && github.ref_type == 'tag'
         shell: bash
-        run: echo "HOST_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+        run: echo "HOST_VERSION=${GITHUB_REF_NAME#community-v}-community" >> "$GITHUB_ENV"
       - name: Desktop unit checks
         working-directory: cmd/nimotehost-gui
         run: go test -mod=readonly -tags ci ./...
       - name: Native deployment unit checks
-        run: go test -mod=readonly ./cmd/nimotehost ./internal/hostinstall ./internal/hostservice
+        run: go test -mod=readonly ./internal/hostcli ./internal/hostinstall ./internal/hostservice
       - name: Build and inspect native GUI bundle
         shell: bash
         run: |
@@ -352,11 +352,10 @@ jobs:
             exit 1
           fi
           (cd release-assets && sha256sum --check --strict -- *.sha256)
-          release_flags=()
-          if [[ ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            release_flags+=(--prerelease)
-          fi
+          [[ "$GITHUB_REF_NAME" =~ ^community-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          release_flags=(--prerelease --latest=false)
           if is_draft=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft 2>/dev/null); then
+            gh release edit "$GITHUB_REF_NAME" "${release_flags[@]}"
             gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
             if [[ "$is_draft" == true ]]; then
               gh release edit "$GITHUB_REF_NAME" --draft=false "${release_flags[@]}"

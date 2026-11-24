@@ -231,6 +231,10 @@ func (p *settingsPanel) updateControls() {
 }
 
 func (u *managerWindow) checkUpdates() {
+	if host.Edition == "connect" {
+		dialog.ShowInformation(u.t("updates.title"), u.t("updates.connectManaged"), u.window)
+		return
+	}
 	ctx := u.ctx
 	go func() {
 		c, cancel := context.WithTimeout(ctx, 12*time.Second)

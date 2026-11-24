@@ -1,12 +1,12 @@
 # Completed functionality
 
-`2.4.0` · Updated: 2026-11-17
+`2.5.0-community`
 
-This page describes implemented source behavior and boundaries, not full platform, phone or real-model acceptance. Remaining work is in [pending functionality](pending.md); security evidence is in [hardening tests](host-hardening-tests.md).
+This page describes implemented source behavior and boundaries, not full platform, phone or real-model acceptance. See [pending functionality](pending.md) and [Host hardening](host-hardening.md).
 
 ## Current scope
 
-The 2026-11-17 increment connects existing Codex control sockets and OpenCode v1/v2 HTTP services, with original pending approvals, snapshots and reconnect, using existing Sessions/approvals/events. macOS Codex passed real CLI/local-model-fixture acceptance. Windows AF_UNIX/read-only ACL code and tests compile, but Windows native execution, real OpenCode and phone/platform matrices remain pending. See [architecture and capability matrix](external-agent-sessions.md) and [test evidence](external-agent-sessions-tests.md).
+The 2026-11-17 increment connects existing Codex control sockets and OpenCode v1/v2 HTTP services, with original pending approvals, snapshots and reconnect, using existing Sessions/approvals/events. macOS Codex passed real CLI/local-model-fixture acceptance. Windows AF_UNIX/read-only ACL code and tests compile, but Windows native execution, real OpenCode and phone/platform matrices remain pending. See the [architecture and capability matrix](external-agent-sessions.md).
 
 Claude adds official `agents --json` discovery, status and wait-reason projection independently of ACP through owner-only discovery. ACP v2 history explicitly requests replay and excludes control snapshots. Local Claude 2.1.311/ACP 0.107.3 isolated discovery/initialization passed. Official terminal attachment and unsupported independent-process structured takeover remain distinct.
 
@@ -33,9 +33,9 @@ Claude adds official `agents --json` discovery, status and wait-reason projectio
 
 Users need a trusted complete distribution, not Go. Verify SHA256, extract and retain licenses, BUILD.json, MODULES.json and SHA256SUMS.
 
-Binary bundles include generated English/Chinese installation instructions and only
-the target platform's installer. Full repository documentation, contribution guides
-and audit records remain in source archives and on GitHub. Builders validate the
+Binary bundles include English and Chinese installation instructions and the
+target platform's installer. Development documentation and contribution guides
+are available in source archives and on GitHub. Builders validate the
 bundle file allowlist and local README/notice links before generating checksums.
 Desktop bundles include the CLI; macOS retains the adjacent CLI inside the app
 and the root CLI required by setup. Linux carries its desktop icon; Windows uses
@@ -113,10 +113,6 @@ Cross-platform `nimotehost rpc-encoded <base64(JSON)>` avoids shell interpolatio
 | POST /v1/sessions/{id}/verification | Owner-configured test commands |
 | GET /v1/sessions/{id}/verification-diff | Digest-bound retained diff |
 | GET /v1/conflicts | Concurrent workspace/file-event risks |
-| GET /v1/github-tasks | Durable Issue tasks |
-| POST /v1/github-tasks | Create and dispatch |
-| GET /v1/github-tasks/{id} | Task and recovery state |
-| POST /v1/github-tasks/{id}/{action} | Owner-only continue/verify/publish/refresh_pr |
 | POST /v1/extensions | Owner-only HCP 1.0; see [plugin protocol](plugin-system/protocol.md) |
 | POST /v1/shutdown-if-idle | Stop only while idle and reject new sessions |
 | POST /v1/shutdown | Graceful Host shutdown |
@@ -191,9 +187,9 @@ go run ./tools/build
 sh scripts/check-clean-build.sh
 ```
 
-Earlier NimoteCode Host/Task/notification regression: 318 passed, 3 skipped for native SSH/paramiko/go-task/just prerequisites; static checks passed. Six CLI targets built, but cross-builds are not device acceptance and this increment did not rerun that entire client matrix. Current Host evidence is separate in [tests](host-hardening-tests.md).
+Earlier NimoteCode Host/Task/notification regression: 318 passed, 3 skipped for native SSH/paramiko/go-task/just prerequisites; static checks passed. Six CLI targets built, but cross-builds are not device acceptance and this increment did not rerun that entire client matrix.
 
-Source/distribution/maintenance: [README](../README.md), [contributing](../CONTRIBUTING.md), [security](../SECURITY.md), [changelog](../CHANGELOG.md). Raw private historical audits were removed from public history. Current contracts are here and in [pending](pending.md), with [hardening decisions](host-hardening.md) and maintained test records.
+See the [README](../README.md), [contributing guide](../CONTRIBUTING.md), [security policy](../SECURITY.md), and [changelog](../CHANGELOG.md) for source and distribution details.
 
 <a id="desktop-architecture-audit"></a>
 
@@ -275,7 +271,7 @@ Baseline device evidence: full race, both module vets, Fyne lifecycle, real CLI 
 - Stopped-Host SHA-bound repair with backup, quarantine, event reconstruction, preserved receipts/credentials/output and monotonic resync watermarks; unsafe/unknown state rejected.
 - Shared adapter descriptors/helper lifecycle, explicit probes, configuration-aware capabilities/resource status and stable error classes. Native Windows migration-lock/log/default-directory fixes are regressed.
 
-Deployment/quotas/rollback are detailed in [hardening](host-hardening.md); evidence and remaining risks are in [tests](host-hardening-tests.md) and [pending](pending.md).
+See [hardening](host-hardening.md) for deployment, quotas and rollback, and [pending](pending.md) for remaining work.
 
 ### Completed checklist and scope
 
@@ -292,7 +288,7 @@ The following ten items match the completed pending-list entries. Original imple
 - [x] Fair per-device read/write/connection limits, owner reserve, explicit repair/backup/monotonic recovery watermark regressions.
 - [x] Native Windows CPU/committed-memory/process Job limits/allocation rejection/lifecycle; no Windows independent identity claim.
 
-macOS full/make-check/native build and Ubuntu full/race/vet/native build plus explicit root/CPU/memory/SSH/real-Codex race acceptance passed. Current Windows Host package native regression passed; that increment did not rerun the complete Windows module race/vet/build. Six-target compilation only proves compilation. Versions/commands are in [test records](host-hardening-tests.md).
+macOS full/make-check/native build and Ubuntu full/race/vet/native build plus explicit root/CPU/memory/SSH/real-Codex race acceptance passed. Current Windows Host package native regression passed; that increment did not rerun the complete Windows module race/vet/build. Six-target compilation only proves compilation.
 
 Windows temporary SSH still failed; macOS SSH, independent Linux operations, login/logout/reboot, sustained load, disk/macOS hard quotas and macOS/Windows identity backends remain pending. No machine reboot or production SSH change occurred; temporary directories/model credentials were removed. Checked items do not establish universal release readiness.
 
@@ -352,20 +348,7 @@ Tests cover capability separation, invalid aggregate cursors, unavailable provid
 
 ## Acceptance still required
 
-Real Codex, Claude Code and OpenCode multi-Agent tasks, installed-provider history/resume, GUI interaction on supported operating systems, phone over SSH reconnection, and the real GitHub Issue → PR flow. Unit/protocol fixture tests are not claimed as these acceptances.
-
-
-### 5. GitHub Issue workflow
-
-`github_issue_tasks_v1` advertises persisted task reads; `github_issue_dispatch_v1` advertises the local Git/gh prerequisites. CLI presence does not prove account authorization. Host uses the existing local gh authorization and authenticated SSH owner channel; no new token storage or device execution permission is introduced. `POST /v1/github-tasks` accepts `request_id`, `issue_url` or `repository` + `issue_number`, absolute `directory`, `agent`, `execution_policy`, `dispatch_policy` and 1–8 `tests` (executable/argv). Default `manual` waits after passing verification; explicit `draft_pr_after_verification` permits commit/push/draft PR after validation. No merge endpoint exists.
-
-Issue title/body are fetched through gh; PR masquerading as Issue and mismatched local GitHub origin are rejected. The remote default branch is fetched and its exact SHA binds the new worktree. Stages are `queued`, `developing`, `needs_approval`, `verifying`, `verification_failed`, `ready_for_pr`, `review`, `completed`. Errors retain `failure_stage`, workspace, Session, commit/PR intent and explicit recovery operations. Completed means GitHub confirms merge; PR creation only means review. Reads never cause GitHub writes.
-
-`GET /v1/github-tasks` lists tasks; `GET /v1/github-tasks/{id}` reads one; owner-only `POST /v1/github-tasks/{id}/continue|verify|publish|refresh_pr` accepts a mandatory request ID. Session approval, verification, diff and raw output stay on existing/new Session endpoints. Scoped devices see only tasks whose Session is authorized; queued tasks are owner/global-observer only. Full SSH owner authority is required to dispatch, run tests or publish. Devices gain no same-user arbitrary command execution.
-
-Creation/start/prompt/test/action receipts deduplicate repeats. Workflow changes are staged in the isolated worktree before verification so newly created files retain the same fingerprint through publication. Branches derive from the durable task ID; a commit intent plus tree SHA and commit marker reconciles interrupted commit creation. Push repeats the same SHA without force. PR lookup by branch precedes creation; an uncertain create is not sent again when no existing PR can be confirmed. This deliberately stops for inspection instead of promising exactly-once remote effects. Startup does not silently resume agents or tests. Explicit continuation uses the original conversation ID and a new continuation prompt, never resubmits the old Issue prompt. Missing conversation identity, failed validation or uncertain operations retain work and explain the next inspection step.
-
-GitHub API contracts: [GitHub CLI API](https://cli.github.com/manual/gh_api) and [pull requests REST API](https://docs.github.com/en/rest/pulls/pulls). GitHub Enterprise hosts/forks/cross-repository PRs and automatic merge are outside this first implementation. Real Issue/Agent/phone acceptance remains pending; local protocol fixtures must not be called real GitHub acceptance.
+Live multi-Agent tasks with Codex, Claude Code and OpenCode, installed-provider history and resume, native GUI interaction, and phone reconnection over SSH remain to be verified.
 
 ## Additional evidence boundaries
 
@@ -379,15 +362,10 @@ Reports reject untracked executable-mode changes, unverifiable submodule content
 | Verification | Process backend/private snapshots/output | verification.go, server.go, GUI/client report views | Base/current SHA, Agent self-claim attribution, real process evidence, staleness and complete bounded diff |
 | Conflicts | Normalized provider events/Git/active Sessions | conflicts.go, worktree.go, new-session form | Workspace risks, attributed file intersections and optional independent worktrees |
 | History | Native Codex/ACP history/resume/replay | history_discovery.go, agent_adapter.go, desktop/client browser | Aggregation, partial failure, CLI/adapter separation and active-resume dedup |
-| GitHub | Adapters/approvals/test evidence/SSH/local gh auth | github_tasks.go, host_client.dart, client journal/hub | Durable stages, branches, explicit publication policy, recovery and commit/PR dedup |
 
-NimoteCode reuses NimoteButton, NimoteListRow, NimoteFormField, NimoteSelectField, NimoteTabBar, AppModal and AppSheetScaffold with existing theme/type/spacing tokens and six locales. Approval remains in the conversation view. Negotiated new tasks/Agents can choose independent worktrees while source-workspace metadata preserves Task filtering. Phone OAuth stays on the phone; Host publication uses existing local gh auth. Dispatch IDs/configuration digests survive phone restart; uncertain delivery/access denial never discards identity. Credentials and execution bodies are not persisted in that journal. No cross-host aggregation, arbitrary CLI takeover, automatic merge, semantic duplicate-work detection or new device execution privilege is introduced.
+Approval remains in the NimoteCode conversation view. Clients can request independent worktrees when the Host advertises support. The source workspace still identifies the task for filtering.
 
 Recovery boundaries:
 
-- A definitely unsent Issue prompt may be sent once after adapter startup is repaired. Accepted receipts recover; incomplete delivery reservations stop for inspection rather than resend. Resume retains original conversation IDs.
-- A hook changing code invalidates prior evidence. Fresh explicit verification can adopt the same existing commit/tree without a duplicate commit. Refreshing a changed remote PR head marks evidence stale.
 - Complete diffs retain at most 4 MiB, delivered in 64 KiB byte pages with SHA. Raw output follows existing rolling retention/offsets; metadata/untracked-content budgets remain bounded. Oversized/unreadable evidence is unknown, never a pass.
 - Independent worktrees are not shared-directory conflicts. Completed tools editing the same external canonical path can still produce overlap warnings across worktrees.
-
-[Host test records](host-hardening-tests.md) and the sibling client's docs/host/completed.md record UI tests, local Host integration, rendered fixtures and APK builds. They do not establish physical-device, real-model, real-SSH or real GitHub Issue acceptance.

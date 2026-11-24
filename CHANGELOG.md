@@ -2,6 +2,11 @@
 
 **English** | [Simplified Chinese](CHANGELOG.zh-CN.md)
 
+## 2.5.0 Community
+
+- Publish Community builds on the `community-v*` prerelease channel and keep Host protocol 1.
+- Move GitHub Issue orchestration to Nimote Connect. Community retains existing Issue records and worktrees.
+
 ## 2.4.1
 
 - Wait for a running descendant heartbeat before the Host SIGKILL cleanup test terminates its owner, avoiding a fixture startup race.

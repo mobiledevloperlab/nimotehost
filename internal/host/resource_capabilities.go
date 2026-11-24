@@ -25,5 +25,12 @@ func (s *Server) hostCapabilities() Capabilities {
 	caps.Features["process_supervision_v1"] = true
 	caps.Features["host_capability_protocol_v1"] = s.plugins != nil
 	caps.Features["plugin_catalog_v1"] = s.catalog != nil
+	caps.Features["github_issue_tasks_v1"] = false
+	caps.Features["github_issue_dispatch_v1"] = false
+	if s.extensionHandler != nil && s.extension.Features != nil {
+		for key, enabled := range s.extension.Features(caps.Tools) {
+			caps.Features[key] = enabled
+		}
+	}
 	return caps
 }

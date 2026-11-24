@@ -21,7 +21,7 @@
   <a href="SECURITY.md">Security</a>
 </sub></p>
 
-<p align="center"><sub>2.4.1 development preview · Open source under Apache-2.0</sub></p>
+<p align="center"><sub>2.5.0-community development preview · Open source under Apache-2.0</sub></p>
 
 ---
 
@@ -39,7 +39,7 @@ plus Linux/Windows 32-bit x86 (386) CLIs. Full native-platform and mobile/Agent
 acceptance remains outstanding; see [pending functionality](docs/pending.md).
 
 Current functionality: [completed](docs/completed.md) and [pending](docs/pending.md).
-Hardening decisions and verification: [audit](docs/host-hardening.md) and [test results](docs/host-hardening-tests.md).
+See [Host hardening](docs/host-hardening.md) for security boundaries.
 
 ## With NimoteCode or on its own
 
@@ -75,7 +75,11 @@ need their own account and isolation boundaries; see [Security](SECURITY.md).
 | Install and start the background service | [One-command installation](#one-command-installation) |
 | Build the CLI from source | [Build and run](#build-and-run) |
 | Use the graphical interface | [Desktop edition](#desktop-edition-fyne) |
-| Understand features and security boundaries | [Implemented functionality](docs/completed.md) · [Security policy](SECURITY.md) |
+| Integrate over SSH or RPC | [Client API](docs/client-api.md) · [Implemented interfaces](docs/completed.md) · [Compatibility](docs/host-hardening.md#client-compatibility) |
+| Maintain a running Host | [Deployment and recovery](docs/deployment.md) · [Community releases and upgrades](docs/community.md) |
+| Configure Agents or plugins | [External Agent sessions](docs/external-agent-sessions.md) · [Plugin SDK](docs/plugin-system/plugin-sdk.md) · [Plugin security](docs/plugin-system/security.md) |
+| Review permissions and remaining acceptance | [Security policy](SECURITY.md) · [Hardening](docs/host-hardening.md) · [Open items](docs/pending.md) |
+
 
 Tasks continue after clients disconnect; restarting Host or the OS does not restore
 task processes. Install and configure SSH and Agent CLIs such as Codex, Claude Code
@@ -119,13 +123,13 @@ This works from PowerShell as well as Unix shells. Run the generated binary at
 For other targets or a versioned distribution:
 
 ```sh
-go run ./tools/build -os windows -arch arm64 -version 2.4.1
+go run ./tools/build -os windows -arch arm64 -version 2.5.0-community
 ```
 
 Binary distributions include concise English/Chinese installation instructions, the
 target platform's installer, licenses, module manifests, build metadata and SHA256SUMS.
-Full development documentation, contribution guidelines and audit records stay in
-the source archive and on GitHub. Bundle file lists and local documentation links
+Development documentation and contribution guidelines are available in the
+source archive and on GitHub. Bundle file lists and local documentation links
 are validated before archiving. Builds also produce a versioned
 `.tar.gz` (Linux/macOS) or `.zip` (Windows) and an adjacent `.sha256`. A Bash wrapper, `./scripts/build-host.sh <os> <arch> [version]`,
 is also available. Preserve the entire distribution when sharing binaries.
@@ -154,7 +158,7 @@ not compile or download Fyne. No mobile protocol or public transport is changed.
 
 ```sh
 # Native desktop SDK / C compiler required; also builds the CLI distribution
-go run ./tools/build -gui -version 2.4.1
+go run ./tools/build -gui -version 2.5.0-community
 # Or: make desktop
 ```
 
@@ -231,9 +235,9 @@ Read [implemented functionality and protocol](docs/completed.md),
 [Host CI](.github/workflows/ci.yml) runs tests, clean-source checks, eight CLI target
 builds and six native desktop target builds on pull requests and pushes to `master`
 or `main`. Run it manually with `cli`, `gui`, or `both`. Download build outputs from
-the run's **Artifacts** section. Pushing a `v*` tag starts both builds. The CLI packages
-and source archive go live after the CLI checks pass. The desktop packages are added
-to the same GitHub Release after all six desktop builds pass. Adding desktop packages
+the run's **Artifacts** section. A `community-vMAJOR.MINOR.PATCH` tag builds Community packages and publishes
+them as a GitHub prerelease. CLI and source assets appear after the CLI checks
+pass. Desktop assets are added after their native builds pass. Adding desktop packages
 requires immutable releases to be disabled in the repository settings.
 
 | Platform | CLI | Desktop |
@@ -245,7 +249,7 @@ requires immutable releases to be disabled in the repository settings.
 Desktop packages use native runners and include the CLI, dependency licenses and
 SHA-256 checksums. Linux desktop targets glibc 2.35 or newer. ARM means ARM64;
 32-bit ARM and 32-bit desktop packages are not supported. macOS packages are unsigned
-and not notarized. See the [release audit](OPEN_SOURCE_REVIEW.md) before publishing.
+and not notarized.
 
 `amd64` means 64-bit Intel/AMD x86; `arm64` means 64-bit ARM (including Apple
 Silicon). `386` is legacy 32-bit x86, CLI only. macOS has no 32-bit build target.
@@ -342,3 +346,5 @@ before running third-party executables.
 Both offline local bundles and searchable GitHub Release installation are supported.
 For public registration, submit [catalog metadata only](docs/plugin-system/catalog.md);
 keep plugin code and releases in your own repository.
+
+See [Community builds and upgrades](docs/community.md) for release channels and retained Host state.

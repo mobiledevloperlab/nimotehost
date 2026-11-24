@@ -7,7 +7,7 @@ Implemented contracts live in [completed functionality](completed.md). Checked i
 ## Features
 
 - [x] Existing-service connections (2026-11-17): Codex control socket, OpenCode v2 HTTP, native pending, state calibration and reconnect. Real Codex CLI/local-model fixture passed; see [implementation](external-agent-sessions.md).
-- [ ] Remaining external attachment acceptance: real OpenCode v1/v2, Claude tools/models, native Linux/Windows and phone/SSH matrices. OpenCode v1 and Windows read-only Codex socket code are implemented; Windows tests have not run natively. Independent Claude structured takeover and Antigravity remain unsupported. Terminal attach may restart stopped sessions; history resume is not takeover. See [tests](external-agent-sessions-tests.md).
+- [ ] Remaining external attachment acceptance: real OpenCode v1/v2, Claude tools/models, native Linux/Windows and phone/SSH matrices. OpenCode v1 and Windows read-only Codex socket code are implemented; Windows tests have not run natively. Independent Claude structured takeover and Antigravity remain unsupported. Terminal attach may restart stopped sessions; history resume is not takeover.
 - [x] Official Claude JSON discovery, isolated local Claude 2.1.311/ACP 0.107.3 initialization and explicit ACP v2 history replay. Official `claude attach` is a terminal entrypoint that may restart sessions, not a safe structured takeover handshake; this refines the earlier local-entrypoint limitation.
 - [ ] Unified AI-mode Session dashboard: cross-host/workspace aggregation, search/filtering and timestamped offline summaries without presenting cached state as live.
 - [x] Linux full-control device isolation: opt-in root/private finite cgroup v2/per-session UID backend and native WSL acceptance. Administrators reserve the UID pool across Hosts; Agent accounts/credentials require independent provisioning. This is not a general container/network sandbox.
@@ -62,7 +62,7 @@ Machine reboot requires separate explicit prior approval. Access to an environme
 - [x] Per-device fair admission, bounded connections, explicit backed-up repair and recovery-watermark regressions.
 - [x] Native Windows Job CPU/committed-memory/process limits, allocation refusal and lifecycle.
 
-Checked items are bounded by their stated evidence. See [hardening contract/rollback](host-hardening.md) and [actual test limits](host-hardening-tests.md). Remaining items prevent claiming all P0/P1 release goals are closed.
+Checked items are bounded by their stated evidence. See [hardening contract/rollback](host-hardening.md). Remaining items prevent claiming all P0/P1 release goals are closed.
 
 ## Missing prerequisites and deferred approval
 
@@ -76,7 +76,7 @@ Checked items are bounded by their stated evidence. See [hardening contract/roll
 | macOS hard quotas and macOS/Windows identities | Backends absent; currently reject | Verify OS identity/container/permission design before approved account/AppContainer/ACL changes |
 | Linux Claude/OpenCode isolation | Selected WSL lacks supported CLI/ACP/Node runtime | Supply versions and isolated credentials; no automatic system installation |
 
-These items are not accepted risks or release approvals. Completed behavior and commands are recorded in [completed functionality](completed.md) and [tests](host-hardening-tests.md).
+These items are not accepted risks or release approvals. Completed behavior and commands are recorded in [completed functionality](completed.md).
 
 ## Agent workflow acceptance (2026-11-14)
 

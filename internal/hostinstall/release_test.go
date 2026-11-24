@@ -7,17 +7,20 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 )
 
-func TestStableReleaseSelection(t *testing.T) {
+func TestCommunityReleaseSelection(t *testing.T) {
 	for _, platform := range []struct{ os, arch, extension string }{
 		{"linux", "amd64", ".tar.gz"}, {"linux", "arm64", ".tar.gz"},
 		{"darwin", "amd64", ".tar.gz"}, {"darwin", "arm64", ".tar.gz"},
@@ -33,10 +36,10 @@ func TestStableReleaseSelection(t *testing.T) {
 				if desktop {
 					prefix += "gui-"
 				}
-				name := prefix + "2.5.0-" + platform.os + "-" + platform.arch + platform.extension
-				asset := ReleaseAsset{Name: name, URL: "https://github.com/" + repository + "/releases/download/v2.5.0/" + name, State: "uploaded", Size: 10, Digest: fmt.Sprintf("sha256:%064x", 1)}
-				r := releaseMetadata{Tag: "v2.5.0", Assets: []ReleaseAsset{asset}}
-				got, err := r.selectAsset("v2.5.0", platform.os, platform.arch, desktop)
+				name := prefix + "2.5.0-community-" + platform.os + "-" + platform.arch + platform.extension
+				asset := ReleaseAsset{Name: name, URL: "https://github.com/" + repository + "/releases/download/community-v2.5.0/" + name, State: "uploaded", Size: 10, Digest: fmt.Sprintf("sha256:%064x", 1)}
+				r := releaseMetadata{Tag: "community-v2.5.0", Prerelease: true, Assets: []ReleaseAsset{asset}}
+				got, err := r.selectAsset("community-v2.5.0", platform.os, platform.arch, desktop)
 				if err != nil || got != asset {
 					t.Fatalf("%+v, %v", got, err)
 				}
@@ -51,9 +54,9 @@ func TestStableReleaseSelection(t *testing.T) {
 				if _, err := r.selectAsset("", platform.os, platform.arch, desktop); !errors.Is(err, ErrRelease) {
 					t.Fatalf("draft: %v", err)
 				}
-				r.Draft, r.Prerelease = false, true
+				r.Draft, r.Prerelease = false, false
 				if _, err := r.selectAsset("", platform.os, platform.arch, desktop); !errors.Is(err, ErrRelease) {
-					t.Fatalf("prerelease: %v", err)
+					t.Fatalf("non-prerelease: %v", err)
 				}
 			}
 		})
@@ -151,3 +154,50 @@ func TestExtractPortableArchives(t *testing.T) {
 		}
 	}
 }
+
+func TestCommunityLookupSelectsPublishedPackageForTarget(t *testing.T) {
+	const cliTag = "community-v2.5.1"
+	const desktopTag = "community-v2.5.0"
+	asset := func(tag, prefix string) ReleaseAsset {
+		name := prefix + CommunityVersion(tag) + "-darwin-arm64.tar.gz"
+		return ReleaseAsset{Name: name, URL: "https://github.com/" + repository + "/releases/download/" + tag + "/" + name, State: "uploaded", Size: 10, Digest: fmt.Sprintf("sha256:%064x", 1)}
+	}
+	rows := []releaseMetadata{
+		{Tag: "v2.4.1"},
+		{Tag: "v2.5.0-rc.1", Prerelease: true},
+		{Tag: "community-v2.5.2", Prerelease: true, Draft: true},
+		{Tag: cliTag, Prerelease: true, Assets: []ReleaseAsset{asset(cliTag, "nimotehost-")}},
+		{Tag: desktopTag, Prerelease: true, Assets: []ReleaseAsset{asset(desktopTag, "nimotehost-gui-")}},
+	}
+	client := &http.Client{Transport: releaseTestTransport(func(r *http.Request) (*http.Response, error) {
+		var body []byte
+		switch r.URL.String() {
+		case releaseAPI + "?per_page=30":
+			body, _ = json.Marshal(rows)
+		case releaseAPI + "/tags/" + cliTag:
+			body, _ = json.Marshal(rows[3])
+		default:
+			t.Fatalf("wrong release endpoint: %s", r.URL)
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(string(body)))}, nil
+	})}
+	ctx := context.Background()
+	for _, test := range []struct {
+		desktop bool
+		want    string
+	}{{false, cliTag}, {true, desktopTag}} {
+		if got, _, err := communityRelease(ctx, client, "", "darwin", "arm64", test.desktop); err != nil || got != test.want {
+			t.Fatalf("desktop=%v: %s, %v", test.desktop, got, err)
+		}
+	}
+	if _, _, err := communityRelease(ctx, client, cliTag, "darwin", "arm64", true); !errors.Is(err, ErrRelease) {
+		t.Fatalf("pinned tag without desktop asset: %v", err)
+	}
+	if _, _, err := communityRelease(ctx, client, "v2.4.1", "darwin", "arm64", false); !errors.Is(err, ErrRelease) {
+		t.Fatalf("legacy tag: %v", err)
+	}
+}
+
+type releaseTestTransport func(*http.Request) (*http.Response, error)
+
+func (fn releaseTestTransport) RoundTrip(r *http.Request) (*http.Response, error) { return fn(r) }
