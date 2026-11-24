@@ -43,7 +43,7 @@ func validateGUITarget(targetOS, arch string) error {
 
 // GUI builds require native desktop SDKs. macOS SDKs support both CPU targets.
 // CLI cross compilation remains CGO-free.
-func buildGUI(targetOS, arch, version string) error {
+func buildGUI(targetOS, arch, version string, connect bool) error {
 	if err := validateGUITarget(targetOS, arch); err != nil {
 		return err
 	}
@@ -94,6 +94,9 @@ func buildGUI(targetOS, arch, version string) error {
 		name += ".exe"
 	}
 	flags := "-s -w -X " + modulePath + "/internal/host.Version=" + version
+	if connect {
+		flags += " -X " + modulePath + "/internal/host.Edition=connect"
+	}
 	if targetOS == "windows" {
 		flags += " -H=windowsgui"
 	}

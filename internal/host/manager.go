@@ -49,7 +49,8 @@ type Manager struct {
 	background       context.Context
 	cancelBackground context.CancelFunc
 	verificationMu   sync.Mutex
-	taskRuns         map[string]bool
+	workflowRuns     map[string]bool
+	workflowRequests int
 	verifying        map[string]bool
 	limits           ResourceLimits
 	monitorStop      chan struct{}
@@ -827,6 +828,9 @@ func (m *Manager) delete(id string, probeOnly bool) error {
 func (m *Manager) PrepareIdleShutdown() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if len(m.workflowRuns) != 0 || m.workflowRequests != 0 {
+		return errors.New("Host has active tasks; let them finish before running setup again")
+	}
 	for _, item := range m.sessions {
 		if item.process != nil {
 			return errors.New("Host has active tasks; let them finish before running setup again")

@@ -44,6 +44,9 @@ func decodeJSON(data []byte, target any) error {
 }
 
 type Server struct {
+	extension        Extension
+	extensionHandler ScopedHandler
+
 	catalog    *plugins.Catalog
 	plugins    *plugins.Runtime
 	dir        string
@@ -61,6 +64,10 @@ type Server struct {
 // Serve reserves the loopback listener before reading or recovering session
 // state. A second daemon cannot mark the live daemon's processes interrupted.
 func Serve(ctx context.Context, dir string, ready io.Writer) error {
+	return ServeWithExtension(ctx, dir, ready, Extension{})
+}
+
+func ServeWithExtension(ctx context.Context, dir string, ready io.Writer, extension Extension) error {
 	if err := privateDir(dir); err != nil {
 		return err
 	}
@@ -106,6 +113,7 @@ func Serve(ctx context.Context, dir string, ready io.Writer) error {
 		return err
 	}
 	api := &Server{dir: dir, manager: manager, token: token, hostID: hostID, instanceID: instanceID, shutdown: cancel, requests: make(chan struct{}, 64), controls: make(chan struct{}, 16), helpers: make(chan struct{}, 4), admission: newRequestAdmission()}
+	api.registerExtension(extension)
 	extensionDir := filepath.Join(dir, "plugins")
 	api.plugins, err = plugins.New(extensionDir, instanceID, pluginLauncher(limits))
 	if err != nil {
@@ -182,7 +190,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fail(w, 401, "authentication required")
 		return
 	}
-	if !owner && !device.allows(r.Method, r.URL.Path) {
+	extensionRoute := s.extensionHandler != nil && (r.URL.Path == s.extension.Path || strings.HasPrefix(r.URL.Path, s.extension.Path+"/"))
+	if !owner && ((!extensionRoute && !device.allows(r.Method, r.URL.Path)) || (extensionRoute && r.Method != http.MethodGet)) {
 		fail(w, 403, "device permission denied")
 		return
 	}
@@ -285,14 +294,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		respond(w, 200, map[string]any{"warnings": s.manager.Conflicts(ctx, allowed)})
 		return
 	}
-	if r.URL.Path == "/v1/github-tasks" || strings.HasPrefix(r.URL.Path, "/v1/github-tasks/") {
+	if extensionRoute {
 		var allowed func(string) bool
 		if scoped {
 			allowed = func(id string) bool {
 				return device.allowsSession(id) && (device.Role != "session_controller" || s.manager.controllerSessionAllowed(device, id))
 			}
 		}
-		s.serveGitHubTasks(w, r, allowed)
+		s.extensionHandler(w, r, allowed)
 		return
 	}
 	operation := func(name string) string {

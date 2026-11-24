@@ -189,6 +189,7 @@
   "theme.light": "Light",
   "theme.system": "Use system setting",
   "updates.available": "Installed: {{.Installed}}\nLatest published: {{.Latest}}\nOpen the official download page?",
+  "updates.connectManaged": "Install updates using the Nimote Connect bundle.",
   "updates.check": "Check for updates",
   "updates.download": "Open downloads",
   "updates.error": "Updates couldn't be checked. Try again later.",

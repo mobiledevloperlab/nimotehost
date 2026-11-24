@@ -21,7 +21,7 @@
   <a href="SECURITY.zh-CN.md">安全说明</a>
 </sub></p>
 
-<p align="center"><sub>2.4.1 开发预览版 · Apache-2.0 开源</sub></p>
+<p align="center"><sub>2.5.0-community 开发预览版 · Apache-2.0 开源</sub></p>
 
 ---
 
@@ -38,7 +38,7 @@ NimoteHost 主要与 [NimoteCode](https://github.com/mobiledevloperlab/nimotecod
 见[未完成功能](docs/pending.md)。
 
 功能状态见[已完成功能](docs/completed.md)和[未完成功能](docs/pending.md)；
-加固决策与验证见[加固审计](docs/host-hardening.md)和[测试记录](docs/host-hardening-tests.md)。
+安全边界见 [Host 加固](docs/host-hardening.md)。
 
 ## 与 NimoteCode 配合，也可独立使用
 
@@ -70,7 +70,11 @@ Host 默认以当前系统账号执行命令。通过同一账号的普通 SSH �
 | 安装并启动后台服务 | [一键安装](#一键安装) |
 | 从源码构建 CLI | [构建与运行](#构建与运行) |
 | 使用图形界面 | [Fyne 桌面管理器](#fyne-桌面管理器) |
-| 了解功能与安全边界 | [已完成功能](docs/completed.md) · [安全政策](SECURITY.zh-CN.md) |
+| 对接 SSH 或 RPC | [客户端 API](docs/client-api.md) · [已实现接口](docs/completed.md) · [兼容性](docs/host-hardening.md#client-compatibility) |
+| 运维运行中的 Host | [部署与恢复](docs/deployment.md) · [社区版发布与升级](docs/community.md) |
+| 配置 Agent 或插件 | [外部 Agent 会话](docs/external-agent-sessions.md) · [插件 SDK](docs/plugin-system/plugin-sdk.md) · [插件安全](docs/plugin-system/security.md) |
+| 核对权限与待验收事项 | [安全政策](SECURITY.zh-CN.md) · [加固记录](docs/host-hardening.md) · [待验收事项](docs/pending.md) |
+
 
 客户端断开后任务可继续运行；Host 或系统重启不会恢复任务进程。
 SSH 和 Codex、Claude Code、OpenCode 等 Agent CLI 需单独安装与配置。
@@ -99,7 +103,7 @@ sh scripts/install.sh
 
 ```sh
 ./scripts/build-release.sh
-# 或 make release VERSION=2.4.1
+# 或 make release VERSION=2.5.0-community
 # Windows：python scripts/build-release.py --arch amd64
 ```
 
@@ -113,7 +117,7 @@ Linux、Windows 的 GUI 请分别在对应架构的机器上运行 `--arch amd64
 # 三平台 CLI：32 位 x86、x64、ARM64（macOS 自动跳过 386）
 ./scripts/build-release.sh --cli-only --os all --arch 386,amd64,arm64
 # 指定版本
-./scripts/build-release.sh --version 2.4.1
+./scripts/build-release.sh --version 2.5.0-community
 # 在具体分发目录内验证
 shasum -a 1 -c SHA1SUMS
 ```
@@ -138,11 +142,11 @@ go run ./tools/build
 指定其他目标平台和版本：
 
 ```sh
-go run ./tools/build -os windows -arch arm64 -version 2.4.1
+go run ./tools/build -os windows -arch arm64 -version 2.5.0-community
 ```
 
 二进制分发包包含简短的中英文安装说明、当前平台安装脚本、许可证、模块清单、构建信息和 SHA256SUMS。
-完整开发文档、贡献指南和审计记录保留在源码归档与 GitHub；打包前会检查文件清单和包内文档链接。
+开发文档和贡献指南可在源码归档与 GitHub 查阅。打包前会检查文件清单和包内文档链接。
 构建还会生成带版本的 `.tar.gz`（Linux/macOS）或 `.zip`（Windows）以及配套 `.sha256`。也可使用 Bash 包装脚本：
 `./scripts/build-host.sh <os> <arch> [version]`。分发二进制时请保留整个分发目录。
 
@@ -182,8 +186,7 @@ GUI 构建需要对应系统的原生工具链。发现机制不依赖 CPU 架�
 [Host CI](.github/workflows/ci.yml) 在拉取请求和推送到 `master` / `main` 时，
 运行测试、干净源码检查、八种 CLI 目标及六种原生桌面目标的构建。
 手动运行时可选择 `cli`、`gui` 或 `both`；从运行页面的 `Artifacts` 下载构建产物。
-推送 `v*` 标签后，两种构建并行启动。CLI 检查通过后先发布 CLI 包和源码归档，六个桌面构建全部
-通过后再把桌面包追加到同一个 GitHub Release。追加桌面包要求仓库关闭不可变发布设置。
+推送 `community-vMAJOR.MINOR.PATCH` 标签会构建社区版，并发布为 GitHub 预发行版。CLI 检查通过后先发布 CLI 包和源码归档，桌面构建通过后追加到同一个预发行版。追加桌面包要求仓库关闭不可变发布设置。
 
 | 系统 | CLI | 桌面包 |
 | --- | --- | --- |
@@ -193,7 +196,7 @@ GUI 构建需要对应系统的原生工具链。发现机制不依赖 CPU 架�
 
 桌面版使用原生运行器，附 CLI、依赖许可证和 SHA-256 校验值。Linux 桌面版要求
 至少 glibc 2.35。ARM 指 ARM64，暂不提供 32 位 ARM 或 32 位桌面包。
-macOS 包尚未签名或公证。发布前参阅[开源检查记录](OPEN_SOURCE_REVIEW.md)。
+macOS 包尚未签名或公证。
 
 `amd64` 是 Intel/AMD 的 64 位 x86，`arm64` 是 64 位 ARM（包括 Apple Silicon）。
 `386` 是传统 32 位 x86，仅提供 CLI；macOS 没有 32 位构建目标。
@@ -254,7 +257,7 @@ CLI 与 GUI 复用现有 Go Host、认证本地 RPC 和三平台用户服务；F
 `cmd/nimotehost-gui` 独立模块中，CLI 不引入图形依赖。
 
 ```sh
-go run ./tools/build -gui -version 2.4.1
+go run ./tools/build -gui -version 2.5.0-community
 ```
 
 需在目标系统本机构建并安装 C 编译器/桌面 SDK。产物为
@@ -310,3 +313,5 @@ Host 任务。完整控制仍依赖 SSH 系统账号；设备页已支持独立�
 
 同时支持本地离线包安装和 GitHub 目录搜索、下载及安装。开发者只需提交
 [目录元数据](docs/plugin-system/catalog.md)，源码与发布包保留在自己的仓库中。
+
+社区版的构建、升级渠道及状态保留方式见 [Community builds and upgrades](docs/community.md)。

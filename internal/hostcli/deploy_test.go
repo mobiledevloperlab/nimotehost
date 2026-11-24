@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package main
+package hostcli
 
 import (
 	"bytes"
@@ -93,5 +93,15 @@ func TestNewerStableRejectsDowngradeNumerically(t *testing.T) {
 		if got := newerStable(test.current, test.next); got != test.want {
 			t.Fatalf("%s > %s = %v", test.current, test.next, got)
 		}
+	}
+}
+
+func TestCommunityRejectsConnectManagedEdition(t *testing.T) {
+	target := t.TempDir()
+	if err := os.WriteFile(filepath.Join(target, "BUILD.json"), []byte(`{"Version":"2.5.0+connect.test","OS":"linux","Arch":"arm64","Edition":"connect"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkManagedEdition(target); !errors.Is(err, errDeployConflict) {
+		t.Fatalf("expected Connect edition conflict, got %v", err)
 	}
 }

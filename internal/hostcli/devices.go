@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package main
+package hostcli
 
 import (
 	"context"
@@ -77,5 +77,5 @@ func deviceBridge(ctx context.Context, id string, in io.Reader, out io.Writer) e
 	if err != nil {
 		return err
 	}
-	return run(host.DeviceContext(ctx, id), args, in, out)
+	return runWithExtension(host.DeviceContext(ctx, id), args, in, out, host.Extension{})
 }

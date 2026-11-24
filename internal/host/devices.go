@@ -273,9 +273,6 @@ func (d Device) allowsSession(id string) bool {
 }
 
 func (d Device) allows(method, path string) bool {
-	if path == "/v1/github-tasks" || strings.HasPrefix(path, "/v1/github-tasks/") {
-		return method == "GET"
-	}
 	if path == "/v1/inbox" {
 		return method == "GET"
 	}

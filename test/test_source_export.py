@@ -18,11 +18,11 @@ class HostExportTests(unittest.TestCase):
         self.host = self.root
         for name in ['README.zh-CN.md', 'CONTRIBUTING.zh-CN.md', 'SECURITY.zh-CN.md',
                      'CHANGELOG.zh-CN.md', 'THIRD_PARTY_NOTICES.zh-CN.md',
-                     'README.md', 'OPEN_SOURCE_REVIEW.md', 'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md',
+                     'README.md', 'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md',
                      'CONTRIBUTING.md', 'SECURITY.md', 'CHANGELOG.md', 'Makefile',
                      '.gitignore', 'go.mod', 'go.sum']:
             (self.host / name).write_text('fixture\n')
-        for name in ['.github', 'cmd', 'internal', 'scripts', 'docs', 'tools', 'third_party', 'test', 'pkg', 'examples', 'plugin-catalog']:
+        for name in ['.github', 'assets', 'cmd', 'internal', 'scripts', 'docs', 'tools', 'third_party', 'test', 'pkg', 'examples', 'plugin-catalog']:
             (self.host / name).mkdir(exist_ok=True)
             (self.host / name / 'fixture.txt').write_text('public\n')
         self.archive = self.root / 'dist/public/nimotehost-source.tar.gz'
@@ -33,8 +33,6 @@ class HostExportTests(unittest.TestCase):
 
     def test_archive_isolated_and_deterministic(self):
         (self.root / 'private.txt').write_text('private')
-        (self.host / '.git').mkdir()
-        (self.host / '.git/config').write_text('private')
         (self.host / 'dist').mkdir()
         (self.host / 'dist/local-binary').write_text('private')
         (self.host / 'test/__pycache__').mkdir()
@@ -53,6 +51,21 @@ class HostExportTests(unittest.TestCase):
                 self.assertIn(directory + '/fixture.txt', names)
             self.assertFalse(any('private' in n or n.startswith(('.git/', 'dist/', '../', '/')) for n in names))
             self.assertTrue(all(m.isfile() for m in archive.getmembers()))
+
+    def test_checkout_excludes_untracked_notes(self):
+        subprocess.run(['git', 'init', '-q', str(self.host)], check=True)
+        subprocess.run(['git', '-C', str(self.host), 'add', '.'], check=True)
+        (self.host / 'docs/private.md').write_text('private')
+        result = self.export()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with tarfile.open(self.archive) as archive:
+            self.assertIn('docs/fixture.txt', archive.getnames())
+            self.assertNotIn('docs/private.md', archive.getnames())
+
+    def test_invalid_checkout_fails_closed(self):
+        (self.host / '.git').write_text('gitdir: missing\n')
+        self.assertNotEqual(self.export().returncode, 0)
+        self.assertFalse(self.archive.exists())
 
     def test_symlink_rejected(self):
         (self.host / 'internal/link').symlink_to(self.root / 'scripts')

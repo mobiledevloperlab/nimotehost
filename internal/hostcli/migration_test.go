@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package main
+package hostcli
 
 import (
 	"context"
@@ -134,7 +134,7 @@ func TestLegacyProbeDoesNotCreateASecondIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, args := range [][]string{{"status"}, {"devices", "list"}} {
-		if err := run(context.Background(), args, strings.NewReader(""), io.Discard); err == nil {
+		if err := runWithExtension(context.Background(), args, strings.NewReader(""), io.Discard, host.Extension{}); err == nil {
 			t.Fatal("probe ignored legacy state", args)
 		}
 		if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {

@@ -189,6 +189,7 @@
   "theme.light": "Claro",
   "theme.system": "Usar ajuste del sistema",
   "updates.available": "Instalada: {{.Installed}}\nÚltima publicada: {{.Latest}}\n¿Abrir la página oficial de descargas?",
+  "updates.connectManaged": "Instala las actualizaciones con el paquete de Nimote Connect.",
   "updates.check": "Buscar actualizaciones",
   "updates.download": "Abrir descargas",
   "updates.error": "No se pudieron buscar actualizaciones. Inténtalo más tarde.",

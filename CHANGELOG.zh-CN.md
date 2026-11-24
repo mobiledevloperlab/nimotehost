@@ -2,6 +2,11 @@
 
 [英文版](CHANGELOG.md) | **简体中文**
 
+## 2.5.0 社区版
+
+- 社区版通过 `community-v*` 预发行渠道发布，继续使用 Host 协议 1。
+- GitHub Issue 编排迁移至 Nimote Connect。社区版保留已有 Issue 记录和工作树。
+
 ## 2.4.1
 
 - Host SIGKILL 清理测试等待后代进程产生 heartbeat 后再终止宿主，避免测试启动同步竞态。

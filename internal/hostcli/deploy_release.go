@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package main
+package hostcli
 
 import (
 	"context"
@@ -18,6 +18,7 @@ import (
 
 type deployBuild struct {
 	Version, OS, Arch     string
+	Edition               string
 	Protocol, MinProtocol int
 }
 
@@ -46,6 +47,9 @@ func readDeployBuild(target string) (deployBuild, error) {
 }
 
 func deployRelease(ctx context.Context, dir, target string, opts deployOptions, result *deployResult) error {
+	if host.Edition == "connect" {
+		return fmt.Errorf("%w: install or upgrade Host using the Nimote Connect bundle", hostinstall.ErrRelease)
+	}
 	if err := outsideInstall(target); err != nil {
 		return err
 	}
@@ -65,12 +69,12 @@ func deployRelease(ctx context.Context, dir, target string, opts deployOptions, 
 	if opts.sha256 != "" && !strings.EqualFold(opts.sha256, result.ArchiveSHA256) {
 		return fmt.Errorf("%w: release digest differs from the pinned SHA-256", hostinstall.ErrIntegrity)
 	}
-	version := strings.TrimPrefix(tag, "v")
+	version := hostinstall.CommunityVersion(tag)
 	check := func() error {
 		if !desktop && desktopBundle(target) {
 			return fmt.Errorf("%w: desktop installation appeared during download; retry", errDeployConflict)
 		}
-		if installed, err := readDeployBuild(target); err == nil && newerStable(installed.Version, version) {
+		if installed, err := readDeployBuild(target); err == nil && newerStable(strings.TrimSuffix(installed.Version, "-community"), strings.TrimSuffix(version, "-community")) {
 			return fmt.Errorf("%w: installed version %s is newer than %s", errDeployConflict, installed.Version, version)
 		}
 		return nil

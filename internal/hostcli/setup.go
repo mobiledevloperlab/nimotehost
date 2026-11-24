@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Nimote contributors
 
-package main
+package hostcli
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/mobiledevloperlab/nimotehost/internal/host"
@@ -67,6 +68,9 @@ func setupBundle(ctx context.Context, dir, source string, out io.Writer, guard f
 		return err
 	}
 	defer func() { result = errors.Join(result, tx.Close()) }()
+	if err := checkManagedEdition(target); err != nil {
+		return err
+	}
 	if guard != nil {
 		if err := guard(); err != nil {
 			return err
@@ -91,7 +95,7 @@ func setupBundle(ctx context.Context, dir, source string, out io.Writer, guard f
 		return err
 	}
 	if installed {
-		if guard != nil {
+		if guard != nil || host.Edition == "connect" {
 			if err := service.CheckExecutable(); err != nil {
 				return err
 			}
@@ -113,6 +117,9 @@ func setupBundle(ctx context.Context, dir, source string, out io.Writer, guard f
 	}
 	unchanged := tx.Unchanged(ctx)
 	if running && installed && unchanged {
+		if err := checkSetupCapabilities(ctx, dir); err != nil {
+			return err
+		}
 		migration.committed = true
 		return completeSetup(migration, home, target, name, "", out)
 	}
@@ -121,11 +128,14 @@ func setupBundle(ctx context.Context, dir, source string, out io.Writer, guard f
 	}
 	// Reuse the verified distribution when only service startup is needed.
 	if unchanged {
-		if err := runSetupCommand(ctx, filepath.Join(target, name), "install"); err != nil {
+		if err := installSetupService(ctx, dir, filepath.Join(target, name)); err != nil {
+			return errors.Join(err, rollbackSetup(tx, service, dir, name, installed, running, out))
+		}
+		if err := completeSetup(migration, home, target, name, "", out); err != nil {
 			return errors.Join(err, rollbackSetup(tx, service, dir, name, installed, running, out))
 		}
 		migration.committed = true
-		return completeSetup(migration, home, target, name, "", out)
+		return nil
 	}
 	if running {
 		data, err := host.Call(ctx, dir, host.RPCRequest{Method: "GET", Path: "/v1/capabilities"})
@@ -135,6 +145,11 @@ func setupBundle(ctx context.Context, dir, source string, out io.Writer, guard f
 		var caps host.Capabilities
 		if err := json.Unmarshal(data, &caps); err != nil {
 			return err
+		}
+		if caps.Features["github_issue_tasks_v1"] && !strings.Contains(caps.Version, "+connect.") {
+			if err := requireIdleLegacyWorkflows(ctx, dir); err != nil {
+				return err
+			}
 		}
 		if !caps.Features["idle_shutdown"] {
 			return errors.New("this older development Host requires a one-time stop before setup; let tasks finish, then run nimotehost stop and retry setup")
@@ -165,11 +180,14 @@ func setupBundle(ctx context.Context, dir, source string, out io.Writer, guard f
 		}
 		return err
 	}
-	if err := runSetupCommand(ctx, filepath.Join(target, name), "install"); err != nil {
+	if err := installSetupService(ctx, dir, filepath.Join(target, name)); err != nil {
+		return errors.Join(err, rollbackSetup(tx, service, dir, name, installed, running, out))
+	}
+	if err := completeSetup(migration, home, target, name, tx.Backup, out); err != nil {
 		return errors.Join(err, rollbackSetup(tx, service, dir, name, installed, running, out))
 	}
 	migration.committed = true
-	return completeSetup(migration, home, target, name, tx.Backup, out)
+	return nil
 }
 
 func completeSetup(migration *nameMigration, home, target, name, backup string, out io.Writer) error {
@@ -180,6 +198,31 @@ func completeSetup(migration *nameMigration, home, target, name, backup string, 
 		return fmt.Errorf("Host is running, but the legacy SSH alias needs attention: %w", err)
 	}
 	return printSetupReady(out, target, name, backup)
+}
+
+func installSetupService(ctx context.Context, dir, binary string) error {
+	if err := runSetupCommand(ctx, binary, "install"); err != nil {
+		return err
+	}
+	return checkSetupCapabilities(ctx, dir)
+}
+
+func checkSetupCapabilities(ctx context.Context, dir string) error {
+	if host.Edition != "connect" {
+		return nil
+	}
+	data, err := host.Call(ctx, dir, host.RPCRequest{Method: "GET", Path: "/v1/capabilities"})
+	if err != nil {
+		return err
+	}
+	var caps host.Capabilities
+	if err := json.Unmarshal(data, &caps); err != nil {
+		return err
+	}
+	if caps.Version != host.Version || !caps.Features["github_issue_tasks_v1"] {
+		return errors.New("installed Host did not register the Connect workflow")
+	}
+	return nil
 }
 
 func restoreSetupService(dir, target, name string) error {
@@ -282,4 +325,34 @@ func printSetupReady(out io.Writer, target, name, backup string) error {
 		_, err = fmt.Fprintf(out, "Previous bundle retained at: %s\n", backup)
 	}
 	return err
+}
+
+// Older Hosts did not include workflow workers in their idle shutdown check.
+func requireIdleLegacyWorkflows(ctx context.Context, dir string) error {
+	path := "/v1/github-tasks"
+	for {
+		data, err := host.Call(ctx, dir, host.RPCRequest{Method: "GET", Path: path})
+		if err != nil {
+			return fmt.Errorf("check legacy workflows before upgrading: %w", err)
+		}
+		var page struct {
+			Tasks []struct{ Running bool }
+			Next  string `json:"next_cursor"`
+		}
+		if err := json.Unmarshal(data, &page); err != nil {
+			return err
+		}
+		for _, task := range page.Tasks {
+			if task.Running {
+				return errors.New("Host has active GitHub workflows; let them finish before upgrading")
+			}
+		}
+		if page.Next == "" {
+			return nil
+		}
+		if !host.ValidID(page.Next) || path == "/v1/github-tasks?cursor="+page.Next {
+			return errors.New("invalid legacy workflow cursor")
+		}
+		path = "/v1/github-tasks?cursor=" + page.Next
+	}
 }

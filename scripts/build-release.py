@@ -25,7 +25,7 @@ def sha1(path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", default="2.4.1")
+    parser.add_argument("--version", default="2.5.0-community")
     parser.add_argument("--os", choices=["darwin", "linux", "windows", "all"],
                         help="default: current OS; all requires --cli-only")
     parser.add_argument("--arch", default="386,amd64,arm64",
